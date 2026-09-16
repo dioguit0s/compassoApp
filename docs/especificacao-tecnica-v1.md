@@ -799,6 +799,10 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 
 ## 10. Questões em aberto
 
+> **Resolvida.** *Offline-first* constava aqui como decisão não confirmada, em contradição com a
+> seção 6.2. Fica valendo a 6.2: offline-first entra na v1 desde o início. Ver
+> [`roadmap.md`](roadmap.md), seção 2.
+
 - **Recorrência da grade acadêmica versus RRULE.** Agora que a v1 tem expansão de RRULE, `classSlots`
   passou a ser um segundo mecanismo de repetição no mesmo sistema. A duplicação se justifica por
   enquanto — a grade carrega sala e disciplina, e aula não pontua — mas se ela começar a divergir em
@@ -812,9 +816,6 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 - **Curva de nível.** Os números da seção 4.4 são chute. Só se calibram com um mês de uso real.
 - **Régua de esforço.** Os exemplos de referência precisam ser escritos pelo autor, com tarefas da
   vida dele. Sem isso a escala não ancora.
-- **Offline-first.** Decisão de arquitetura ainda não confirmada. Custa esforço real de
-  implementação; a alternativa é uma v1 online-only e a sincronização depois — mas isso exige
-  reescrever a camada de dados do client.
 - **Anotações de aula.** A grade guarda um campo de notas por disciplina, o suficiente para "prova
   vale 40%" ou "professor aceita entrega atrasada". Caderno de anotações por aula é outro produto e
   está deliberadamente fora — se virar necessidade, é integração com algo existente, não uma tela

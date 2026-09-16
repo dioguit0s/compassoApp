@@ -17,16 +17,18 @@ horas — porque um app de tarefa que ignora a agenda mente sobre o tempo dispon
 ## Status
 
 📋 **Fase de especificação.** Ainda não existe código — este repositório documenta o que vai ser
-construído antes de começar a construir.
+construído antes de começar a construir. O plano de construção está no
+[roadmap](docs/roadmap.md): dez fases, marco de migração no fim da F4, v1 completa no fim da F8.
 
 ## Estrutura
 
 ```
 compasso/
 └── docs/
-    └── especificacao-tecnica-v1.md   # especificação técnica completa (escopo, modelo de dados,
-                                        # arquitetura, regras de gamificação, decisões e questões
-                                        # em aberto)
+    ├── especificacao-tecnica-v1.md   # o que vai ser construído: escopo, modelo de dados,
+    │                                 # arquitetura, regras de gamificação e decisões
+    └── roadmap.md                    # em que ordem construir: fases, critérios de saída,
+                                      # marcos, estimativas e armadilhas conhecidas
 ```
 
 ## Stack prevista
