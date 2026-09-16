@@ -35,13 +35,13 @@ abandono em apps de uso pessoal, e abandono é o modo de falha real aqui.
 ## 2. Restrições e premissas
 
 - **Multiusuário na estrutura, conta única no uso.** A v1 roda com uma conta só, criada
-  manualmente, mas o Compasso será aberto para alguns amigos próximos depois. Por isso **todo documento
+  manualmente, mas o Compasso será aberto para alguns amigos próximos depois. Por isso **toda linha
   carrega `userId` desde o primeiro commit** e toda consulta é escopada por ele. O que fica para
   depois é o cadastro, não o isolamento.
 - **Sem interação entre contas.** Nada de compartilhamento, ranking, feed ou comparação de
   progresso. Contas são silos independentes que dividem infraestrutura — não uma rede social.
 - **Escala:** ordem de dezenas de itens por semana, menos de dez contas previstas. Nenhuma decisão
-  deve ser tomada por performance; qualquer coisa que funcione com 10 mil documentos serve.
+  deve ser tomada por performance; qualquer coisa que funcione com 10 mil linhas serve.
 - **Dados de terceiros.** No momento em que um amigo usa o Compasso, o servidor doméstico passa a
   guardar rotina e vida pessoal de outra pessoa. Isso muda a exigência de backup e de cuidado com
   acesso, mesmo sendo um projeto pessoal.
@@ -73,7 +73,7 @@ abandono em apps de uso pessoal, e abandono é o modo de falha real aqui.
 | Notificações | Lembretes locais agendados no aparelho, em janela deslizante |
 | Perfil | Nome de exibição, foto ou avatar, configurações |
 | Faculdade | Grade horária do semestre: disciplinas, dias, horários e salas |
-| Isolamento | `userId` em todo documento e em toda consulta |
+| Isolamento | `userId` em toda linha e em toda consulta |
 
 ### Fora
 
@@ -186,7 +186,7 @@ estudo têm; dentista não tem.
 
 ## 5. Modelo de dados
 
-Coleções MongoDB. O princípio central: **XP e moeda são lançamentos (ledger), não contadores.**
+Tabelas PostgreSQL. O princípio central: **XP e moeda são lançamentos (ledger), não contadores.**
 
 Um contador por atributo seria mais simples, mas impossibilitaria a janela de 30 dias, que precisa
 saber *quando* cada ponto foi ganho. O ledger também permite recalcular tudo se as regras mudarem
@@ -204,14 +204,14 @@ erDiagram
     REDEMPTION ||--|| COIN_ENTRY : debita
 
     USER {
-        ObjectId _id PK
+        uuid id PK
         string displayName
         string avatarKind "initials | uploaded"
         string avatarPath "nullable"
         date createdAt
     }
     ITEM {
-        ObjectId _id PK
+        uuid id PK
         string kind "task | event"
         int effort "1,2,3,5,8"
         string primaryAttribute
@@ -222,7 +222,7 @@ erDiagram
         int postponeCount
     }
     XP_ENTRY {
-        ObjectId itemId FK
+        uuid itemId FK
         string attribute
         int points "decimos"
         date earnedAt
@@ -230,7 +230,7 @@ erDiagram
     COIN_ENTRY {
         int amount "positivo ou negativo"
         string source "task | redemption"
-        ObjectId refId FK
+        uuid refId FK
         date createdAt
     }
     REWARD {
@@ -241,11 +241,18 @@ erDiagram
     }
 ```
 
-**Toda coleção abaixo tem `userId`**, indexado, e nenhuma consulta da API pode ser escrita sem ele.
+**Toda tabela abaixo tem `userId`**, indexado, e nenhuma consulta da API pode ser escrita sem ele.
 A forma prática de garantir isso é uma camada de repositório que injeta o filtro — não a disciplina
 de lembrar em cada endpoint, que falha exatamente uma vez e vaza dado de uma conta para outra.
 
-**Nenhuma exclusão é física.** Todo documento de `items`, `rewards`, `courses`, `classSlots` e
+`DECIDIDO` **Row-Level Security ativado em todas as tabelas, como segunda camada.** A camada de
+repositório continua sendo a regra; o RLS é a rede que pega a consulta que escapou dela. A conexão
+da API define `SET LOCAL app.user_id` no início da transação e as políticas comparam `userId` com
+esse valor, de modo que uma consulta sem filtro retorna vazio em vez de retornar dado alheio. Custa
+uma política por tabela e uma linha no abrir da transação; o modo de falha que ele evita é o único
+irreversível do sistema em termos de privacidade.
+
+**Nenhuma exclusão é física.** Toda linha de `items`, `rewards`, `courses`, `classSlots` e
 `semesters` tem `deletedAt`, e a mesma camada de repositório filtra os excluídos. A exigência vem da
 sincronização, não de preferência de estilo: sem tombstone, o servidor não distingue "foi apagado no
 celular" de "ainda não chegou aqui", e o item ressuscita na sincronização seguinte. O efeito
@@ -272,7 +279,7 @@ e autenticadas por token estático.
 
 ### Grade acadêmica
 
-Quatro coleções que existem para responder uma pergunta diária: *que aula eu tenho hoje e em que
+Quatro tabelas que existem para responder uma pergunta diária: *que aula eu tenho hoje e em que
 sala?*
 
 **Aula não é item.** A grade é dado de referência, não entidade de calendário: não gera XP, não é
@@ -311,7 +318,7 @@ semestre é criar um novo, não editar o anterior.
 
 ### items
 
-Tarefa e evento são a **mesma entidade**, distinguidas pelo campo `kind`. Coleções separadas
+Tarefa e evento são a **mesma entidade**, distinguidas pelo campo `kind`. Tabelas separadas
 inviabilizariam arrastar uma tarefa para o calendário e agendá-la, que é o recurso mais útil deste
 tipo de app.
 
@@ -332,7 +339,7 @@ tipo de app.
   recurrenceEndsAt: Date | null,   // desnormalizado do UNTIL, para filtrar consultas
   status: "open" | "done",         // ignorado quando rrule != null
   completedAt: Date | null,
-  courseId: ObjectId | null,       // prova, trabalho ou entrega ligada a uma disciplina
+  courseId: uuid | null,           // prova, trabalho ou entrega ligada a uma disciplina
   postponeCount: Number,
   reminderMinutesBefore: Number | null,
   deletedAt: Date | null,          // tombstone: exclusão lógica, ver 6.6
@@ -340,18 +347,25 @@ tipo de app.
 }
 ```
 
-Invariantes que o banco não garante e a API precisa garantir:
+**Invariantes garantidos pelo banco.** Estes viram `CHECK` e chave estrangeira na migração, e valem
+mesmo contra um retry com bug ou uma edição manual no `psql` — a API não é a última linha de defesa:
 
 - `kind: "task"` usa `dueAt`; `kind: "event"` usa `startAt`/`endAt`. Nunca ambos.
 - `secondaryAttribute` nunca é igual a `primaryAttribute`.
 - `effort` nulo implica atributos nulos, e vice-versa. Item pontua ou não pontua; não existe meio
   termo.
 - `kind: "task"` exige `effort`; `kind: "event"` aceita nulo.
+- `courseId`, quando presente, aponta para uma disciplina do mesmo `userId` — chave estrangeira
+  composta `(userId, courseId)`, que é também a barreira estrutural contra vínculo entre contas.
+  Excluir uma disciplina não exclui os itens ligados a ela: `ON DELETE SET NULL` anula o vínculo e a
+  prova continua no histórico.
+
+**Invariantes que continuam sendo responsabilidade da API.** Nenhum deles é expressável como
+constraint, porque todos dependem de estado anterior ou de regra de fluxo:
+
 - `effort` é imutável quando `effortLockedAt` não é nulo.
 - Concluir um item já concluído é no-op, não gera lançamento duplicado.
 - Item sem `effort` não aceita conclusão: a rota responde 409.
-- `courseId`, quando presente, aponta para uma disciplina do mesmo `userId`. Excluir uma disciplina
-  não exclui os itens ligados a ela: o vínculo é anulado e a prova continua no histórico.
 - Item com `rrule` não usa `status` nem `completedAt` — quem carrega estado é a ocorrência.
 
 **Timezone é armazenado junto com a data.** É barato agora e caro depois: a primeira viagem ou
@@ -389,7 +403,7 @@ Dois casos de borda precisam de regra explícita, porque a RFC os define e é f�
 
 ### itemOccurrences
 
-Uma ocorrência só vira documento **quando desvia do padrão**. Enquanto a série se comporta como a
+Uma ocorrência só vira linha **quando desvia do padrão**. Enquanto a série se comporta como a
 regra diz, não existe nada gravado.
 
 ```
@@ -402,7 +416,7 @@ regra diz, não existe nada gravado.
 ```
 
 Índice único em `(itemId, occurrenceDate)`. Concluir a ocorrência de terça-feira de um treino
-semanal cria um documento aqui e gera os lançamentos de XP normalmente — a série é a regra, a
+semanal cria uma linha aqui e gera os lançamentos de XP normalmente — a série é a regra, a
 ocorrência é o fato.
 
 Isso resolve de graça o que os streaks resolviam antes de serem descartados: uma tarefa recorrente
@@ -418,7 +432,7 @@ recalculados, porque foram fatos consumados sob a regra vigente na época.
 { _id, itemId, attribute, points: Number /* décimos */, earnedAt: Date }
 ```
 
-Um item com secundário gera dois documentos. Índice composto em `(attribute, earnedAt)` para a
+Um item com secundário gera duas linhas. Índice composto em `(userId, attribute, earnedAt)` para a
 janela de 30 dias.
 
 ### coinEntries
@@ -457,7 +471,7 @@ graph LR
     User([Usuário único]) --> App[Compasso mobile]
     App -->|HTTPS/JSON| API[API do Compasso]
     App --> Notif[Notificações locais do SO]
-    API --> DB[(MongoDB)]
+    API --> DB[(PostgreSQL)]
     Tunnel[Cloudflare Tunnel] --- API
 ```
 
@@ -472,13 +486,13 @@ graph TB
     end
     subgraph Servidor doméstico
         API[API Node.js]
-        Mongo[(MongoDB)]
+        Postgres[(PostgreSQL)]
     end
 
     UI -->|leitura e escrita imediata| Local
     Local -.->|sync em background| API
     UI --> Sched
-    API -->|driver oficial| Mongo
+    API -->|Drizzle / node-postgres| Postgres
 ```
 
 `DECIDIDO` **Offline-first.** O SQLite local é a fonte de verdade da UI; a API é destino de
@@ -549,10 +563,10 @@ projeção aconteça no servidor. Expandir RRULE, aplicar exceções de ocorrên
 ativo e aplicar exceções de aula é regra de negócio, e duplicá-la no client é garantir que as duas
 versões divirjam. A exceção é o modo offline, tratado em 6.2.
 
-`POST /items/:id/complete` é a única operação que escreve em três coleções. Sem transação, uma
-falha no meio deixa XP creditado sem moeda. **MongoDB só oferece transação multi-documento em
-replica set** — mesmo de nó único. A instalação precisa ser iniciada como replica set, não como
-standalone.
+`POST /items/:id/complete` é a única operação que escreve em três tabelas. Sem transação, uma
+falha no meio deixa XP creditado sem moeda. No PostgreSQL a transação é o comportamento padrão e
+engloba a conexão: não existe configuração a fazer no banco nem operação que escape dela por
+esquecimento. É um dos motivos da troca registrada no [ADR-0001](adr/0001-postgresql-em-vez-de-mongodb.md).
 
 ### 6.5 Importação de ICS
 
@@ -581,7 +595,7 @@ sequenceDiagram
     participant U as UI
     participant L as SQLite local
     participant A as API
-    participant M as MongoDB
+    participant M as PostgreSQL
 
     U->>L: marca concluído (otimista)
     U-->>U: mostra XP e moedas ganhos
@@ -617,11 +631,19 @@ O protocolo é de duas fases:
 
 Quatro regras que sustentam isso:
 
-- **IDs são gerados no client.** Um item criado offline já nasce com `_id` definitivo. Sem isso,
-  criar sem rede exige ida ao servidor para saber a identidade, e todo retry vira duplicata.
+- **IDs são gerados no client, em UUIDv7.** Um item criado offline já nasce com `id` definitivo. Sem
+  isso, criar sem rede exige ida ao servidor para saber a identidade, e todo retry vira duplicata. O
+  UUIDv7 carrega timestamp no prefixo, então é ordenável por criação e serve de chave primária sem
+  índice extra — e, ao contrário do `ObjectId`, é gerável no Hermes sem polyfill de
+  `crypto.getRandomValues`.
 - **O cursor é o relógio do servidor, nunca o do aparelho.** Relógio de celular é ajustável pelo
   usuário e sofre com fuso; uma consulta "desde X" baseada nele perde ou repete alterações
   silenciosamente.
+- **O cursor recua alguns segundos a cada pull.** Um cursor por `updatedAt` tem uma corrida que não
+  depende do banco escolhido: uma linha escrita com `updatedAt = T1` que só faz commit depois de um
+  pull em `T2 > T1` nunca mais entra em nenhuma janela, e some sem erro e sem log. A defesa é pedir
+  desde `cursor - N segundos` e tolerar o reprocessamento — barato, porque a aplicação local é
+  idempotente por `id`. Ver a questão em aberto na seção 10.
 - **Conflito por last-write-wins comparando `updatedAt`.** Com um único usuário por conta, o único
   conflito real é o mesmo item editado em dois aparelhos offline ao mesmo tempo.
 - **Lançamentos não entram no jogo de conflito.** `xpEntries` e `coinEntries` são append-only, logo
@@ -649,7 +671,7 @@ O desenho já traz duas camadas de redundância sem custo adicional:
 Sobra a corrupção silenciosa — o cenário menos provável dos três, e o único que a replicação não
 resolve, porque sincronização propaga dado ruim em vez de guardá-lo separado.
 
-`PROPOSTA` `mongodump` comprimido diário para outro diretório, sete dias retidos, purga automática.
+`PROPOSTA` `pg_dump` comprimido diário para outro diretório, sete dias retidos, purga automática.
 Sem cópia externa, sem retenção em camadas e sem verificação automatizada de restauração: nada disso
 paga o próprio custo de manutenção num app de um usuário.
 
@@ -730,7 +752,7 @@ radar espremeria a navegação sem acrescentar informação.
 O avatar tem dois modos: **iniciais** sobre uma cor derivada do nome, que é o padrão e não exige
 nenhuma infraestrutura, e **foto enviada** pelo usuário. A foto é redimensionada para 256px no
 servidor, salva como um arquivo por conta em volume no disco e servida pelo Nginx que já existe na
-infra. Guardar imagem em base64 no Mongo infla todo documento de usuário em toda leitura; GridFS e
+infra. Guardar imagem em base64 na própria tabela infla toda leitura de `users`; `bytea` e
 object storage são resposta para um volume que o Compasso não vai ter.
 
 A captura rápida é o fluxo que determina se o Compasso será usado. Se registrar algo custar mais que
@@ -741,7 +763,7 @@ acessível de qualquer aba, não uma tela para onde é preciso navegar.
 
 | Decisão | Alternativas | Por que esta |
 |---|---|---|
-| Tarefa e evento na mesma coleção | Coleções separadas | Permite agendar uma tarefa no calendário sem migração de dados |
+| Tarefa e evento na mesma tabela | Tabelas separadas | Permite agendar uma tarefa no calendário sem migração de dados |
 | XP como ledger de lançamentos | Contador por atributo | Janela de 30 dias exige data por ponto; permite recálculo retroativo |
 | Pontos em décimos inteiros | Float | Divisão 70/30 com float acumula erro ao longo de milhares de lançamentos |
 | Divisão 70/30, não bônus | Bônus no secundário | Bônus tornaria marcar secundário sempre vantajoso |
@@ -750,7 +772,7 @@ acessível de qualquer aba, não uma tela para onde é preciso navegar.
 | Sem nível global | Nível agregado | Agregar esconde o desequilíbrio que os atributos existem para revelar |
 | `userId` em tudo desde a v1 | Adicionar quando surgir o segundo usuário | Retrofitar chave de tenant exige migração e auditoria de toda query; a esquecida vaza dado alheio |
 | Filtro por `userId` na camada de repositório | Filtrar em cada endpoint | Disciplina manual falha uma vez só, e o custo dessa vez é vazamento entre contas |
-| Avatar em arquivo no disco | Base64 no Mongo, GridFS, object storage | Uma imagem por conta e poucas contas; disco e Nginx já existem na infra |
+| Avatar em arquivo no disco | Base64 na tabela, `bytea`, object storage | Uma imagem por conta e poucas contas; disco e Nginx já existem na infra |
 | Progresso dentro do Perfil | Aba separada de estatísticas | Cinco abas sem ganho de informação; o cabeçalho de identidade já contextualiza o radar |
 | Grade acadêmica fora de `items` | Aulas como itens recorrentes | Evita materializar ~400 ocorrências por semestre e trazer RRULE para a v1; aula não é tarefa |
 | Horário de aula como string `HH:mm` | `Date` completo | Aula é hora de parede; timestamp desloca a grade inteira na primeira mudança de fuso |
@@ -758,7 +780,7 @@ acessível de qualquer aba, não uma tela para onde é preciso navegar.
 | Exceções pontuais em vez de RRULE | RRULE com EXDATE desde já | Cancelamento, troca de sala e reposição cobrem o que acontece de fato num semestre |
 | RRULE como formato, subconjunto no validador | Formato próprio; RFC completa | O ICS fala RRULE; ampliar o validador depois não exige migração |
 | Ocorrências expandidas em leitura | Materializar N meses no banco | Editar a série exigiria reescrever as ocorrências futuras a cada alteração |
-| Ocorrência só vira documento ao desviar | Um documento por ocorrência | Uma série diária de dois anos são 730 documentos que não dizem nada |
+| Ocorrência só vira linha ao desviar | Uma linha por ocorrência | Uma série diária de dois anos são 730 linhas que não dizem nada |
 | `effort` opcional | Esforço obrigatório em tudo | Consulta médica não tem esforço estimado; sem isso o radar mediria presença |
 | Importação ICS única | Sincronização bidirecional | Migrar é problema de uma vez; sincronizar é problema permanente |
 | Janela deslizante de notificações | Agendar tudo de uma vez | iOS limita a 64 pendentes; uma série diária estoura sozinha |
@@ -766,14 +788,17 @@ acessível de qualquer aba, não uma tela para onde é preciso navegar.
 | IDs gerados no client | IDs atribuídos pelo servidor | Criar item offline não pode depender de rede, e retry não pode duplicar |
 | Cursor de sync pelo relógio do servidor | Timestamp do aparelho | Relógio de celular é ajustável e perde alterações de forma silenciosa |
 | Dump diário simples, sem cópia externa | Rotina de backup em camadas | Réplica em cada aparelho e lixeira já cobrem os dois riscos prováveis; o resto não paga a manutenção |
-| MongoDB | PostgreSQL | Ver ressalva abaixo |
+| PostgreSQL | MongoDB; SQLite no servidor | Modelo relacional e plano, consulta por intervalo de datas, transação por padrão; ver [ADR-0001](adr/0001-postgresql-em-vez-de-mongodb.md) |
+| Drizzle como camada de acesso | Prisma; `pg` puro | Mesmo query API sobre Postgres e sobre `expo-sqlite`, então a consulta compartilhada vive em `packages/core` |
+| UUIDv7 como identificador | `ObjectId`; bigint sequencial | Gerável no client sem polyfill de crypto no Hermes, ordenável por tempo, serve de chave primária direto |
+| RLS além da camada de repositório | Só a camada de repositório | O repositório continua sendo a regra; o RLS é a rede que pega a query que escapou |
 
-**Ressalva sobre o MongoDB.** A escolha é do autor e é legítima se o objetivo inclui aprender
-Mongo. Vale registrar o custo: quase toda consulta do Compasso é por intervalo de datas e o modelo
-tem relacionamentos reais (item → lançamentos, recompensa → resgates), terreno em que o Postgres
-seria mais confortável e onde o autor já tem rodagem. Se a recorrência entrar depois, a diferença
-aumenta. O que o Mongo ganha aqui é flexibilidade de schema enquanto as regras de gamificação
-ainda estão sendo calibradas — que é justamente a parte que mais vai mudar.
+**Sobre a troca de banco.** A v1 foi especificada com MongoDB e a decisão foi revista antes da F0,
+com o registro completo no [ADR-0001](adr/0001-postgresql-em-vez-de-mongodb.md). O resumo: a
+justificativa original era flexibilidade de schema durante a calibração da gamificação, e ela não se
+sustentou por dois motivos — a calibração da seção 4.4 mexe em constante de configuração, não em
+schema, e o offline-first já torna o SQLite do client o lado rígido, então a migração acontece de
+qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto.
 
 ## 9. Configuração
 
@@ -781,7 +806,7 @@ ainda estão sendo calibradas — que é justamente a parte que mais vai mudar.
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
-| `MONGO_URI` | sim | Conexão com o replica set (necessário para transações) |
+| `DATABASE_URL` | sim | Conexão com o PostgreSQL |
 | `PORT` | não | Porta da API. Padrão 3000 |
 | `AUTH_TOKEN` | sim | Token estático de acesso à API na v1 |
 | `TZ_DEFAULT` | não | Fuso padrão dos itens. Padrão `America/Sao_Paulo` |
@@ -803,6 +828,14 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 > seção 6.2. Fica valendo a 6.2: offline-first entra na v1 desde o início. Ver
 > [`roadmap.md`](roadmap.md), seção 2.
 
+- **Tamanho da janela de segurança do cursor de sync.** A seção 6.6 decide que o pull recua alguns
+  segundos para não perder escrita que fez commit fora de ordem. Falta escolher o número. Curto
+  demais não cobre uma transação lenta; longo demais reprocessa à toa a cada sincronização. A
+  resposta provavelmente sai de medir a duração real do `complete`, que é a transação mais longa do
+  sistema — o que só dá para fazer depois da F6. Até lá, um valor conservador serve, porque
+  reprocessar é inofensivo. Esta questão nasceu com a troca para PostgreSQL: o change stream do
+  Mongo resolveria isso com um cursor ordenado por commit, e abrir mão dele foi o custo aceito no
+  [ADR-0001](adr/0001-postgresql-em-vez-de-mongodb.md).
 - **Recorrência da grade acadêmica versus RRULE.** Agora que a v1 tem expansão de RRULE, `classSlots`
   passou a ser um segundo mecanismo de repetição no mesmo sistema. A duplicação se justifica por
   enquanto — a grade carrega sala e disciplina, e aula não pontua — mas se ela começar a divergir em

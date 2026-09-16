@@ -24,12 +24,13 @@ primeira vez que o projeto ficar três semanas parado.
 
 ## 2. Decisões que este roadmap assume
 
-Três decisões foram tomadas para escrever este documento. Elas resolvem ambiguidades da
+Quatro decisões foram tomadas para escrever este documento. Elas resolvem ambiguidades da
 especificação e mudam a ordem das fases.
 
 | Decisão | Valor | Efeito no roadmap |
 |---|---|---|
 | Offline-first | **Na v1, desde o início** `DECIDIDO` | A camada de sincronização vira a F1, antes de qualquer tela real |
+| Banco | **PostgreSQL + Drizzle** `DECIDIDO` | Sai a configuração de replica set da F0; entram migrações e RLS. Ver [ADR-0001](adr/0001-postgresql-em-vez-de-mongodb.md) |
 | Ritmo | ~8-12h/semana, sozinho | Fases de 2 a 5 semanas, cada uma entregando algo utilizável |
 | Prioridade | **Calendário confiável primeiro** | Gamificação e economia só entram depois do marco de migração |
 
@@ -96,21 +97,29 @@ sem nenhuma funcionalidade de produto.
 **Entregas**
 
 - Monorepo com `apps/api`, `apps/mobile`, `packages/core`
-- MongoDB **iniciado como replica set de nó único** — não standalone
+- PostgreSQL com **Drizzle e migrações versionadas**, schema aplicado por migração desde o primeiro commit
+- **Row-Level Security ativado em todas as tabelas**, com a conexão da API definindo `app.user_id`
 - API Node: middleware de token estático → `userId`, e a **camada de repositório que injeta
   `userId` e filtra `deletedAt`** em toda consulta
 - Script manual de criação de conta
 - Expo com **development build** (não Expo Go), quatro abas vazias, SQLite aberto e migrado
 - Cloudflare Tunnel apontando para a API; deploy manual documentado em quatro comandos
-- Cron de `mongodump` diário, retenção de sete dias
+- Cron de `pg_dump` diário, retenção de sete dias
 - **Uma restauração manual de dump em banco descartável, conferida à mão**
 
 **Critério de saída:** o app instalado no aparelho abre, autentica, faz `GET /me` pelo túnel, grava
 a resposta no SQLite e a lê de volta depois de fechar e reabrir sem rede. E um dump restaurado abriu.
 
-**Por que o replica set agora:** `POST /items/:id/complete` escreve em três coleções sob transação,
-e MongoDB só oferece transação multi-documento em replica set. Descobrir isso na F6 significa
-reconfigurar o banco com dado dentro — dez minutos agora, uma tarde ruim depois.
+**Por que as migrações e o RLS agora:** as duas coisas são baratas num banco vazio e caras num banco
+com dado dentro. Migração aplicada desde o primeiro commit significa que o schema do servidor e o do
+SQLite evoluem pelo mesmo ritual, que é o que a F1 precisa. O RLS ligado depois exige auditar toda
+consulta que já existe para descobrir quais quebram — ligado agora, quebra na hora em que a consulta
+errada é escrita, que é quando o conserto custa minutos.
+
+**O que saiu daqui:** a configuração de replica set do MongoDB, que existia só para destravar
+transação multi-documento. No PostgreSQL a transação é padrão. Ver
+[ADR-0001](adr/0001-postgresql-em-vez-de-mongodb.md). A estimativa da fase não muda: o replica set
+saiu, as migrações entraram, e as duas custam mais ou menos o mesmo.
 
 **Por que development build agora:** notificações locais com alarme exato no Android 12+ não
 funcionam no Expo Go. Começar no Expo Go e migrar na F4 é retrabalho garantido.
@@ -125,15 +134,17 @@ começa a gerar dado que dói perder.
 ### F1 — Sincronização, com uma entidade só
 
 **Objetivo:** provar o protocolo de sincronização inteiro contra `items`, antes de existirem mais
-oito coleções para consertar junto.
+oito tabelas para consertar junto.
 
 **Entregas**
 
 - Tabela local de `items` no SQLite com colunas de controle: `dirty`, `deletedAt`, `updatedAt`
-- **IDs gerados no client**, compatíveis com `_id` do Mongo
+- **IDs gerados no client em UUIDv7** — sem polyfill de `crypto.getRandomValues` no Hermes
 - CRUD local completo, escrita imediata, exclusão lógica por tombstone
 - `POST /sync/push` e `GET /sync/pull?cursor=`
 - **Cursor pelo relógio do servidor**, nunca pelo do aparelho
+- **Janela de segurança no cursor**: o pull pede desde `cursor - N segundos` para não perder escrita
+  que fez commit fora de ordem de `updatedAt`
 - Conflito por last-write-wins comparando `updatedAt`
 - Purga de tombstones dos dois lados aos 30 dias
 - Disparo da sincronização na abertura do app e em "puxar para atualizar"
@@ -159,7 +170,7 @@ preserva o desenho e pode ser completado a qualquer momento depois, sem migraç�
 | IDs no client, tombstones, cursor do servidor | Sincronização em tarefa de background |
 | Push/pull na abertura e em pull-to-refresh | Resolução de conflito com aviso na UI |
 | LWW silencioso | Fila de retry com backoff |
-| Testes dos quatro cenários acima | Sincronização parcial por coleção |
+| Testes dos quatro cenários acima | Sincronização parcial por tabela |
 
 O que **não** pode ser cortado é o trio IDs-no-client, tombstone e cursor-do-servidor: os três
 mudam o formato do dado, e adicioná-los depois exige migração e auditoria.
@@ -202,7 +213,7 @@ item criado nesta fase nasce como compromisso puro.
   consumido pela API e pelo app a partir do mesmo código
 - Testes do expansor cobrindo explicitamente os dois casos de borda da especificação:
   `BYMONTHDAY=31` em mês de 30 dias é **pulado**, e 29 de fevereiro só ocorre em ano bissexto
-- Coleção `itemOccurrences` com índice único em `(itemId, occurrenceDate)`
+- Tabela `itemOccurrences` com índice único em `(itemId, occurrenceDate)`
 - Rotas de ocorrência: concluir, cancelar, mover, editar
 - `GET /agenda?from=&to=` projetando no servidor
 - Na UI, toda edição de série pergunta o alcance: **só esta ocorrência** ou **esta e as futuras**
@@ -257,7 +268,7 @@ antes de confiar.
 
 **Entregas**
 
-- Coleções `semesters`, `courses`, `classSlots`, `classExceptions`, todas na sincronização
+- Tabelas `semesters`, `courses`, `classSlots`, `classExceptions`, todas na sincronização
 - **Horário como string `HH:mm`**, hora de parede, nunca `Date`
 - Tela Semestre, alcançada pelo cabeçalho da aba Calendário, não por uma quinta aba
 - Aulas do dia **projetadas** na aba Hoje: horário, disciplina, sala, na cor da disciplina, sem
@@ -398,11 +409,11 @@ Coisas que custam minutos se tratadas na fase certa e dias se descobertas depois
 
 | Armadilha | Fase | Por quê |
 |---|---|---|
-| MongoDB standalone | F0 | Transação multi-documento exige replica set; reconfigurar com dado dentro é pior |
+| RLS ligado depois | F0 | Ligar com consultas já escritas exige auditar todas para achar as que quebram |
 | Expo Go | F0 | Alarme exato do Android 12+ e notificações em background não funcionam nele |
 | Fuso horário no Hermes | F0 | O runtime de RN historicamente vem sem ICU completo, e formatação por fuso quebra. Um app de calendário precisa resolver isso **antes** da primeira tela com data |
 | `packages/core` no Metro | F0 | Compartilhar TypeScript entre Node e RN em monorepo exige configuração de resolver; descobrir isso na F3 trava a fase mais delicada |
-| Formato do ID no client | F1 | `_id` gerado no aparelho precisa ser decidido de uma vez; trocar depois é migração |
+| Formato do ID no client | F1 | O `id` gerado no aparelho precisa ser decidido de uma vez; trocar depois é migração |
 | Relógio do aparelho no cursor | F1 | Perde alterações silenciosamente — sem erro, sem log, só dado faltando |
 | Idempotência da conclusão | F6 | Sem chave, um push repetido credita XP duas vezes e corrompe o ledger sem alarme |
 | Congelamento derivado da data | F6 | Adiar destravaria o esforço, que é a trapaça que a regra existe para impedir |

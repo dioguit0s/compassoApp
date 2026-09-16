@@ -27,15 +27,17 @@ compasso/
 └── docs/
     ├── especificacao-tecnica-v1.md   # o que vai ser construído: escopo, modelo de dados,
     │                                 # arquitetura, regras de gamificação e decisões
-    └── roadmap.md                    # em que ordem construir: fases, critérios de saída,
-                                      # marcos, estimativas e armadilhas conhecidas
+    ├── roadmap.md                    # em que ordem construir: fases, critérios de saída,
+    │                                 # marcos, estimativas e armadilhas conhecidas
+    └── adr/                          # decisões isoladas e datadas, com as alternativas
+        └── 0001-postgresql-em-vez-de-mongodb.md
 ```
 
 ## Stack prevista
 
 - **Client**: React Native / Expo, SQLite local (offline-first)
 - **API**: Node.js
-- **Banco**: MongoDB (replica set, para transações)
+- **Banco**: PostgreSQL, com Drizzle e migrações versionadas ([ADR-0001](docs/adr/0001-postgresql-em-vez-de-mongodb.md))
 - **Infra**: servidor doméstico, exposto via Cloudflare Tunnel
 
 ## Pilares de design
@@ -53,8 +55,11 @@ fonte de verdade atual. Ela é dividida em seções normativas (marcadas `DECIDI
 sujeitas a revisão (marcadas `PROPOSTA`), além de uma seção final de questões em aberto — vale
 começar por ali para saber o que ainda está em jogo antes de qualquer decisão de código.
 
+As decisões que foram revistas depois da especificação inicial vivem em
+[`docs/adr/`](docs/adr/), uma por arquivo, com as alternativas descartadas e o motivo. Quando um ADR
+e a especificação divergirem, o ADR é mais recente.
+
 ## Próximos passos
 
 - Calibrar a curva de nível e a régua de esforço com uso real
-- Confirmar offline-first como decisão de arquitetura definitiva
 - Iniciar a implementação a partir da camada de dados (`items`, `xpEntries`, `coinEntries`)
