@@ -1,6 +1,4 @@
-import { configurarAleatoriedade } from '@compasso/core';
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
-import * as Crypto from 'expo-crypto';
 import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -15,11 +13,6 @@ import { ProvedorDeAvisos } from '../src/ui/Aviso';
 import { observarMudancas, reagendar, registrarTarefaDeBackground } from '../src/notificacoes';
 import { atualizarPerfil } from '../src/perfil';
 import { sincronizarAgora } from '../src/sync';
-
-// UUIDv7 do core usa a aleatoriedade nativa do expo-crypto — sem polyfill global no Hermes.
-configurarAleatoriedade((bytes) => {
-  Crypto.getRandomValues(bytes);
-});
 
 export default function Raiz() {
   const { success, error } = useMigrations(db, migracoes);
