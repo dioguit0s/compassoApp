@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 
 /**
@@ -79,11 +80,14 @@ export async function enviarArquivo<T>(
   limiteMs = 120_000,
 ): Promise<T> {
   const form = new FormData();
-  // React Native aceita { uri, name, type } como arquivo em FormData.
+  // O fetch global do Expo (SDK 57) não aceita o { uri, name, type } do React Native: a parte do
+  // multipart precisa ser um Blob ou ter bytes() ("Unsupported FormDataPart implementation",
+  // visto no emulador). O File do expo-file-system lê o conteúdo; nome e tipo vão nos cabeçalhos.
+  const conteudo = new File(arquivo.uri);
   form.append('arquivo', {
-    uri: arquivo.uri,
     name: arquivo.name,
     type: arquivo.mimeType ?? 'application/octet-stream',
+    bytes: () => conteudo.bytes(),
   } as unknown as Blob);
   const controle = new AbortController();
   const timer = setTimeout(() => controle.abort(), limiteMs);
