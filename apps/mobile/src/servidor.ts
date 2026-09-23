@@ -61,3 +61,34 @@ export async function chamarApi<T>(
     clearTimeout(timer);
   }
 }
+
+/** Envio multipart (importação de ICS). Sem `content-type`: o fetch monta o boundary. */
+export async function enviarArquivo<T>(
+  conexao: ConexaoServidor,
+  caminho: string,
+  arquivo: { uri: string; name: string; mimeType?: string },
+  limiteMs = 120_000,
+): Promise<T> {
+  const form = new FormData();
+  // React Native aceita { uri, name, type } como arquivo em FormData.
+  form.append('arquivo', {
+    uri: arquivo.uri,
+    name: arquivo.name,
+    type: arquivo.mimeType ?? 'text/calendar',
+  } as unknown as Blob);
+  const controle = new AbortController();
+  const timer = setTimeout(() => controle.abort(), limiteMs);
+  try {
+    const r = await fetch(`${conexao.url}${caminho}`, {
+      method: 'POST',
+      body: form,
+      signal: controle.signal,
+      headers: { authorization: `Bearer ${conexao.token}` },
+    });
+    const corpo = (await r.json().catch(() => ({}))) as T & { erro?: string };
+    if (!r.ok) throw new Error(corpo.erro ?? `HTTP ${r.status}`);
+    return corpo;
+  } finally {
+    clearTimeout(timer);
+  }
+}

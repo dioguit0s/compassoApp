@@ -123,6 +123,8 @@ export const items = pgTable(
       .notNull()
       .default('open'),
     completedAt: timestamp(tz),
+    /** UID do VEVENT de origem na importação de ICS; null para itens nativos. */
+    sourceUid: text(),
     postponeCount: integer().notNull().default(0),
     reminderMinutesBefore: integer(),
     deletedAt: timestamp(tz),
@@ -139,6 +141,8 @@ export const items = pgTable(
     index('items_deleted_at_idx').on(t.deletedAt),
     // Alvo da FK composta de item_occurrences: o desvio só aponta para item da mesma conta.
     uniqueIndex('items_user_id_id_idx').on(t.userId, t.id),
+    // Reimportar o mesmo .ics atualiza em vez de duplicar (especificação §6.5).
+    uniqueIndex('items_user_id_source_uid_idx').on(t.userId, t.sourceUid),
     check('items_kind_check', sql`${t.kind} in ('task', 'event')`),
     check('items_status_check', sql`${t.status} in ('open', 'done')`),
     check('items_effort_check', sql`${t.effort} in (1, 2, 3, 5, 8)`),

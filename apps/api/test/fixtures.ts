@@ -17,6 +17,7 @@ export function evento(extra: Partial<ItemWire> = {}): ItemWire {
     allDay: false,
     timezone: 'America/Sao_Paulo',
     rrule: null,
+    sourceUid: null,
     recurrenceEndsAt: null,
     status: 'open',
     completedAt: null,

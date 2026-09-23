@@ -4,10 +4,16 @@ import { eq } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Button, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Button, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { db } from '../../src/db';
 import { atualizarPerfil } from '../../src/perfil';
 import { esquecerConexao, lerConexao, salvarConexao } from '../../src/servidor';
+import {
+  abrirAjusteDeAlarmeExato,
+  estadoDaPermissao,
+  pedirPermissao,
+  type EstadoPermissao,
+} from '../../src/notificacoes';
 import { sincronizarAgora } from '../../src/sync';
 
 export default function Perfil() {
@@ -21,8 +27,11 @@ export default function Perfil() {
   const [temConexao, setTemConexao] = useState<boolean | null>(null);
   const [estado, setEstado] = useState('');
 
+  const [permissao, setPermissao] = useState<EstadoPermissao | null>(null);
+
   useEffect(() => {
     void lerConexao().then((c) => setTemConexao(c !== null));
+    void estadoDaPermissao().then(setPermissao);
   }, []);
 
   async function atualizar() {
@@ -77,6 +86,39 @@ export default function Perfil() {
       ) : null}
 
       <View style={estilos.bloco}>
+        <Text style={estilos.subtitulo}>Lembretes</Text>
+        {permissao === 'concedida' ? (
+          <Text style={estilos.detalhe}>Ativados. Disparam neste aparelho, mesmo sem rede.</Text>
+        ) : permissao === 'negada' ? (
+          <Text style={[estilos.detalhe, estilos.aviso]}>
+            Notificações bloqueadas: os lembretes NÃO vão disparar. Libere nas configurações do
+            sistema.
+          </Text>
+        ) : (
+          <Button
+            title="Ativar lembretes"
+            onPress={async () => setPermissao(await pedirPermissao())}
+          />
+        )}
+        {Platform.OS === 'android' ? (
+          <>
+            <Text style={estilos.detalhe}>
+              Se um lembrete chegar atrasado, confira em Configurações → Apps → Compasso → Alarmes e
+              lembretes. Sem essa permissão o Android adia os disparos.
+            </Text>
+            <Button title="Abrir Alarmes e lembretes" onPress={abrirAjusteDeAlarmeExato} />
+          </>
+        ) : null}
+        <Link href="/notificacoes" style={estilos.link}>
+          Ver lembretes agendados
+        </Link>
+      </View>
+
+      <View style={estilos.bloco}>
+        <Text style={estilos.subtitulo}>Configurações</Text>
+        <Link href="/importar" style={estilos.link}>
+          Importar calendário (.ics do Google)
+        </Link>
         {/* Prova de consumo do packages/core pelo Metro (issue #8). */}
         <Text style={estilos.detalhe}>Escala de esforço (do core): {ESFORCOS.join(' · ')}</Text>
         <Link href="/diagnostico" style={estilos.link}>
@@ -140,4 +182,5 @@ const estilos = StyleSheet.create({
   bloco: { gap: 12 },
   campo: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, padding: 10 },
   link: { color: '#2F6B8C', textAlign: 'center', padding: 8 },
+  aviso: { color: '#8C2F4A' },
 });

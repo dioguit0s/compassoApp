@@ -33,6 +33,8 @@ export const esquemaItem = z
     allDay: z.boolean(),
     timezone: z.string().min(1).max(64),
     rrule: z.string().max(1000).nullable(),
+    /** UID de origem na importação de ICS (null para itens nativos). Idempotência da reimportação. */
+    sourceUid: z.string().max(1000).nullable().default(null),
     recurrenceEndsAt: dataOpcional,
     status: z.enum(['open', 'done']),
     completedAt: dataOpcional,

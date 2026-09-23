@@ -20,6 +20,7 @@ export function novoCompromisso(titulo: string, inicio: Date, fim: Date | null):
     allDay: false,
     timezone: FUSO_PADRAO,
     rrule: null,
+    sourceUid: null,
     completedAt: null,
     reminderMinutesBefore: null,
   };

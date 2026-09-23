@@ -23,6 +23,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
+import type { PlanoDeImportacao } from '../ics';
 import type { Tx } from './banco';
 import { itemOccurrences, items, users } from './schema';
 
@@ -49,6 +50,7 @@ function itemParaWire(l: LinhaItem): ItemWire {
     allDay: l.allDay,
     timezone: l.timezone,
     rrule: l.rrule,
+    sourceUid: l.sourceUid,
     recurrenceEndsAt: paraIso(l.recurrenceEndsAt),
     status: l.status,
     completedAt: paraIso(l.completedAt),
@@ -337,6 +339,161 @@ export function criarRepositorios(tx: Tx, userId: string) {
     },
   };
 
+  const importacaoRepo = {
+    /**
+     * Aplica um plano de importação de ICS numa transação (especificação §6.5). Idempotente por
+     * `source_uid`: o que já existe é atualizado só se mudou; o que não existe é criado. Item que
+     * o usuário excluiu no Compasso não volta. Esforço e atributos de um item já importado não são
+     * tocados — a importação só cria compromissos puros.
+     */
+    async aplicar(plano: PlanoDeImportacao) {
+      const { rows } = await tx.execute<{ agora: string }>(sql`select now() as agora`);
+      const agora = new Date(rows[0]!.agora);
+      const resumo = {
+        criados: 0,
+        atualizados: 0,
+        inalterados: 0,
+        desvios: 0,
+        expandidos: plano.expandidos,
+        ignorados: [...plano.ignorados],
+      };
+      const uids = plano.itens.map((i) => i.sourceUid);
+      const existentes = new Map<string, LinhaItem>();
+      for (let i = 0; i < uids.length; i += 1000) {
+        const lote = await tx
+          .select()
+          .from(items)
+          .where(and(doUsuario, inArray(items.sourceUid, uids.slice(i, i + 1000))));
+        for (const l of lote) existentes.set(l.sourceUid!, l);
+      }
+
+      const idPorUid = new Map<string, string>();
+      const mesmaData = (a: Date | null, b: Date | null) =>
+        (a?.getTime() ?? null) === (b?.getTime() ?? null);
+      for (const imp of plano.itens) {
+        const campos = {
+          title: imp.title,
+          notes: imp.notes,
+          allDay: imp.allDay,
+          startAt: imp.startAt,
+          endAt: imp.endAt,
+          timezone: imp.timezone,
+          rrule: imp.rrule,
+          recurrenceEndsAt: imp.rrule
+            ? fimDaSerie({
+                rrule: imp.rrule,
+                inicio: imp.startAt,
+                duracaoMs: imp.endAt ? imp.endAt.getTime() - imp.startAt.getTime() : 0,
+                fuso: imp.timezone,
+              })
+            : null,
+        };
+        const atual = existentes.get(imp.sourceUid);
+        if (!atual) {
+          const id = novoId();
+          await tx.insert(items).values({
+            ...campos,
+            id,
+            userId,
+            kind: 'event',
+            sourceUid: imp.sourceUid,
+            createdAt: agora,
+            updatedAt: agora,
+          });
+          idPorUid.set(imp.sourceUid, id);
+          resumo.criados++;
+          continue;
+        }
+        idPorUid.set(imp.sourceUid, atual.id);
+        if (atual.deletedAt) {
+          resumo.ignorados.push({
+            uid: imp.sourceUid,
+            titulo: imp.title,
+            motivo: 'excluído no Compasso',
+          });
+          continue;
+        }
+        const igual =
+          atual.title === campos.title &&
+          atual.notes === campos.notes &&
+          atual.allDay === campos.allDay &&
+          mesmaData(atual.startAt, campos.startAt) &&
+          mesmaData(atual.endAt, campos.endAt) &&
+          atual.timezone === campos.timezone &&
+          atual.rrule === campos.rrule;
+        if (igual) {
+          resumo.inalterados++;
+          continue;
+        }
+        await tx
+          .update(items)
+          .set({ ...campos, updatedAt: agora })
+          .where(and(doUsuario, eq(items.id, atual.id)));
+        resumo.atualizados++;
+      }
+
+      for (const d of plano.desvios) {
+        const itemId = idPorUid.get(d.sourceUidDaSerie);
+        if (!itemId) continue;
+        const campos = d.cancelada
+          ? {
+              type: 'cancelled' as const,
+              startAt: null,
+              endAt: null,
+              titleOverride: null,
+              notesOverride: null,
+            }
+          : {
+              type: d.startAt ? ('moved' as const) : ('edited' as const),
+              startAt: d.startAt,
+              endAt: d.endAt,
+              titleOverride: d.titleOverride,
+              notesOverride: d.notesOverride,
+            };
+        const [atual] = await tx
+          .select()
+          .from(itemOccurrences)
+          .where(
+            and(
+              eq(itemOccurrences.itemId, itemId),
+              eq(itemOccurrences.occurrenceDate, d.occurrenceDate),
+            ),
+          );
+        if (
+          atual &&
+          !atual.deletedAt &&
+          atual.type === campos.type &&
+          mesmaData(atual.startAt, campos.startAt) &&
+          mesmaData(atual.endAt, campos.endAt) &&
+          atual.titleOverride === campos.titleOverride &&
+          atual.notesOverride === campos.notesOverride
+        ) {
+          continue;
+        }
+        await tx
+          .insert(itemOccurrences)
+          .values({
+            ...campos,
+            id: atual?.id ?? novoId(),
+            userId,
+            itemId,
+            occurrenceDate: d.occurrenceDate,
+            status: 'open',
+            completedAt: null,
+            deletedAt: null,
+            createdAt: atual?.createdAt ?? agora,
+            updatedAt: agora,
+          })
+          .onConflictDoUpdate({
+            target: [itemOccurrences.itemId, itemOccurrences.occurrenceDate],
+            set: { ...campos, deletedAt: null, updatedAt: agora },
+          });
+        resumo.desvios++;
+      }
+      return resumo;
+    },
+  };
+
   return {
     usuarios: {
       /** A tabela users é o caso em que a própria linha é o dono: filtra por `id`. */
@@ -348,6 +505,7 @@ export function criarRepositorios(tx: Tx, userId: string) {
 
     itens: itensRepo,
     ocorrencias: ocorrenciasRepo,
+    importacao: importacaoRepo,
 
     sync: {
       /**

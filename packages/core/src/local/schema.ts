@@ -56,6 +56,7 @@ export const items = sqliteTable(
       .notNull()
       .default('open'),
     completedAt: data(),
+    sourceUid: text(),
     postponeCount: integer().notNull().default(0),
     reminderMinutesBefore: integer(),
     deletedAt: data(),

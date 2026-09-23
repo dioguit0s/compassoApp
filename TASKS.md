@@ -14,7 +14,7 @@ mova o registro para o PR/commit correspondente.
 de São Paulo (ADR-0003). Commits quando fizer sentido.
 
 **Parar e perguntar se:** decisão de produto (#55 fim de semestre na F5; #64 congelamento e #65
-estorno na F6) ou contradição com especificação/roadmap/ADR.
+estorno na F6) ou contradição com especificação/roadmap/ADR. → **Parado em #55.**
 
 ### Checklist
 - [x] F0 e F1 (ver commits até 53f6b11)
@@ -22,8 +22,8 @@ estorno na F6) ou contradição com especificação/roadmap/ADR.
 - [x] #27 consulta por intervalo + funções de calendário no core
 - [x] #28 semana, #29 mês, #30 alternância, #31 Hoje, #32 captura, #33 detalhe, #34 dia inteiro,
       #35 distinção visual (código; aparelho pendente)
-- [ ] F3 #37–#45 recorrência
-- [ ] F4 #47–#53 notificações e ICS
+- [x] F3 #37–#45 recorrência (ADR-0004)
+- [x] F4 #47–#53 notificações e ICS (docs/notificacoes.md)
 - [ ] revisar o próprio diff
 
 ### Decisões tomadas
@@ -35,8 +35,12 @@ estorno na F6) ou contradição com especificação/roadmap/ADR.
 - Tela provisória da F1 removida; Perfil mostra a última sincronização
 
 ### Pendências para o usuário
-- #14, #25, #36: critérios de saída no aparelho real (captura < 3 s cronometrada)
+- #14, #25, #36, #46, #54: critérios de saída no aparelho real
+- #55: decisão de fim de semestre, antes da F5
 
 ### Não confirmado
 - Telas não foram vistas rodando: sem emulador neste ambiente; só typecheck e `expo export`
 - `Intl` com `timeZone` e zod v4 no Hermes do aparelho
+- Notificações e tarefa de background: nada disparou de verdade (sem aparelho); só a lógica pura
+  está testada
+- Se o alarme exato foi negado no Android: o app não consegue saber (expo-notifications não expõe)

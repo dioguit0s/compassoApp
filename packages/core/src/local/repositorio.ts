@@ -84,6 +84,7 @@ export function localParaWire(l: ItemLocal): ItemWire {
     allDay: l.allDay,
     timezone: l.timezone,
     rrule: l.rrule,
+    sourceUid: l.sourceUid,
     recurrenceEndsAt: iso(l.recurrenceEndsAt),
     status: l.status,
     completedAt: iso(l.completedAt),
@@ -451,6 +452,7 @@ export class RepositorioLocal implements ArmazemLocal {
       allDay: item.allDay,
       timezone: item.timezone,
       rrule: serializarRRule({ ...regra, count: restante }),
+      sourceUid: null,
       completedAt: null,
       reminderMinutesBefore: item.reminderMinutesBefore,
     };

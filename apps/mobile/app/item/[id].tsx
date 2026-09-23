@@ -21,6 +21,7 @@ import {
   View,
 } from 'react-native';
 import { fusoDoAparelhoDifere, tituloDoDia } from '../../src/datasUi';
+import { pedirPermissao } from '../../src/notificacoes';
 import { repositorio } from '../../src/sync';
 import { useTema } from '../../src/tema';
 import { CampoDataHora } from '../../src/ui/CampoDataHora';
@@ -321,7 +322,11 @@ function Formulario({
           return (
             <Pressable
               key={l.rotulo}
-              onPress={() => setLembrete(l.minutos)}
+              onPress={() => {
+                setLembrete(l.minutos);
+                // Momento com contexto para pedir a permissão: a pessoa acabou de pedir um lembrete.
+                if (l.minutos !== null) void pedirPermissao();
+              }}
               style={[
                 estilos.chip,
                 { borderColor: tema.borda },
