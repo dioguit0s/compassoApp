@@ -1,5 +1,6 @@
 import {
   aulasDoDia,
+  corDerivadaDoNome,
   deveCongelar,
   efeitoDaConclusao,
   FUSO_PADRAO,
@@ -1259,6 +1260,66 @@ export function criarRepositorios(tx: Tx, userId: string) {
       async atual(): Promise<Usuario | null> {
         const [linha] = await tx.select().from(users).where(eq(users.id, userId));
         return linha ?? null;
+      },
+
+      /** `PATCH /me`: nome (a cor das iniciais acompanha) e lembrete padrão. */
+      async editar(m: { displayName?: string; defaultReminderMinutes?: number | null }) {
+        const campos: Partial<typeof users.$inferInsert> = { updatedAt: await relogio() };
+        if (m.displayName !== undefined) {
+          campos.displayName = m.displayName.trim();
+          campos.accentColor = corDerivadaDoNome(campos.displayName);
+        }
+        if (m.defaultReminderMinutes !== undefined)
+          campos.defaultReminderMinutes = m.defaultReminderMinutes;
+        await tx.update(users).set(campos).where(eq(users.id, userId));
+        return (await this.atual())!;
+      },
+
+      /** Troca o avatar; devolve o caminho anterior (para o arquivo ser apagado). */
+      async definirAvatar(caminho: string | null): Promise<string | null> {
+        const atual = await this.atual();
+        await tx
+          .update(users)
+          .set({
+            avatarKind: caminho ? 'uploaded' : 'initials',
+            avatarPath: caminho,
+            updatedAt: await relogio(),
+          })
+          .where(eq(users.id, userId));
+        return atual?.avatarPath ?? null;
+      },
+    },
+
+    lixeira: {
+      /** Itens excluídos ainda dentro da retenção (os mais antigos já foram purgados). */
+      async listar(dias: number): Promise<ItemWire[]> {
+        const linhas = await tx
+          .select()
+          .from(items)
+          .where(
+            and(
+              doUsuario,
+              isNotNull(items.deletedAt),
+              gt(items.deletedAt, sql`now() - make_interval(days => ${dias})`),
+            ),
+          )
+          .orderBy(desc(items.deletedAt));
+        return linhas.map(itemParaWire);
+      },
+
+      /**
+       * Restaurar: anula `deleted_at`. `updated_at` = relógio do banco, para vencer o tombstone
+       * nos aparelhos pelo LWW. Série volta com os desvios dela (eles não foram excluídos).
+       */
+      async restaurar(id: string): Promise<ItemWire> {
+        const agora = await relogio();
+        const [l] = await tx
+          .update(items)
+          .set({ deletedAt: null, updatedAt: agora })
+          .where(and(doUsuario, eq(items.id, id), isNotNull(items.deletedAt)))
+          .returning();
+        if (!l) throw new ErroDeOcorrencia(404, 'item não está na lixeira');
+        return itemParaWire(l);
       },
     },
 

@@ -1,0 +1,21 @@
+# /etc/nginx/sites-available/compasso — o túnel aponta para cá (porta 8080), não direto para a API.
+# Serve as fotos de perfil do disco e repassa o resto para a API (especificação §7).
+server {
+    listen 127.0.0.1:8080;
+
+    # Fotos de perfil: AVATAR_DIR. O nome do arquivo é aleatório e muda a cada troca de foto,
+    # então pode ser cacheado para sempre. Sem listagem de diretório.
+    location /avatares/ {
+        alias /var/lib/compasso/avatares/;
+        autoindex off;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        # Importação de ICS e foto de perfil chegam por upload.
+        client_max_body_size 25m;
+    }
+}

@@ -363,6 +363,36 @@ export class RepositorioLocal implements ArmazemLocal {
       .run();
   }
 
+  /**
+   * Lixeira (§5, issue #86): itens excluídos que ainda não foram purgados, mais recentes primeiro.
+   * A purga local e a do servidor tiram os de mais de 30 dias.
+   */
+  lixeira(): ItemLocal[] {
+    return this.db
+      .select()
+      .from(items)
+      .where(isNotNull(items.deletedAt))
+      .orderBy(desc(items.deletedAt))
+      .all();
+  }
+
+  /**
+   * Restaurar: anula o tombstone, offline, e sincroniza. Série volta com os desvios dela (eles
+   * não foram excluídos). Item cuja disciplina foi excluída volta sem o vínculo, que já tinha sido
+   * anulado.
+   */
+  restaurar(id: string): ItemLocal {
+    const atual = this.db.select().from(items).where(eq(items.id, id)).get();
+    if (!atual?.deletedAt) throw new ErroDeValidacao(['item não está na lixeira']);
+    const t = this.carimbo(atual.updatedAt);
+    this.db
+      .update(items)
+      .set({ deletedAt: null, updatedAt: t, dirty: true })
+      .where(eq(items.id, id))
+      .run();
+    return { ...atual, deletedAt: null, updatedAt: t, dirty: true };
+  }
+
   obter(id: string): ItemLocal | null {
     return (
       this.db

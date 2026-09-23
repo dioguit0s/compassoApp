@@ -67,7 +67,13 @@ export default function Raiz() {
       </View>
     );
   }
-  if (!success) return null;
+  if (!success) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Abrindo o Compasso…</Text>
+      </View>
+    );
+  }
 
   return (
     <ProvedorDeDisciplinas>

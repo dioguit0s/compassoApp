@@ -3,24 +3,13 @@ import { HTTPException } from 'hono/http-exception';
 import { autenticacao, type VariaveisAutenticadas } from './auth';
 import type { Config } from './config';
 import type { Banco } from './db/banco';
-import type { Usuario } from './db/repositorios';
 import { rotasDaEconomia } from './economia';
+import { rotasDePerfil } from './perfil';
+import { serializarUsuario } from './serializar';
 import { rotasDaGrade } from './grade';
 import { rotasDeImportacao } from './importacao';
 import { rotasDeItens } from './itens';
 import { rotasDeSync } from './sync';
-
-export function serializarUsuario(u: Usuario) {
-  return {
-    id: u.id,
-    displayName: u.displayName,
-    avatarKind: u.avatarKind,
-    avatarPath: u.avatarPath,
-    accentColor: u.accentColor,
-    createdAt: u.createdAt.toISOString(),
-    updatedAt: u.updatedAt.toISOString(),
-  };
-}
 
 export function criarApp(banco: Banco, config: Config) {
   const app = new Hono();
@@ -48,6 +37,7 @@ export function criarApp(banco: Banco, config: Config) {
   autenticada.route('/import', rotasDeImportacao());
   autenticada.route('/', rotasDaGrade());
   autenticada.route('/', rotasDaEconomia());
+  autenticada.route('/', rotasDePerfil(config));
 
   app.route('/', autenticada);
   return app;

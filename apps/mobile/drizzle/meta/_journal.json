@@ -50,6 +50,13 @@
       "when": 1790165479109,
       "tag": "0006_economia",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790165948821,
+      "tag": "0007_perfil_preferencias",
+      "breakpoints": true
     }
   ]
 }

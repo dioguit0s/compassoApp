@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { inject } from 'vitest';
 import { criarApp } from '../src/app';
 import type { Config } from '../src/config';
@@ -10,6 +12,8 @@ export const config: Config = {
   tzDefault: 'America/Sao_Paulo',
   trashRetentionDays: 30,
   syncCursorWindowSeconds: 60,
+  avatarDir: join(tmpdir(), `compasso-avatares-${process.pid}`),
+  avatarMaxBytes: 5 * 1024 * 1024,
 };
 
 export async function ambiente() {

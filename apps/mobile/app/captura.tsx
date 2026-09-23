@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { tituloDoDia } from '../src/datasUi';
 import { novoCompromisso } from '../src/novoItem';
+import { perfilLocal } from '../src/perfil';
 import { repositorio } from '../src/sync';
 import { SeletorEsforco, type Pontuacao } from '../src/ui/SeletorEsforco';
 import { useTema } from '../src/tema';
@@ -41,12 +42,15 @@ export default function Captura() {
   const salvar = () => {
     const t = titulo.trim();
     if (!t) return;
+    // Lembrete padrão das configurações (issue #85).
+    const lembrete = { reminderMinutesBefore: perfilLocal()?.defaultReminderMinutes ?? null };
     try {
       if (tarefa && pontuacao.effort !== null) {
         // Tarefa: prazo em vez de bloco de tempo; exige esforço (§4.8).
         repositorio.criar({
           ...novoCompromisso(t, inicio, null),
           ...pontuacao,
+          ...lembrete,
           kind: 'task',
           startAt: null,
           dueAt: inicio,
@@ -54,11 +58,17 @@ export default function Captura() {
       } else if (diaInteiro) {
         const dia: Dia = diaDe(inicio);
         const { startAt, endAt } = limitesDiaInteiro(dia, dia);
-        repositorio.criar({ ...novoCompromisso(t, startAt, endAt), ...pontuacao, allDay: true });
+        repositorio.criar({
+          ...novoCompromisso(t, startAt, endAt),
+          ...pontuacao,
+          ...lembrete,
+          allDay: true,
+        });
       } else {
         repositorio.criar({
           ...novoCompromisso(t, inicio, new Date(inicio.getTime() + HORA_MS)),
           ...pontuacao,
+          ...lembrete,
         });
       }
       router.back();

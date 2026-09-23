@@ -17,6 +17,8 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+# Fotos de perfil (AVATAR_DIR).
+ReadWritePaths=/var/lib/compasso/avatares
 
 [Install]
 WantedBy=multi-user.target

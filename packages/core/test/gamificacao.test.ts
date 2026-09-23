@@ -113,3 +113,23 @@ describe('congelamento do esforço (#64, #69)', () => {
     ).toBe(true);
   });
 });
+
+describe('histórico mensal (#87)', () => {
+  it('meses sem lançamento aparecem zerados; a soma bate com o acumulado', async () => {
+    const { historicoMensal } = await import('../src');
+    const l = [
+      { attribute: 'corpo' as const, points: 50, earnedAt: new Date('2026-06-10T15:00:00Z') },
+      { attribute: 'mente' as const, points: 35, earnedAt: new Date('2026-08-01T02:00:00Z') }, // 31/07 em SP
+      { attribute: 'mente' as const, points: 20, earnedAt: new Date('2026-09-20T12:00:00Z') },
+    ];
+    const h = historicoMensal(l, new Date('2026-09-23T12:00:00Z'));
+    expect(h.map((m) => [m.mes, m.total])).toEqual([
+      ['2026-06', 50],
+      ['2026-07', 35],
+      ['2026-08', 0],
+      ['2026-09', 20],
+    ]);
+    expect(h.reduce((n, m) => n + m.total, 0)).toBe(105);
+    expect(historicoMensal([], new Date())).toEqual([]);
+  });
+});

@@ -5,6 +5,7 @@ import {
   type ResultadoSync,
   type Transporte,
 } from '@compasso/core';
+import * as tabelasLocais from '@compasso/core/local';
 import { RepositorioLocal } from '@compasso/core/local';
 import { db } from './db';
 import { chamarApi, lerConexao } from './servidor';
@@ -31,6 +32,22 @@ const transporte: Transporte = {
 
 const motor = new MotorDeSync(repositorio, transporte);
 
+const tabelas = [
+  tabelasLocais.items,
+  tabelasLocais.itemOccurrences,
+  tabelasLocais.completions,
+  tabelasLocais.xpEntries,
+  tabelasLocais.coinEntries,
+  tabelasLocais.semesters,
+  tabelasLocais.courses,
+  tabelasLocais.classSlots,
+  tabelasLocais.classExceptions,
+  tabelasLocais.rewards,
+  tabelasLocais.redemptions,
+  tabelasLocais.metadados,
+  tabelasLocais.perfil,
+];
+
 export type EstadoSync =
   | { tipo: 'ok'; resultado: ResultadoSync }
   | { tipo: 'sem-conexao' }
@@ -42,10 +59,37 @@ export type EstadoSync =
  * compartilham a mesma execução.
  */
 export async function sincronizarAgora(): Promise<EstadoSync> {
-  if (!(await lerConexao())) return { tipo: 'sem-conexao' };
+  if (!(await lerConexao())) return publicar({ tipo: 'sem-conexao' });
+  publicar(null);
   try {
-    return { tipo: 'ok', resultado: await motor.sincronizar() };
+    return publicar({ tipo: 'ok', resultado: await motor.sincronizar() });
   } catch (erro) {
-    return { tipo: 'falhou', mensagem: (erro as Error).message };
+    return publicar({ tipo: 'falhou', mensagem: (erro as Error).message });
   }
+}
+
+// ---- estado observável, para o indicador discreto das telas (issue #88) -----------------------
+
+type Ouvinte = (e: EstadoSync | null) => void;
+const ouvintes = new Set<Ouvinte>();
+let ultimo: EstadoSync | null | undefined;
+
+/** `null` = sincronizando agora. */
+function publicar<T extends EstadoSync | null>(e: T): T {
+  ultimo = e;
+  for (const o of ouvintes) o(e);
+  return e;
+}
+
+export function observarSync(o: Ouvinte): () => void {
+  ouvintes.add(o);
+  if (ultimo !== undefined) o(ultimo);
+  return () => ouvintes.delete(o);
+}
+
+/** "Sair da conta": apaga todos os dados deste aparelho (o token é apagado à parte). */
+export function apagarDadosLocais(): void {
+  db.transaction((tx) => {
+    for (const t of Object.values(tabelas)) tx.delete(t).run();
+  });
 }

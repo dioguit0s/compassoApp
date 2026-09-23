@@ -187,3 +187,53 @@ export const NOMES_ATRIBUTOS: Record<Atributo, string> = {
   casa: 'Casa',
   social: 'Social',
 };
+
+// ---- histórico mensal (issue #87) --------------------------------------------------------------
+
+export interface MesDeXp {
+  /** `AAAA-MM`, mês civil em São Paulo. */
+  mes: string;
+  porAtributo: Record<Atributo, number>;
+  total: number;
+}
+
+/**
+ * XP por mês e atributo, do mês do primeiro lançamento até o mês de `agora`. Meses sem
+ * lançamento aparecem zerados, não somem. A soma de todos os meses é o acumulado do radar.
+ */
+export function historicoMensal(
+  lancamentos: { attribute: Atributo; points: number; earnedAt: Date }[],
+  agora: Date,
+  fuso: string = FUSO_PADRAO,
+): MesDeXp[] {
+  const mesDe = (d: Date) => diaDe(d, fuso).slice(0, 7);
+  const zerado = () => Object.fromEntries(ATRIBUTOS.map((a) => [a, 0])) as Record<Atributo, number>;
+  const mapa = new Map<string, Record<Atributo, number>>();
+  for (const l of lancamentos) {
+    const m = mesDe(l.earnedAt);
+    const alvo = mapa.get(m) ?? zerado();
+    alvo[l.attribute] += l.points;
+    mapa.set(m, alvo);
+  }
+  if (mapa.size === 0) return [];
+  const meses = [...mapa.keys()].sort();
+  const saida: MesDeXp[] = [];
+  let [ano, mes] = meses[0]!.split('-').map(Number) as [number, number];
+  const fim = mesDe(agora);
+  for (;;) {
+    const chave = `${ano}-${String(mes).padStart(2, '0')}`;
+    if (chave > fim && chave > meses.at(-1)!) break;
+    const porAtributo = mapa.get(chave) ?? zerado();
+    saida.push({
+      mes: chave,
+      porAtributo,
+      total: Object.values(porAtributo).reduce((n, v) => n + v, 0),
+    });
+    mes++;
+    if (mes > 12) {
+      mes = 1;
+      ano++;
+    }
+  }
+  return saida;
+}

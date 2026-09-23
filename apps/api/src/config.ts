@@ -5,6 +5,9 @@ export interface Config {
   tzDefault: string;
   trashRetentionDays: number;
   syncCursorWindowSeconds: number;
+  /** Volume das fotos de perfil, servido pelo Nginx (especificação §7, §9). */
+  avatarDir: string;
+  avatarMaxBytes: number;
 }
 
 function inteiro(nome: string, padrao: number): number {
@@ -24,5 +27,7 @@ export function lerConfig(): Config {
     tzDefault: process.env.TZ_DEFAULT || 'America/Sao_Paulo',
     trashRetentionDays: inteiro('TRASH_RETENTION_DAYS', 30),
     syncCursorWindowSeconds: inteiro('SYNC_CURSOR_WINDOW_SECONDS', 60),
+    avatarDir: process.env.AVATAR_DIR || './avatares',
+    avatarMaxBytes: inteiro('AVATAR_MAX_BYTES', 5 * 1024 * 1024),
   };
 }

@@ -12,7 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
 import { coinEntries, completions, xpEntries } from '@compasso/core/local';
 import { db } from './db';
-import { repositorio } from './sync';
+import { observarSync, repositorio, type EstadoSync } from './sync';
 
 /**
  * Dia civil de hoje em São Paulo (ADR-0003). Reavalia a cada minuto e quando o app volta ao
@@ -83,4 +83,11 @@ export function useProgresso() {
     // As consultas só servem de gatilho: o cálculo lê o repositório.
     [xp, eventos, moedas],
   );
+}
+
+/** Estado da última sincronização (`null` = sincronizando agora; `undefined` = nenhuma ainda). */
+export function useEstadoSync(): EstadoSync | null | undefined {
+  const [e, setE] = useState<EstadoSync | null | undefined>(undefined);
+  useEffect(() => observarSync(setE), []);
+  return e;
 }

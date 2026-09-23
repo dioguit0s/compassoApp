@@ -6,6 +6,7 @@ import { useAgenda, useAulas, useHoje, useProgresso } from '../../src/hooks';
 import { sincronizarAgora } from '../../src/sync';
 import { useTema } from '../../src/tema';
 import { EntradaItem } from '../../src/ui/EntradaItem';
+import { IndicadorSync } from '../../src/ui/IndicadorSync';
 import { LinhaAula } from '../../src/ui/LinhaAula';
 
 /**
@@ -31,6 +32,9 @@ export default function Hoje() {
         <Text style={{ color: saldo < 0 ? tema.perigo : tema.sutil, fontWeight: '600' }}>
           {saldo} moedas
         </Text>
+      </View>
+      <View style={{ paddingHorizontal: 16 }}>
+        <IndicadorSync />
       </View>
       <FlatList
         ListHeaderComponent={

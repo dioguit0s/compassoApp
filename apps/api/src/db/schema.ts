@@ -42,10 +42,16 @@ export const users = pgTable(
       .default('initials'),
     avatarPath: text(),
     accentColor: text().notNull(),
+    /** Lembrete padrão de itens novos, em minutos antes (F8); null = sem lembrete. */
+    defaultReminderMinutes: integer(),
     ...carimbos,
   },
   (t) => [
     check('users_avatar_kind_check', sql`${t.avatarKind} in ('initials', 'uploaded')`),
+    check(
+      'users_default_reminder_check',
+      sql`${t.defaultReminderMinutes} is null or ${t.defaultReminderMinutes} between 0 and 10080`,
+    ),
     check(
       'users_avatar_path_check',
       sql`(${t.avatarKind} = 'uploaded') = (${t.avatarPath} is not null)`,

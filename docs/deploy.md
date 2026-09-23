@@ -54,14 +54,23 @@ comandos.
    sudo systemctl daemon-reload
    sudo systemctl enable --now compasso-api compasso-manutencao.timer
    ```
-8. **Túnel** — com `cloudflared` instalado e autenticado:
+8. **Nginx** — serve as fotos de perfil do disco e repassa o resto para a API:
+   ```sh
+   sudo mkdir -p /var/lib/compasso/avatares && sudo chown compasso: /var/lib/compasso/avatares
+   sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/compasso
+   sudo ln -s /etc/nginx/sites-available/compasso /etc/nginx/sites-enabled/
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+   No `.env`: `AVATAR_DIR=/var/lib/compasso/avatares`. Na unit do systemd, `ProtectSystem=strict`
+   exige liberar a escrita: `ReadWritePaths=/var/lib/compasso/avatares`.
+9. **Túnel** — com `cloudflared` instalado e autenticado:
    ```sh
    cloudflared tunnel create compasso
    cloudflared tunnel route dns compasso compasso.<seu-dominio>
    # config.yml a partir de deploy/cloudflared-config.yml.example
    sudo cloudflared service install
    ```
-9. **App** — no primeiro uso, a aba Perfil pede a URL do túnel e o token; os dois ficam no
+10. **App** — no primeiro uso, a aba Perfil pede a URL do túnel e o token; os dois ficam no
    `expo-secure-store` do aparelho, nunca no bundle.
 
 ## Backup

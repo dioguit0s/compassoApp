@@ -16,10 +16,16 @@ export const perfil = sqliteTable('perfil', {
   avatarKind: text({ enum: ['initials', 'uploaded'] }).notNull(),
   avatarPath: text(),
   accentColor: text().notNull(),
+  /** Lembrete padrão de itens novos (F8); null = sem lembrete. */
+  defaultReminderMinutes: integer(),
   createdAt: integer({ mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer({ mode: 'timestamp_ms' }).notNull(),
   /** Quando este registro foi confirmado pelo servidor pela última vez. */
   buscadoEm: integer({ mode: 'timestamp_ms' }).notNull(),
+  /** Nome/preferências editados aqui e ainda não enviados (`PATCH /me` na próxima conexão). */
+  pendente: integer({ mode: 'boolean' }).notNull().default(false),
+  /** Caminho local da foto baixada, para aparecer offline. */
+  avatarLocal: text(),
 });
 
 export type Perfil = typeof perfil.$inferSelect;

@@ -67,6 +67,7 @@ export async function enviarArquivo<T>(
   conexao: ConexaoServidor,
   caminho: string,
   arquivo: { uri: string; name: string; mimeType?: string },
+  metodo: 'POST' | 'PUT' = 'POST',
   limiteMs = 120_000,
 ): Promise<T> {
   const form = new FormData();
@@ -74,13 +75,13 @@ export async function enviarArquivo<T>(
   form.append('arquivo', {
     uri: arquivo.uri,
     name: arquivo.name,
-    type: arquivo.mimeType ?? 'text/calendar',
+    type: arquivo.mimeType ?? 'application/octet-stream',
   } as unknown as Blob);
   const controle = new AbortController();
   const timer = setTimeout(() => controle.abort(), limiteMs);
   try {
     const r = await fetch(`${conexao.url}${caminho}`, {
-      method: 'POST',
+      method: metodo,
       body: form,
       signal: controle.signal,
       headers: { authorization: `Bearer ${conexao.token}` },
