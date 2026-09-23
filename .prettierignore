@@ -7,3 +7,4 @@ ios
 package-lock.json
 docs
 *.md
+apps/mobile/drizzle/migrations.js
