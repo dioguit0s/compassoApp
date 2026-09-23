@@ -9,7 +9,7 @@ import {
 } from '@compasso/core';
 import { ErroDeValidacao, serieDoItem, type DadosItem, type ItemLocal } from '@compasso/core/local';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -124,6 +124,7 @@ function Formulario({
   const ativo = grade.semestres.find((s) => s.active);
   const disciplinas = grade.disciplinas.filter((c) => c.semesterId === ativo?.id);
   const [erros, setErros] = useState<string[]>([]);
+  const rolagem = useRef<ScrollView>(null);
   const ehTarefa = tipo === 'task';
   const concluivel = item.effort !== null;
 
@@ -150,6 +151,7 @@ function Formulario({
       if (fechar) aoTerminar();
     } catch (e) {
       setErros(e instanceof ErroDeValidacao ? e.motivos : [(e as Error).message]);
+      rolagem.current?.scrollTo({ y: 0, animated: true });
     }
   }
 
@@ -239,6 +241,7 @@ function Formulario({
 
   return (
     <ScrollView
+      ref={rolagem}
       style={{ backgroundColor: tema.superficie }}
       contentContainerStyle={estilos.tela}
       keyboardShouldPersistTaps="handled"
@@ -253,6 +256,13 @@ function Formulario({
           ),
         }}
       />
+      {/* No topo: o Salvar fica no cabeçalho e, com a tela rolada, o erro no fim do formulário
+          passava despercebido (visto no emulador). */}
+      {erros.map((e) => (
+        <Text key={e} style={{ color: tema.perigo }}>
+          • {e}
+        </Text>
+      ))}
       {ocorrencia ? (
         <Text style={{ color: tema.sutil }}>
           Série · ocorrência de {tituloDoDia(ocorrencia)}
@@ -437,12 +447,6 @@ function Formulario({
         placeholderTextColor={tema.sutil}
         multiline
       />
-
-      {erros.map((e) => (
-        <Text key={e} style={{ color: tema.perigo }}>
-          • {e}
-        </Text>
-      ))}
 
       <Pressable onPress={excluir} style={[estilos.botao, { borderColor: tema.perigo }]}>
         <Text style={{ color: tema.perigo }}>Excluir</Text>
