@@ -75,7 +75,8 @@ async function configurarCanal(): Promise<void> {
     name: 'Lembretes',
     description: 'Lembretes de compromissos e tarefas',
     importance: Notifications.AndroidImportance.HIGH,
-    sound: 'default',
+    // Sem `sound`: o canal usa o som padrão do sistema. `sound: 'default'` é lido como nome de
+    // arquivo do config plugin e o expo-notifications loga erro a cada abertura (visto no emulador).
     vibrationPattern: [0, 250, 250, 250],
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
   });
