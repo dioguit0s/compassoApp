@@ -24,7 +24,11 @@ construído antes de começar a construir. O plano de construção está no
 
 ```
 compasso/
+├── CLAUDE.md                         # instruções do Claude Code: quando continuar e quando parar
+├── TASKS.md                          # checklist persistente para tarefas longas do Claude
+├── .claude/commands/                 # comandos do projeto: /revisar-diff, /auditoria
 └── docs/
+    ├── guia-opus-5-5.md              # como pedir, revisar e usar comandos com o Opus 5.5
     ├── especificacao-tecnica-v1.md   # o que vai ser construído: escopo, modelo de dados,
     │                                 # arquitetura, regras de gamificação e decisões
     ├── roadmap.md                    # em que ordem construir: fases, critérios de saída,
