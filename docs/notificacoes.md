@@ -35,7 +35,9 @@ que também sincroniza.
   (concedida na instalação a apps de calendário no Android 13+; o Compasso não passa pela Play
   Store, então a política de uso da loja não se aplica) e `SCHEDULE_EXACT_ALARM` (Android 12). O
   `expo-notifications` não expõe `canScheduleExactAlarms()` ao JavaScript, então o app não sabe se
-  o alarme exato foi negado: o Perfil explica e leva à tela "Alarmes e lembretes" do sistema.
+  o alarme exato foi negado. Só no Android 12 (API 31–32) isso é possível: ali o Perfil explica e
+  leva à tela "Alarmes e lembretes" do sistema. Do 13 em diante a `USE_EXACT_ALARM` não se revoga
+  (a chave aparece cinza e ligada — visto no emulador), e o Perfil não mostra o aviso.
 - Canal Android `lembretes`, importância alta, visível na tela bloqueada sem o conteúdo.
 
 **Tocar no lembrete** abre o detalhe do item (ou da ocorrência).

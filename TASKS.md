@@ -123,8 +123,8 @@ um crédito só ✓.
 ### Observações sem correção (decisão do usuário ou menores)
 - ~~Especificação §3 promete visão de dia~~ → decidido (2026-09-23): só semana e mês; o dia
   corrente fica na aba Hoje. Especificação ajustada.
-- `USE_EXACT_ALARM` torna o "alarme exato" irrevogável: o aviso e o botão "Abrir Alarmes e
-  lembretes" do Perfil não têm efeito prático no Android 13+
+- ~~aviso de alarme exato no Perfil sem efeito no Android 13+~~ → decidido: só aparece no
+  Android 12 (API 31–32). Não verificado no Android 12 (sem imagem de sistema API 31/32 aqui).
 - religar a rede não sincroniza sozinho (só abertura e puxar-para-atualizar, por desenho)
 - evento curto que cruza a meia-noite vai para a faixa de dia inteiro — decidido: mantém
 - ~~sair do detalhe com alterações descarta sem perguntar~~ → agora pede confirmação

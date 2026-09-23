@@ -186,7 +186,9 @@ export default function Perfil() {
             onPress={async () => setPermissao(await pedirPermissao())}
           />
         )}
-        {Platform.OS === 'android' ? (
+        {/* Só no Android 12 (API 31–32) o usuário pode negar o alarme exato. Do 13 em diante o
+            app tem USE_EXACT_ALARM, que não se revoga: a tela abriria com a chave cinza, ligada. */}
+        {Platform.OS === 'android' && (Platform.Version === 31 || Platform.Version === 32) ? (
           <>
             <Text style={[estilos.detalhe, { color: tema.sutil }]}>
               Se um lembrete chegar atrasado, confira em Configurações → Apps → Compasso → Alarmes e
