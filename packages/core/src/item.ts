@@ -10,6 +10,7 @@ import {
   type HorarioWire,
   type SemestreWire,
 } from './grade';
+import { esquemaRecompensa, type RecompensaWire, type ResgateWire } from './economia';
 import {
   esquemaConclusao,
   type ConclusaoWire,
@@ -136,6 +137,7 @@ export const TABELAS_SYNC = [
   'disciplinas',
   'horarios',
   'excecoes',
+  'recompensas',
   'itens',
   'ocorrencias',
   'conclusoes',
@@ -147,6 +149,7 @@ export const ESQUEMAS_SYNC = {
   disciplinas: esquemaDisciplina,
   horarios: esquemaHorario,
   excecoes: esquemaExcecao,
+  recompensas: esquemaRecompensa,
   itens: esquemaItem,
   ocorrencias: esquemaOcorrencia,
   conclusoes: esquemaConclusao,
@@ -157,6 +160,7 @@ export interface LinhasSync {
   disciplinas: DisciplinaWire[];
   horarios: HorarioWire[];
   excecoes: ExcecaoWire[];
+  recompensas: RecompensaWire[];
   itens: ItemWire[];
   ocorrencias: OcorrenciaWire[];
   /** Eventos de conclusão (append-only, só inserção). */
@@ -169,6 +173,7 @@ export function linhasVazias(): LinhasSync {
     disciplinas: [],
     horarios: [],
     excecoes: [],
+    recompensas: [],
     itens: [],
     ocorrencias: [],
     conclusoes: [],
@@ -181,6 +186,7 @@ export const esquemaPush = z.object({
   disciplinas: lista(esquemaDisciplina),
   horarios: lista(esquemaHorario),
   excecoes: lista(esquemaExcecao),
+  recompensas: lista(esquemaRecompensa),
   itens: lista(esquemaItem),
   ocorrencias: lista(esquemaOcorrencia),
   conclusoes: lista(esquemaConclusao),
@@ -201,6 +207,8 @@ export interface RespostaPull extends LinhasSync {
   /** Ledger gerado pelo servidor (append-only). O aparelho nunca envia lançamentos. */
   lancamentos: LancamentoWire[];
   moedas: MoedaWire[];
+  /** Resgates (append-only, só pelo servidor — o resgate exige rede, ADR-0007). */
+  resgates: ResgateWire[];
   /** Relógio do servidor no início da consulta. Opaco para o client. */
   cursor: string;
   /** Prazo da lixeira e da purga de tombstones, em dias. */

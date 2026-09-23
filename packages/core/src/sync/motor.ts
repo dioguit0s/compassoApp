@@ -33,7 +33,9 @@ export type Confirmacoes = Record<TabelaSync, Confirmacao[]>;
 export interface ArmazemLocal {
   sujos(): Linhas;
   confirmar(enviados: Confirmacoes): void;
-  aplicar(recebidos: Linhas & Partial<Pick<RespostaPull, 'lancamentos' | 'moedas'>>): number;
+  aplicar(
+    recebidos: Linhas & Partial<Pick<RespostaPull, 'lancamentos' | 'moedas' | 'resgates'>>,
+  ): number;
   reconciliar(noServidor: Record<TabelaSync, string[]>): number;
   purgar(limite: Date): number;
   lerMetadados(): MetadadosSync;

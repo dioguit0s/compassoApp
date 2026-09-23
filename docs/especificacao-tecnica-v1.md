@@ -164,6 +164,9 @@ abril e parou.
   sentido em uma semana.
 - **Cooldown:** cada recompensa tem um intervalo mínimo entre resgates, independente de saldo.
 - **Histórico de resgates** é permanente e visível.
+- `DECIDIDO` "Segunda-feira seguinte" nunca é hoje; subir o preço também espera; o **resgate exige
+  rede** e é validado pelo relógio do servidor
+  ([ADR-0007](adr/0007-economia-carencia-e-resgate-online.md)).
 
 ### 4.7 Ausência de punição `DECIDIDO`
 
@@ -488,8 +491,11 @@ chega. Sem isso a carência da seção 4.6 não existe.
 ### redemptions
 
 ```
-{ _id, rewardId, pricePaid, redeemedAt }
+{ _id /* chave de idempotência */, rewardId, rewardName, pricePaid, redeemedAt }
 ```
+
+`rewardName` guarda o nome da época, para o histórico sobreviver à purga da recompensa
+([ADR-0007](adr/0007-economia-carencia-e-resgate-online.md)).
 
 `pricePaid` é gravado no resgate e nunca recalculado — o histórico precisa refletir o preço da
 época.

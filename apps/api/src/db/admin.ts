@@ -65,7 +65,7 @@ export class Admin {
     // Filhos antes dos pais; os que sobrarem saem por ON DELETE CASCADE. Itens ligados a uma
     // disciplina purgada ficam, com course_id anulado (ON DELETE SET NULL (course_id)).
     let grade = 0;
-    for (const t of ['class_exceptions', 'class_slots', 'courses', 'semesters']) {
+    for (const t of ['class_exceptions', 'class_slots', 'courses', 'semesters', 'rewards']) {
       const r = await this.cliente.query(
         `delete from ${t} where deleted_at < now() - make_interval(days => $1)`,
         [dias],

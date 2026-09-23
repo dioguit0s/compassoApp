@@ -86,6 +86,10 @@ export default function Raiz() {
           <Stack.Screen name="semestre" options={{ title: 'Semestre' }} />
           <Stack.Screen name="disciplina" options={{ title: 'Disciplina' }} />
           <Stack.Screen name="aula" options={{ title: 'Aula', presentation: 'modal' }} />
+          <Stack.Screen
+            name="recompensa"
+            options={{ title: 'Recompensa', presentation: 'modal' }}
+          />
         </Stack>
       </ProvedorDeAvisos>
     </ProvedorDeDisciplinas>

@@ -241,3 +241,32 @@ export const coinEntries = sqliteTable('coin_entries', {
 export type ConclusaoLocal = typeof completions.$inferSelect;
 export type LancamentoLocal = typeof xpEntries.$inferSelect;
 export type MoedaLocal = typeof coinEntries.$inferSelect;
+
+// ---- economia (F7) ---------------------------------------------------------------------------
+
+export const rewards = sqliteTable('rewards', {
+  id: text().primaryKey(),
+  name: text().notNull(),
+  price: integer().notNull(),
+  cooldownDays: integer().notNull(),
+  priceEffectiveFrom: text().notNull(),
+  pendingPrice: integer(),
+  pendingFrom: text(),
+  active: integer({ mode: 'boolean' }).notNull().default(true),
+  ...sync,
+});
+
+/** Só chega pelo pull: o resgate é feito no servidor (ADR-0007). */
+export const redemptions = sqliteTable(
+  'redemptions',
+  {
+    id: text().primaryKey(),
+    rewardId: text().notNull(),
+    pricePaid: integer().notNull(),
+    redeemedAt: data().notNull(),
+  },
+  (t) => [index('redemptions_reward_idx').on(t.rewardId, t.redeemedAt)],
+);
+
+export type RecompensaLocal = typeof rewards.$inferSelect;
+export type ResgateLocal = typeof redemptions.$inferSelect;

@@ -2,7 +2,7 @@ import { agruparPorDia, intervaloDosDias } from '@compasso/core';
 import { useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { tituloDoDia } from '../../src/datasUi';
-import { useAgenda, useAulas, useHoje } from '../../src/hooks';
+import { useAgenda, useAulas, useHoje, useProgresso } from '../../src/hooks';
 import { sincronizarAgora } from '../../src/sync';
 import { useTema } from '../../src/tema';
 import { EntradaItem } from '../../src/ui/EntradaItem';
@@ -21,11 +21,17 @@ export default function Hoje() {
   const [atualizando, setAtualizando] = useState(false);
   const dias = useMemo(() => [hoje], [hoje]);
   const aulas = useAulas(dias).get(hoje) ?? [];
+  const { saldo } = useProgresso();
 
   return (
     <View style={[estilos.tela, { backgroundColor: tema.fundo }]}>
-      {/* F7: saldo de moedas no topo */}
-      <Text style={[estilos.data, { color: tema.texto }]}>{tituloDoDia(hoje)}</Text>
+      {/* Saldo de moedas no topo (especificação §7) — o mesmo da aba Recompensas. */}
+      <View style={estilos.topo}>
+        <Text style={[estilos.data, { color: tema.texto }]}>{tituloDoDia(hoje)}</Text>
+        <Text style={{ color: saldo < 0 ? tema.perigo : tema.sutil, fontWeight: '600' }}>
+          {saldo} moedas
+        </Text>
+      </View>
       <FlatList
         ListHeaderComponent={
           // Faixa de aulas do dia, acima dos itens, em ordem fixa (especificação §7).
@@ -68,7 +74,14 @@ export default function Hoje() {
 
 const estilos = StyleSheet.create({
   tela: { flex: 1 },
-  data: { fontSize: 22, fontWeight: '600', paddingHorizontal: 16, paddingTop: 16 },
+  topo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  data: { fontSize: 22, fontWeight: '600' },
   lista: { padding: 16, gap: 8, flexGrow: 1 },
   aulas: { gap: 6, marginBottom: 8 },
   vazio: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 32 },

@@ -4,6 +4,7 @@ import { autenticacao, type VariaveisAutenticadas } from './auth';
 import type { Config } from './config';
 import type { Banco } from './db/banco';
 import type { Usuario } from './db/repositorios';
+import { rotasDaEconomia } from './economia';
 import { rotasDaGrade } from './grade';
 import { rotasDeImportacao } from './importacao';
 import { rotasDeItens } from './itens';
@@ -46,6 +47,7 @@ export function criarApp(banco: Banco, config: Config) {
   autenticada.route('/', rotasDeItens());
   autenticada.route('/import', rotasDeImportacao());
   autenticada.route('/', rotasDaGrade());
+  autenticada.route('/', rotasDaEconomia());
 
   app.route('/', autenticada);
   return app;

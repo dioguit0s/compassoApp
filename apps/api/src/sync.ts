@@ -23,6 +23,7 @@ export function rotasDeSync(config: Config) {
       const disciplinas = await r.grade.aplicarPush('disciplinas', d.disciplinas);
       const horarios = await r.grade.aplicarPush('horarios', d.horarios);
       const excecoes = await r.grade.aplicarPush('excecoes', d.excecoes);
+      const recompensas = await r.grade.aplicarPush('recompensas', d.recompensas);
       const itens = await r.itens.aplicarPush(d.itens);
       const ocorrencias = await r.ocorrencias.aplicarPush(d.ocorrencias);
       // Depois de itens e desvios: o evento de conclusão enxerga o item já atualizado.
@@ -38,6 +39,7 @@ export function rotasDeSync(config: Config) {
         disciplinas,
         horarios,
         excecoes,
+        recompensas,
         itens,
         ocorrencias,
         conclusoes: { aplicados, ignorados },

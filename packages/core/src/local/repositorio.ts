@@ -1,6 +1,7 @@
 import {
   and,
   asc,
+  desc,
   eq,
   gt,
   gte,
@@ -23,6 +24,7 @@ import {
 } from '../calendario';
 import { partesNoFuso } from '../datas';
 import { deveCongelar, medidasDoRadar, type LancamentoDeXp } from '../gamificacao';
+import { alterarPreco, precosDaNova, promover } from '../economia';
 import { aulasDoDia, type GradeParaProjecao } from '../grade';
 import { novoId } from '../id';
 import {
@@ -58,6 +60,8 @@ import {
   classExceptions,
   classSlots,
   coinEntries,
+  redemptions,
+  rewards,
   completions,
   courses,
   xpEntries,
@@ -70,6 +74,7 @@ import {
   type HorarioLocal,
   type ItemLocal,
   type OcorrenciaLocal,
+  type RecompensaLocal,
   type SemestreLocal,
 } from './schema';
 
@@ -1042,6 +1047,53 @@ export class RepositorioLocal implements ArmazemLocal {
     };
   }
 
+  // ---- economia (F7, ADR-0007) --------------------------------------------------------------
+
+  /** Recompensa nova: só vale a partir da próxima segunda-feira (carência, §4.6). */
+  criarRecompensa(dados: { name: string; price: number; cooldownDays: number }): RecompensaLocal {
+    return this.gravarGrade<RecompensaLocal>('recompensas', {
+      name: dados.name.trim(),
+      cooldownDays: dados.cooldownDays,
+      active: true,
+      ...precosDaNova(dados.price, this.hoje()),
+    });
+  }
+
+  /** Nome e cooldown mudam na hora; o preço, só na próxima segunda (para mais ou para menos). */
+  editarRecompensa(
+    id: string,
+    m: { name?: string; price?: number; cooldownDays?: number; active?: boolean },
+  ): RecompensaLocal {
+    const atual = this.consultasDaEconomia()
+      .recompensas.all()
+      .find((r) => r.id === id);
+    if (!atual) throw new ErroDeValidacao(['recompensa não encontrada']);
+    const precos =
+      m.price !== undefined
+        ? alterarPreco(atual, m.price, this.hoje())
+        : promover(atual, this.hoje());
+    const { price: _p, ...resto } = m;
+    return this.editarGrade<RecompensaLocal>('recompensas', id, { ...resto, ...precos });
+  }
+
+  consultasDaEconomia() {
+    return {
+      recompensas: this.db.select().from(rewards).where(isNull(rewards.deletedAt)),
+      resgates: this.db.select().from(redemptions).orderBy(desc(redemptions.redeemedAt)),
+    };
+  }
+
+  ultimoResgate(rewardId: string): Date | null {
+    return (
+      this.db
+        .select({ at: redemptions.redeemedAt })
+        .from(redemptions)
+        .where(eq(redemptions.rewardId, rewardId))
+        .orderBy(desc(redemptions.redeemedAt))
+        .get()?.at ?? null
+    );
+  }
+
   // ---- lado local da sincronização ---------------------------------------------------------
 
   sujos(): Linhas {
@@ -1104,7 +1156,9 @@ export class RepositorioLocal implements ArmazemLocal {
    * nova; linha limpa aceita igual ou mais nova (o empate é o próprio eco). Desvios de ocorrência
    * casam pela identidade `(itemId, occurrenceDate)`, não pelo `id` (ADR-0004).
    */
-  aplicar(recebidos: Linhas & Partial<Pick<RespostaPull, 'lancamentos' | 'moedas'>>): number {
+  aplicar(
+    recebidos: Linhas & Partial<Pick<RespostaPull, 'lancamentos' | 'moedas' | 'resgates'>>,
+  ): number {
     let aplicados = 0;
     const vence = (local: { updatedAt: Date; dirty: boolean } | undefined, remoto: string) => {
       if (!local) return true;
@@ -1151,6 +1205,14 @@ export class RepositorioLocal implements ArmazemLocal {
         this.db
           .insert(xpEntries)
           .values({ ...l, earnedAt: new Date(l.earnedAt) })
+          .onConflictDoNothing()
+          .run();
+        aplicados++;
+      }
+      for (const r of recebidos.resgates ?? []) {
+        this.db
+          .insert(redemptions)
+          .values({ ...r, redeemedAt: new Date(r.redeemedAt) })
           .onConflictDoNothing()
           .run();
         aplicados++;
@@ -1256,13 +1318,21 @@ export class RepositorioLocal implements ArmazemLocal {
   }
 }
 
-type TabelaGrade = 'semestres' | 'disciplinas' | 'horarios' | 'excecoes';
-const TABELAS_DA_GRADE: TabelaGrade[] = ['semestres', 'disciplinas', 'horarios', 'excecoes'];
+/** Tabelas de LWW por id com tombstone e sem regra especial no aparelho: grade e recompensas. */
+type TabelaGrade = 'semestres' | 'disciplinas' | 'horarios' | 'excecoes' | 'recompensas';
+const TABELAS_DA_GRADE: TabelaGrade[] = [
+  'semestres',
+  'disciplinas',
+  'horarios',
+  'excecoes',
+  'recompensas',
+];
 const TABELAS_GRADE = {
   semestres: semesters,
   disciplinas: courses,
   horarios: classSlots,
   excecoes: classExceptions,
+  recompensas: rewards,
 } as const;
 
 function tabelaLocal(tabela: Exclude<TabelaSync, 'conclusoes'>) {

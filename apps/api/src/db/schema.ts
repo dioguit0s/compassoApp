@@ -470,3 +470,63 @@ export const coinEntries = pgTable(
     politica('coin_entries_dono', t.userId),
   ],
 );
+
+// ---- economia (F7, especificação §4.6, ADR-0007) ---------------------------------------------
+
+export const rewards = pgTable(
+  'rewards',
+  {
+    id: uuid().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    name: text().notNull(),
+    price: integer().notNull(),
+    cooldownDays: integer().notNull().default(0),
+    /** Carência: o preço só vale a partir daqui (a segunda-feira seguinte à criação). */
+    priceEffectiveFrom: date({ mode: 'string' }).notNull(),
+    pendingPrice: integer(),
+    pendingFrom: date({ mode: 'string' }),
+    active: boolean().notNull().default(true),
+    ...colunasDeSync,
+  },
+  (t) => [
+    uniqueIndex('rewards_user_id_id_idx').on(t.userId, t.id),
+    index('rewards_user_id_server_updated_at_idx').on(t.userId, t.serverUpdatedAt),
+    check('rewards_price_check', sql`${t.price} > 0`),
+    check('rewards_pending_price_check', sql`${t.pendingPrice} is null or ${t.pendingPrice} > 0`),
+    check('rewards_pendente_check', sql`(${t.pendingPrice} is null) = (${t.pendingFrom} is null)`),
+    check('rewards_cooldown_check', sql`${t.cooldownDays} >= 0`),
+    check('rewards_name_check', sql`length(${t.name}) > 0`),
+    politica('rewards_dono', t.userId),
+  ],
+);
+
+/**
+ * Resgates: append-only (SELECT e INSERT para a API). `price_paid` é gravado no resgate e nunca
+ * recalculado; `reward_name` guarda o nome da época, para o histórico sobreviver à purga da
+ * recompensa (por isso também não há FK).
+ */
+export const redemptions = pgTable(
+  'redemptions',
+  {
+    /** Chave de idempotência do resgate (header Idempotency-Key). */
+    id: uuid().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    rewardId: uuid().notNull(),
+    rewardName: text().notNull(),
+    pricePaid: integer().notNull(),
+    redeemedAt: timestamp(tz).notNull(),
+    serverUpdatedAt: timestamp(tz)
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (t) => [
+    index('redemptions_user_id_reward_idx').on(t.userId, t.rewardId, t.redeemedAt),
+    index('redemptions_user_id_server_updated_at_idx').on(t.userId, t.serverUpdatedAt),
+    check('redemptions_price_paid_check', sql`${t.pricePaid} > 0`),
+    politica('redemptions_dono', t.userId),
+  ],
+);

@@ -3,6 +3,7 @@ export * from './atributos';
 export * from './avatar';
 export * from './calendario';
 export * from './datas';
+export * from './economia';
 export * from './gamificacao';
 export * from './grade';
 export * from './id';

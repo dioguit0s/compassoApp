@@ -85,6 +85,20 @@
       "when": 1790164862347,
       "tag": "0011_ledger_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790165500570,
+      "tag": "0012_economia",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790165501594,
+      "tag": "0013_economia_grants",
+      "breakpoints": true
     }
   ]
 }

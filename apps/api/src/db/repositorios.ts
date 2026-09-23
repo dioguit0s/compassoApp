@@ -5,6 +5,11 @@ import {
   FUSO_PADRAO,
   medidasDoRadar,
   type ConclusaoWire,
+  estadoDaRecompensa,
+  normalizarPrecos,
+  type EstadoDaRecompensa,
+  type RecompensaWire,
+  type ResgateWire,
   type EfeitoDaConclusao,
   type LancamentoWire,
   type MoedaWire,
@@ -49,6 +54,8 @@ import {
   courses,
   itemOccurrences,
   items,
+  redemptions,
+  rewards,
   semesters,
   users,
   xpEntries,
@@ -198,8 +205,15 @@ function simplesNoIntervalo(de: Date, ate: Date) {
   return or(tarefa, evento);
 }
 
-type TabelaGrade = 'semestres' | 'disciplinas' | 'horarios' | 'excecoes';
-export const TABELAS_DA_GRADE: TabelaGrade[] = ['semestres', 'disciplinas', 'horarios', 'excecoes'];
+/** Tabelas de LWW por id com tombstone e pai opcional: a grade e as recompensas. */
+type TabelaGrade = 'semestres' | 'disciplinas' | 'horarios' | 'excecoes' | 'recompensas';
+export const TABELAS_DA_GRADE: TabelaGrade[] = [
+  'semestres',
+  'disciplinas',
+  'horarios',
+  'excecoes',
+  'recompensas',
+];
 
 /** Cada tabela da grade, e a tabela-pai que precisa existir (na mesma conta) para a linha entrar. */
 const GRADE = {
@@ -207,6 +221,7 @@ const GRADE = {
   disciplinas: { tabela: courses, pai: { tabela: semesters, coluna: 'semesterId' as const } },
   horarios: { tabela: classSlots, pai: { tabela: courses, coluna: 'courseId' as const } },
   excecoes: { tabela: classExceptions, pai: { tabela: classSlots, coluna: 'slotId' as const } },
+  recompensas: { tabela: rewards, pai: null },
 };
 const conflitoGrade = Object.fromEntries(
   TABELAS_DA_GRADE.map((t) => [t, colunasDoConflito(GRADE[t].tabela as never, ['id'])]),
@@ -265,6 +280,30 @@ function moedaParaWire(m: typeof coinEntries.$inferSelect): MoedaWire {
     refId: m.refId,
     createdAt: m.createdAt.toISOString(),
   };
+}
+
+function resgateParaWire(r: typeof redemptions.$inferSelect): ResgateWire & { rewardName: string } {
+  return {
+    id: r.id,
+    rewardId: r.rewardId,
+    rewardName: r.rewardName,
+    pricePaid: r.pricePaid,
+    redeemedAt: r.redeemedAt.toISOString(),
+  };
+}
+
+export class ErroDeResgate extends Error {
+  constructor(readonly estado: EstadoDaRecompensa) {
+    super(
+      estado.tipo === 'carencia'
+        ? `em carência: disponível a partir de ${estado.disponivelEm}`
+        : estado.tipo === 'cooldown'
+          ? `em cooldown: disponível de novo em ${estado.disponivelEm}`
+          : estado.tipo === 'sem-saldo'
+            ? `saldo insuficiente: faltam ${estado.faltam} moedas`
+            : 'recompensa arquivada',
+    );
+  }
 }
 
 export class ErroDeGrade extends Error {
@@ -761,6 +800,65 @@ export function criarRepositorios(tx: Tx, userId: string) {
     },
   };
 
+  const economia = {
+    /**
+     * Resgate (§4.6, ADR-0007): exige rede — é o servidor que julga carência, cooldown e saldo,
+     * pelo relógio dele. Numa transação, com trava por conta: resgate + lançamento negativo.
+     * Idempotente pelo id (header Idempotency-Key): repetir devolve o mesmo resgate.
+     */
+    async resgatar(rewardId: string, chave: string): Promise<ResgateWire> {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
+      const [repetido] = await tx
+        .select()
+        .from(redemptions)
+        .where(and(eq(redemptions.userId, userId), eq(redemptions.id, chave)));
+      if (repetido) return resgateParaWire(repetido);
+      const [r] = await tx
+        .select()
+        .from(rewards)
+        .where(
+          and(eq(rewards.userId, userId), eq(rewards.id, rewardId), isNull(rewards.deletedAt)),
+        );
+      if (!r) throw new ErroDeOcorrencia(404, 'recompensa não encontrada');
+      const agora = await relogio();
+      const [ultimo] = await tx
+        .select({ at: redemptions.redeemedAt })
+        .from(redemptions)
+        .where(and(eq(redemptions.userId, userId), eq(redemptions.rewardId, rewardId)))
+        .orderBy(desc(redemptions.redeemedAt))
+        .limit(1);
+      const estado = estadoDaRecompensa(r, await estatisticas.saldo(), ultimo?.at ?? null, agora);
+      if (estado.tipo !== 'disponivel') throw new ErroDeResgate(estado);
+      const resgate = {
+        id: chave,
+        userId,
+        rewardId,
+        rewardName: r.name,
+        pricePaid: estado.preco,
+        redeemedAt: agora,
+      };
+      await tx.insert(redemptions).values(resgate);
+      await tx.insert(coinEntries).values({
+        id: novoId(),
+        userId,
+        amount: -estado.preco,
+        source: 'redemption',
+        refId: chave,
+        createdAt: agora,
+      });
+      return resgateParaWire({ ...resgate, serverUpdatedAt: agora });
+    },
+
+    async resgates(): Promise<ResgateWire[]> {
+      const l = await tx
+        .select()
+        .from(redemptions)
+        .where(eq(redemptions.userId, userId))
+        .orderBy(desc(redemptions.redeemedAt));
+      return l.map(resgateParaWire);
+    },
+  };
+
   const status = {
     /** Depois de um push de itens/desvios: o status volta a ser o do ledger. */
     async derivarDosEnviados(
@@ -817,6 +915,28 @@ export function criarRepositorios(tx: Tx, userId: string) {
           ).map((l) => l.id),
         );
         validos = recebidos.filter((r) => ok.has(r[pai.coluna] as string));
+      }
+      if (tabela === 'recompensas' && validos.length) {
+        // Carência não se antecipa pelo sync: preços normalizados contra a versão do servidor e o
+        // relógio DELE (ADR-0007).
+        const hoje = diaDe(await relogio(), FUSO_PADRAO);
+        const ids = validos.map((v) => v.id as string);
+        const atuais = new Map(
+          (
+            await tx
+              .select()
+              .from(rewards)
+              .where(and(eq(rewards.userId, userId), inArray(rewards.id, ids)))
+          ).map((r) => [r.id, r]),
+        );
+        validos = validos.map((v) => ({
+          ...v,
+          ...normalizarPrecos(
+            atuais.get(v.id as string) ?? null,
+            v as unknown as RecompensaWire,
+            hoje,
+          ),
+        }));
       }
       const gravados = validos.length
         ? await tx
@@ -1149,6 +1269,7 @@ export function criarRepositorios(tx: Tx, userId: string) {
     conclusoes: conclusoesRepo,
     estatisticas,
     status,
+    economia,
 
     sync: {
       /**
@@ -1185,7 +1306,9 @@ export function criarRepositorios(tx: Tx, userId: string) {
         for (const t of TABELAS_DA_GRADE) {
           (saida[t] as unknown) = await gradeRepo.alteradosDesde(t, desde);
         }
-        const doUser = <T extends typeof completions | typeof xpEntries | typeof coinEntries>(
+        const doUser = <
+          T extends typeof completions | typeof xpEntries | typeof coinEntries | typeof redemptions,
+        >(
           t: T,
         ) =>
           desde ? and(eq(t.userId, userId), gt(t.serverUpdatedAt, desde)) : eq(t.userId, userId);
@@ -1198,7 +1321,10 @@ export function criarRepositorios(tx: Tx, userId: string) {
         const moedas = (await tx.select().from(coinEntries).where(doUser(coinEntries))).map(
           moedaParaWire,
         );
-        return { ...saida, lancamentos, moedas, cursor: agora!.cursor };
+        const resgates = (await tx.select().from(redemptions).where(doUser(redemptions))).map(
+          resgateParaWire,
+        );
+        return { ...saida, lancamentos, moedas, resgates, cursor: agora!.cursor };
       },
     },
 
