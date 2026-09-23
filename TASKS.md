@@ -176,3 +176,9 @@ de São Paulo (ADR-0003). Commits quando fizer sentido.
 - Túnel cloudflared, restauração de dump, servidor doméstico
 - Linhas já divergentes antes de `f362c7d` (preço pendente só no aparelho) não se curam sozinhas;
   não há dado real afetado (app nunca foi usado)
+
+### Depois da validação (2026-09-23)
+- [x] Especificação: sem visão de dia (decisão b); sem `GET`/`POST /items` (§6.3)
+- [x] Detalhe pede confirmação antes de descartar alterações
+- [x] Aviso de alarme exato só no Android 12 (não visto rodando em API 31–32)
+- [x] Arrastar tarefa para a grade da semana (`3d62dfd`), com testes no core e na API
