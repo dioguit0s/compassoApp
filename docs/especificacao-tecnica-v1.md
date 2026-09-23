@@ -65,7 +65,7 @@ abandono em apps de uso pessoal, e abandono é o modo de falha real aqui.
 | Área | O que entra |
 |---|---|
 | Itens | Criar, editar, concluir e excluir tarefas, eventos e compromissos |
-| Calendário | Visões de dia, semana e mês; eventos de dia inteiro e de vários dias |
+| Calendário | Visões de semana e mês (o dia corrente fica na aba Hoje); eventos de dia inteiro e de vários dias |
 | Recorrência | Diária, semanal, mensal e anual, com exceções por ocorrência |
 | Migração | Importação única de arquivo ICS exportado do Google Calendar |
 | Gamificação | XP por esforço estimado, 5 atributos fixos, nível por atributo |

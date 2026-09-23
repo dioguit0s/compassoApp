@@ -121,13 +121,14 @@ um crédito só ✓.
   → `30bc7b7`
 
 ### Observações sem correção (decisão do usuário ou menores)
-- Especificação §2 promete visão de **dia**; roadmap F2 só semana e mês (contradição)
+- ~~Especificação §3 promete visão de dia~~ → decidido (2026-09-23): só semana e mês; o dia
+  corrente fica na aba Hoje. Especificação ajustada.
 - `USE_EXACT_ALARM` torna o "alarme exato" irrevogável: o aviso e o botão "Abrir Alarmes e
   lembretes" do Perfil não têm efeito prático no Android 13+
 - religar a rede não sincroniza sozinho (só abertura e puxar-para-atualizar, por desenho)
-- evento curto que cruza a meia-noite vai para a faixa de dia inteiro, não para a grade
-- sair do detalhe com alterações descarta sem perguntar
-- concluir ocorrência futura (13/10) é permitido — conferir se é o desejado
+- evento curto que cruza a meia-noite vai para a faixa de dia inteiro — decidido: mantém
+- ~~sair do detalhe com alterações descarta sem perguntar~~ → agora pede confirmação
+- concluir ocorrência futura é permitido — decidido: mantém
 - a mensagem "desfaça a conclusão de 2026-10-13…" mostra a data em ISO
 - o FAB "+" cobre o fim de linhas alinhadas à direita (ex.: pontos no Perfil) durante a rolagem
 - Diagnóstico usa cores fixas (texto padrão some no tema escuro); é tela temporária
