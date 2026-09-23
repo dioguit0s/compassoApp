@@ -4,10 +4,11 @@ import {
   planejarReagendamento,
   selecionarDisparos,
 } from '@compasso/core';
-import * as BackgroundTask from 'expo-background-task';
-import * as Notifications from 'expo-notifications';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+import type * as BackgroundTaskT from 'expo-background-task';
+import type * as NotificationsT from 'expo-notifications';
 import { addDatabaseChangeListener } from 'expo-sqlite';
-import * as TaskManager from 'expo-task-manager';
+import type * as TaskManagerT from 'expo-task-manager';
 import { Linking, Platform } from 'react-native';
 import { rotuloDeHora } from './ui/EntradaItem';
 import { repositorio, sincronizarAgora } from './sync';
@@ -22,24 +23,45 @@ import { repositorio, sincronizarAgora } from './sync';
  * `canScheduleExactAlarms()` permite e cai para o inexato quando não. O app declara
  * `USE_EXACT_ALARM` (concedida na instalação a apps de calendário no Android 13+, e o Compasso não
  * passa pela Play Store) e `SCHEDULE_EXACT_ALARM` (Android 12). Ver docs/notificacoes.md.
+ *
+ * Expo Go: o alvo é o development build (ADR-0002), mas o Expo Go serve de atalho no
+ * desenvolvimento. Nele o `expo-notifications` lança erro já no import (Android, SDK 53+), então
+ * os três módulos nativos só são carregados fora do Expo Go e, dentro dele, lembretes e tarefa de
+ * background ficam desligados — o resto do app funciona.
  */
+
+/** true quando o app roda no Expo Go: lembretes e background indisponíveis. */
+export const NO_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+/* eslint-disable @typescript-eslint/no-require-imports */
+const Notifications: typeof NotificationsT = NO_EXPO_GO ? null! : require('expo-notifications');
+const TaskManager: typeof TaskManagerT = NO_EXPO_GO ? null! : require('expo-task-manager');
+const BackgroundTask: typeof BackgroundTaskT = NO_EXPO_GO ? null! : require('expo-background-task');
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 export const CANAL_LEMBRETES = 'lembretes';
 const TAREFA_BACKGROUND = 'compasso-reagendar';
 const DIA_MS = 86_400_000;
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (!NO_EXPO_GO) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
-export type EstadoPermissao = 'concedida' | 'negada' | 'nao-perguntada';
+export type EstadoPermissao = 'concedida' | 'negada' | 'nao-perguntada' | 'indisponivel';
+
+/** Última notificação tocada pelo usuário (null no Expo Go). */
+export const useUltimaRespostaDeNotificacao: () => NotificationsT.NotificationResponse | null =
+  NO_EXPO_GO ? () => null : () => Notifications.useLastNotificationResponse() ?? null;
 
 export async function estadoDaPermissao(): Promise<EstadoPermissao> {
+  if (NO_EXPO_GO) return 'indisponivel';
   const p = await Notifications.getPermissionsAsync();
   if (p.granted) return 'concedida';
   return p.canAskAgain ? 'nao-perguntada' : 'negada';
@@ -50,6 +72,7 @@ export async function estadoDaPermissao(): Promise<EstadoPermissao> {
  * "Ativar lembretes"), nunca na primeira abertura sem contexto.
  */
 export async function pedirPermissao(): Promise<EstadoPermissao> {
+  if (NO_EXPO_GO) return 'indisponivel';
   await configurarCanal();
   const atual = await estadoDaPermissao();
   if (atual !== 'nao-perguntada') return atual;
@@ -156,17 +179,20 @@ export function observarMudancas(): () => void {
 
 // Tarefa periódica: sincroniza e reagenda mesmo sem o app aberto. O sistema decide o momento
 // exato (no iOS, conforme o uso); o intervalo é o mínimo pedido, em minutos.
-TaskManager.defineTask(TAREFA_BACKGROUND, async () => {
-  try {
-    await sincronizarAgora();
-    await reagendar();
-    return BackgroundTask.BackgroundTaskResult.Success;
-  } catch {
-    return BackgroundTask.BackgroundTaskResult.Failed;
-  }
-});
+if (!NO_EXPO_GO) {
+  TaskManager.defineTask(TAREFA_BACKGROUND, async () => {
+    try {
+      await sincronizarAgora();
+      await reagendar();
+      return BackgroundTask.BackgroundTaskResult.Success;
+    } catch {
+      return BackgroundTask.BackgroundTaskResult.Failed;
+    }
+  });
+}
 
 export async function registrarTarefaDeBackground(): Promise<void> {
+  if (NO_EXPO_GO) return;
   try {
     if (!(await TaskManager.isTaskRegisteredAsync(TAREFA_BACKGROUND))) {
       await BackgroundTask.registerTaskAsync(TAREFA_BACKGROUND, { minimumInterval: 60 });
@@ -177,7 +203,8 @@ export async function registrarTarefaDeBackground(): Promise<void> {
 }
 
 /** Notificações pendentes do Compasso, em ordem de disparo. */
-export async function pendentes() {
+export async function pendentes(): Promise<NotificationsT.NotificationRequest[]> {
+  if (NO_EXPO_GO) return [];
   const instante = (id: string) => instanteDoDisparo(id) ?? 0;
   return (await Notifications.getAllScheduledNotificationsAsync())
     .filter((n) => n.identifier.startsWith('compasso:'))

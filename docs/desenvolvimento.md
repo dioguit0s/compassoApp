@@ -80,6 +80,11 @@ Toda tabela nova do servidor segue estes passos, na mesma migração ou em migra
 O app roda em **development build**, nunca no Expo Go (alarme exato do Android 12+ e tarefas de
 background não existem no Expo Go — roadmap §6).
 
+**Atalho no Expo Go:** para mexer em telas sem compilar, `npm run start:go` (dentro de
+`apps/mobile`) serve o app para o Expo Go. Nele, lembretes e tarefa de background ficam desligados
+(`NO_EXPO_GO` em `src/notificacoes.ts`) e o Perfil avisa "Indisponíveis no Expo Go". Qualquer coisa
+que envolva notificação ou background se testa no development build.
+
 ### Gerar e instalar um build
 
 Com Android Studio (SDK + um aparelho em modo depurador USB) ou Xcode:

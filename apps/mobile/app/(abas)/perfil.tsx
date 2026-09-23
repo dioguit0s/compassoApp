@@ -175,6 +175,10 @@ export default function Perfil() {
           <Text style={[estilos.detalhe, { color: tema.sutil }]}>
             Ativados. Disparam neste aparelho, mesmo sem rede.
           </Text>
+        ) : permissao === 'indisponivel' ? (
+          <Text style={[estilos.detalhe, { color: tema.sutil }]}>
+            Indisponíveis no Expo Go. Use o development build para testar lembretes.
+          </Text>
         ) : permissao === 'negada' ? (
           <Text style={[estilos.detalhe, { color: tema.perigo }]}>
             Notificações bloqueadas: os lembretes NÃO vão disparar. Libere nas configurações do

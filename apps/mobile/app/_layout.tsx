@@ -1,5 +1,4 @@
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
-import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -10,7 +9,12 @@ import { ProvedorDeDisciplinas } from '../src/disciplinas';
 import { useHoje } from '../src/hooks';
 import { repositorio } from '../src/sync';
 import { ProvedorDeAvisos } from '../src/ui/Aviso';
-import { observarMudancas, reagendar, registrarTarefaDeBackground } from '../src/notificacoes';
+import {
+  observarMudancas,
+  reagendar,
+  registrarTarefaDeBackground,
+  useUltimaRespostaDeNotificacao,
+} from '../src/notificacoes';
 import { atualizarPerfil } from '../src/perfil';
 import { sincronizarAgora } from '../src/sync';
 import { useTema } from '../src/tema';
@@ -18,7 +22,7 @@ import { useTema } from '../src/tema';
 export default function Raiz() {
   const { success, error } = useMigrations(db, migracoes);
   const router = useRouter();
-  const resposta = Notifications.useLastNotificationResponse();
+  const resposta = useUltimaRespostaDeNotificacao();
   const hoje = useHoje();
   const tema = useTema();
 
