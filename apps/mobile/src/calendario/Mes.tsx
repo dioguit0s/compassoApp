@@ -12,6 +12,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAgenda } from '../hooks';
 import { useTema } from '../tema';
 import { EntradaItem } from '../ui/EntradaItem';
+import { quantas } from '../texto';
 
 /**
  * Visão de mês: densidade e viagens. No máximo três linhas por dia e "+N" (especificação §7).
@@ -55,7 +56,7 @@ export function Mes({
                 key={d}
                 onPress={() => aoTocarDia(d)}
                 style={[estilos.celula, { borderColor: tema.borda, opacity: fora ? 0.45 : 1 }]}
-                accessibilityLabel={`dia ${partesDoDia(d).dia}, ${porDia.get(d)?.length ?? 0} itens`}
+                accessibilityLabel={`dia ${partesDoDia(d).dia}, ${quantas(porDia.get(d)?.length ?? 0, 'item', 'itens')}`}
               >
                 <Text
                   style={[

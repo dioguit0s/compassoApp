@@ -8,6 +8,7 @@ import { useTema } from '../../src/tema';
 import { EntradaItem } from '../../src/ui/EntradaItem';
 import { IndicadorSync } from '../../src/ui/IndicadorSync';
 import { LinhaAula } from '../../src/ui/LinhaAula';
+import { moedas } from '../../src/texto';
 
 /**
  * Aba Hoje (especificação §7). Ordem fixa, de cima para baixo: saldo de moedas (F7), aulas do
@@ -30,7 +31,7 @@ export default function Hoje() {
       <View style={estilos.topo}>
         <Text style={[estilos.data, { color: tema.texto }]}>{tituloDoDia(hoje)}</Text>
         <Text style={{ color: saldo < 0 ? tema.perigo : tema.sutil, fontWeight: '600' }}>
-          {saldo} moedas
+          {moedas(saldo)}
         </Text>
       </View>
       <View style={{ paddingHorizontal: 16 }}>

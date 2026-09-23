@@ -82,6 +82,9 @@ export default function Raiz() {
           <Stack.Screen name="item/[id]" options={{ title: 'Item', presentation: 'modal' }} />
           <Stack.Screen name="notificacoes" options={{ title: 'Lembretes agendados' }} />
           <Stack.Screen name="importar" options={{ title: 'Importar calendário' }} />
+          <Stack.Screen name="configuracoes" options={{ title: 'Configurações' }} />
+          <Stack.Screen name="lixeira" options={{ title: 'Lixeira' }} />
+          <Stack.Screen name="regua" options={{ title: 'Régua de esforço' }} />
           <Stack.Screen name="semestre" options={{ title: 'Semestre' }} />
           <Stack.Screen name="disciplina" options={{ title: 'Disciplina' }} />
           <Stack.Screen name="aula" options={{ title: 'Aula', presentation: 'modal' }} />

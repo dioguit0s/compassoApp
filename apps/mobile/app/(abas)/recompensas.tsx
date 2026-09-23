@@ -17,6 +17,7 @@ import { chamarApi, ErroHttp, lerConexao } from '../../src/servidor';
 import { repositorio, sincronizarAgora } from '../../src/sync';
 import { useTema } from '../../src/tema';
 import { Botao } from '../../src/ui/Campos';
+import { moedas } from '../../src/texto';
 
 const fmt = (d: string) => formatarDiaCurto(d, 0);
 
@@ -29,7 +30,7 @@ function explicar(e: EstadoDaRecompensa): string {
     case 'cooldown':
       return `resgatada há pouco: de novo em ${fmt(e.disponivelEm)}`;
     case 'sem-saldo':
-      return `faltam ${e.faltam} moedas`;
+      return `faltam ${moedas(e.faltam)}`;
     case 'arquivada':
       return 'arquivada';
   }
@@ -65,7 +66,7 @@ export default function Recompensas() {
         headers: { 'idempotency-key': novoId() },
       });
       await sincronizarAgora();
-      Alert.alert('Resgatado', `${r.name} por ${preco} moedas. Aproveite.`);
+      Alert.alert('Resgatado', `${r.name} por ${moedas(preco)}. Aproveite.`);
     } catch (e) {
       Alert.alert(
         'Não foi possível resgatar',
@@ -99,7 +100,7 @@ export default function Recompensas() {
       ListHeaderComponent={
         <View style={estilos.bloco}>
           <Text style={[estilos.saldo, { color: saldo < 0 ? tema.perigo : tema.texto }]}>
-            {saldo} moedas
+            {moedas(saldo)}
           </Text>
           {saldo < 0 ? (
             <Text style={{ color: tema.sutil }}>
@@ -146,7 +147,7 @@ export default function Recompensas() {
                 desativado={estado.tipo !== 'disponivel' || resgatando !== null}
                 aoTocar={() =>
                   estado.tipo === 'disponivel' &&
-                  Alert.alert(`Resgatar ${r.name}?`, `${estado.preco} moedas.`, [
+                  Alert.alert(`Resgatar ${r.name}?`, `${moedas(estado.preco)}.`, [
                     { text: 'Cancelar', style: 'cancel' },
                     { text: 'Resgatar', onPress: () => void resgatar(r, estado.preco) },
                   ])
@@ -168,7 +169,7 @@ export default function Recompensas() {
               return (
                 <Text key={h.id} style={{ color: tema.texto }}>
                   {h.redeemedAt.toLocaleDateString('pt-BR', { timeZone: FUSO_PADRAO })} · {nome} ·{' '}
-                  {h.pricePaid} moedas
+                  {moedas(h.pricePaid)}
                 </Text>
               );
             })

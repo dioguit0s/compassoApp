@@ -31,6 +31,7 @@ import { sincronizarAgora } from '../../src/sync';
 import { useTema } from '../../src/tema';
 import { HistoricoXp } from '../../src/ui/HistoricoXp';
 import { FaixasDeNivel, Radar } from '../../src/ui/Radar';
+import { moedas } from '../../src/texto';
 
 /**
  * Aba Perfil (especificação §7), nesta ordem: cabeçalho (foto ou avatar, nome, desde quando),
@@ -162,7 +163,7 @@ export default function Perfil() {
           {resgates.map((r) => (
             <Text key={r.id} style={{ color: tema.texto }}>
               {r.redeemedAt.toLocaleDateString('pt-BR', { timeZone: FUSO_PADRAO })} · resgate de{' '}
-              {r.pricePaid} moedas
+              {moedas(r.pricePaid)}
             </Text>
           ))}
         </View>
