@@ -20,6 +20,14 @@ export async function lerConexao(): Promise<ConexaoServidor | null> {
   return url && token ? { url, token } : null;
 }
 
+/**
+ * Só aceita http(s)://host. Um erro de digitação ("htttp://", visto no emulador) seria salvo e
+ * depois toda chamada falharia com "sem resposta do servidor", sem o formulário para corrigir.
+ */
+export function urlDeServidorValida(url: string): boolean {
+  return /^https?:\/\/[^\s/?#]+(\/\S*)?$/i.test(url.trim());
+}
+
 export async function salvarConexao(c: ConexaoServidor): Promise<void> {
   await SecureStore.setItemAsync(CHAVE_URL, c.url.trim().replace(/\/+$/, ''));
   await SecureStore.setItemAsync(CHAVE_TOKEN, c.token.trim());

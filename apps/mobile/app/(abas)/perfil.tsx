@@ -26,7 +26,7 @@ import {
   type EstadoPermissao,
 } from '../../src/notificacoes';
 import { atualizarPerfil, enviarFoto, removerFoto } from '../../src/perfil';
-import { lerConexao, salvarConexao } from '../../src/servidor';
+import { lerConexao, salvarConexao, urlDeServidorValida } from '../../src/servidor';
 import { sincronizarAgora } from '../../src/sync';
 import { useTema } from '../../src/tema';
 import { HistoricoXp } from '../../src/ui/HistoricoXp';
@@ -229,6 +229,7 @@ function FormularioConexao({ aoSalvar }: { aoSalvar: () => Promise<void> }) {
   const tema = useTema();
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
+  const urlOk = urlDeServidorValida(url);
   return (
     <View style={estilos.bloco}>
       <Text style={[estilos.subtitulo, { color: tema.texto }]}>Conectar ao servidor</Text>
@@ -242,6 +243,9 @@ function FormularioConexao({ aoSalvar }: { aoSalvar: () => Promise<void> }) {
         value={url}
         onChangeText={setUrl}
       />
+      {url && !urlOk ? (
+        <Text style={{ color: tema.perigo }}>Use o endereço completo: http:// ou https://</Text>
+      ) : null}
       <TextInput
         style={[estilos.campo, { color: tema.texto, borderColor: tema.borda }]}
         placeholder="token"
@@ -254,7 +258,7 @@ function FormularioConexao({ aoSalvar }: { aoSalvar: () => Promise<void> }) {
       />
       <Button
         title="Salvar"
-        disabled={!url || !token}
+        disabled={!urlOk || !token}
         onPress={async () => {
           await salvarConexao({ url, token });
           await aoSalvar();
