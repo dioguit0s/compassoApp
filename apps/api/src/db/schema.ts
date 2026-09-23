@@ -10,7 +10,10 @@ import {
   pgTable,
   smallint,
   text,
+  date,
+  foreignKey,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -134,6 +137,8 @@ export const items = pgTable(
     index('items_user_id_start_at_idx').on(t.userId, t.startAt),
     index('items_user_id_due_at_idx').on(t.userId, t.dueAt),
     index('items_deleted_at_idx').on(t.deletedAt),
+    // Alvo da FK composta de item_occurrences: o desvio só aponta para item da mesma conta.
+    uniqueIndex('items_user_id_id_idx').on(t.userId, t.id),
     check('items_kind_check', sql`${t.kind} in ('task', 'event')`),
     check('items_status_check', sql`${t.status} in ('open', 'done')`),
     check('items_effort_check', sql`${t.effort} in (1, 2, 3, 5, 8)`),
@@ -156,6 +161,67 @@ export const items = pgTable(
     check('items_timezone_check', sql`length(${t.timezone}) > 0`),
     check('items_postpone_count_check', sql`${t.postponeCount} >= 0`),
     pgPolicy('items_dono', {
+      for: 'all',
+      to: papelApp,
+      using: sql`${t.userId} = ${usuarioAtual}`,
+      withCheck: sql`${t.userId} = ${usuarioAtual}`,
+    }),
+  ],
+);
+
+/**
+ * Desvios de ocorrência de série (especificação §5). Só vira linha quando a ocorrência desvia.
+ * Identidade `(item_id, occurrence_date)` com índice único — o push faz LWW por ela, não pelo
+ * `id`, para dois aparelhos que criem offline o desvio da mesma data convergirem (ADR-0004).
+ */
+export const itemOccurrences = pgTable(
+  'item_occurrences',
+  {
+    id: uuid().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    itemId: uuid().notNull(),
+    occurrenceDate: date({ mode: 'string' }).notNull(),
+    type: text({ enum: ['completed', 'cancelled', 'moved', 'edited'] }).notNull(),
+    status: text({ enum: ['open', 'done'] })
+      .notNull()
+      .default('open'),
+    completedAt: timestamp(tz),
+    startAt: timestamp(tz),
+    endAt: timestamp(tz),
+    titleOverride: text(),
+    notesOverride: text(),
+    deletedAt: timestamp(tz),
+    createdAt: timestamp(tz).notNull(),
+    updatedAt: timestamp(tz).notNull(),
+    serverUpdatedAt: timestamp(tz)
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (t) => [
+    uniqueIndex('item_occurrences_item_data_idx').on(t.itemId, t.occurrenceDate),
+    index('item_occurrences_user_id_server_updated_at_idx').on(t.userId, t.serverUpdatedAt),
+    index('item_occurrences_deleted_at_idx').on(t.deletedAt),
+    foreignKey({
+      name: 'item_occurrences_item_fk',
+      columns: [t.userId, t.itemId],
+      foreignColumns: [items.userId, items.id],
+    }).onDelete('cascade'),
+    check(
+      'item_occurrences_type_check',
+      sql`${t.type} in ('completed', 'cancelled', 'moved', 'edited')`,
+    ),
+    check('item_occurrences_status_check', sql`${t.status} in ('open', 'done')`),
+    check(
+      'item_occurrences_conclusao_check',
+      sql`(${t.status} = 'done') = (${t.completedAt} is not null)`,
+    ),
+    check(
+      'item_occurrences_intervalo_check',
+      sql`${t.endAt} is null or (${t.startAt} is not null and ${t.endAt} >= ${t.startAt})`,
+    ),
+    pgPolicy('item_occurrences_dono', {
       for: 'all',
       to: papelApp,
       using: sql`${t.userId} = ${usuarioAtual}`,

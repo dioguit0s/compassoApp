@@ -5,5 +5,7 @@ export * from './calendario';
 export * from './datas';
 export * from './id';
 export * from './item';
+export * from './ocorrencia';
+export * from './projecao';
 export * from './rrule';
 export * from './sync/motor';

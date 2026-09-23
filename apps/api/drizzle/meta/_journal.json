@@ -36,6 +36,20 @@
       "when": 1790132051311,
       "tag": "0004_items_trigger_e_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790134171501,
+      "tag": "0005_item_occurrences",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790134172344,
+      "tag": "0006_item_occurrences_trigger_e_grants",
+      "breakpoints": true
     }
   ]
 }

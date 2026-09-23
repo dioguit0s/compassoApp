@@ -22,7 +22,8 @@ async function push(token: string, itens: unknown[]) {
     '/sync/push',
     comToken(token, { method: 'POST', body: JSON.stringify({ itens }) }),
   );
-  return { status: r.status, corpo: (await r.json()) as RespostaPush };
+  const json = (await r.json()) as RespostaPush;
+  return { status: r.status, corpo: json.itens, ocorrencias: json.ocorrencias };
 }
 
 async function pull(token: string, cursor: string | null = null) {

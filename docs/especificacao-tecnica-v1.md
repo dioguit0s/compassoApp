@@ -394,6 +394,7 @@ BYDAY=MO,TU,...            e a forma ordinal BYDAY=2TU (segunda terça do mês)
 BYMONTHDAY=n
 BYMONTH=n
 UNTIL=<data>  ou  COUNT=n
+WKST=SU|MO|...             (ADR-0004: o Google exporta séries semanais com WKST)
 ```
 
 Ficam rejeitados `BYSETPOS`, `BYWEEKNO`, `BYYEARDAY` e `BYHOUR`. Ampliar o validador depois não
@@ -423,7 +424,9 @@ regra diz, não existe nada gravado.
   createdAt }
 ```
 
-Índice único em `(itemId, occurrenceDate)`. Concluir a ocorrência de terça-feira de um treino
+Índice único em `(itemId, occurrenceDate)`, que é a identidade da ocorrência também no sync; os
+campos de desvio se somam (movida e editada ao mesmo tempo) e `type` registra o último aplicado
+([ADR-0004](adr/0004-recorrencia-e-desvios-de-ocorrencia.md)). Concluir a ocorrência de terça-feira de um treino
 semanal cria uma linha aqui e gera os lançamentos de XP normalmente — a série é a regra, a
 ocorrência é o fato.
 

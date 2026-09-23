@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ATRIBUTOS, ESFORCOS } from './atributos';
+import { esquemaOcorrencia, type OcorrenciaWire } from './ocorrencia';
 import { validarRRule } from './rrule';
 
 /**
@@ -106,18 +107,28 @@ export function violacoesDeInvariante(item: {
   return v;
 }
 
-export const esquemaPush = z.object({ itens: z.array(esquemaItem).max(1000) });
-export type RequisicaoPush = z.infer<typeof esquemaPush>;
+export const esquemaPush = z.object({
+  itens: z.array(esquemaItem).max(1000).default([]),
+  ocorrencias: z.array(esquemaOcorrencia).max(1000).default([]),
+});
+export type RequisicaoPush = z.input<typeof esquemaPush>;
 
-export interface RespostaPush {
+export interface ResultadoDaTabela {
   /** Gravados: a versão do client venceu o LWW (ou a linha não existia). */
   aplicados: string[];
-  /** Não gravados porque o servidor tem versão igual ou mais nova; o pull traz a do servidor. */
+  /** Não gravados: o servidor tem versão igual ou mais nova (o pull traz a dele), ou a linha
+   *  depende de algo que não existe mais no servidor. */
   ignorados: string[];
+}
+
+export interface RespostaPush {
+  itens: ResultadoDaTabela;
+  ocorrencias: ResultadoDaTabela;
 }
 
 export interface RespostaPull {
   itens: ItemWire[];
+  ocorrencias: OcorrenciaWire[];
   /** Relógio do servidor no início da consulta. Opaco para o client. */
   cursor: string;
   /** Prazo da lixeira e da purga de tombstones, em dias. */

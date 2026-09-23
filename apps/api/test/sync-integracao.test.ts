@@ -1,137 +1,23 @@
 /**
- * Os quatro cenários de sincronização do roadmap (F1) com dois clients de verdade: o mesmo
- * `RepositorioLocal` e o mesmo `MotorDeSync` do app, sobre SQLite em memória (better-sqlite3)
- * migrado com as migrações do app, contra a API e um PostgreSQL reais.
+ * Os quatro cenários de sincronização do roadmap (F1) com dois clients de verdade (ver
+ * `clientes.ts`), contra a API e um PostgreSQL reais.
  */
-import { MotorDeSync, type RespostaPull, type RespostaPush, type Transporte } from '@compasso/core';
-import { RepositorioLocal } from '@compasso/core/local';
-import * as schemaLocal from '@compasso/core/local';
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { fileURLToPath } from 'node:url';
-import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
-import { ambiente, comToken } from './ajuda';
+import { describe, expect, it } from 'vitest';
+import { DIA, novoEvento, SemRede, usarClientes, type Cliente } from './clientes';
 
-const MIGRACOES_APP = fileURLToPath(new URL('../../mobile/drizzle', import.meta.url));
-const DIA = 86_400_000;
-
-let env: Awaited<ReturnType<typeof ambiente>>;
-let dono: pg.Client;
-beforeAll(async () => {
-  env = await ambiente();
-  dono = new pg.Client({ connectionString: inject('urlAdmin') });
-  await dono.connect();
-});
-afterAll(async () => {
-  await dono.end();
-  await env.fechar();
-});
-
-class SemRede extends Error {}
-
-function criarCliente(token: string, inicio = Date.now()) {
-  const sqlite = new Database(':memory:');
-  const db = drizzle({ client: sqlite, schema: schemaLocal, casing: 'snake_case' });
-  migrate(db, { migrationsFolder: MIGRACOES_APP });
-
-  const cliente = {
-    /** Relógio do aparelho, controlado pelo teste. */
-    relogio: inicio,
-    online: false,
-    /** Chamado com o push já enviado e antes de a resposta voltar. */
-    duranteOPush: null as null | (() => void),
-    /** Simula resposta do push perdida: o servidor grava, o client não fica sabendo. */
-    perderRespostaDoPush: false,
-    pushes: 0,
-    repo: null as unknown as RepositorioLocal,
-    motor: null as unknown as MotorDeSync,
-    tempo(ms: number) {
-      cliente.relogio += ms;
-    },
-  };
-  const agora = () => cliente.relogio;
-
-  const transporte: Transporte = {
-    async push(itens) {
-      if (!cliente.online) throw new SemRede();
-      cliente.pushes++;
-      const r = await env.app.request(
-        '/sync/push',
-        comToken(token, { method: 'POST', body: JSON.stringify({ itens }) }),
-      );
-      if (!r.ok) throw new Error(`push ${r.status}: ${await r.text()}`);
-      const corpo = (await r.json()) as RespostaPush;
-      cliente.duranteOPush?.();
-      if (cliente.perderRespostaDoPush) throw new SemRede();
-      return corpo;
-    },
-    async pull(cursor) {
-      if (!cliente.online) throw new SemRede();
-      const q = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
-      const r = await env.app.request(`/sync/pull${q}`, comToken(token));
-      if (!r.ok) throw new Error(`pull ${r.status}`);
-      return (await r.json()) as RespostaPull;
-    },
-  };
-  cliente.repo = new RepositorioLocal(db, agora);
-  cliente.motor = new MotorDeSync(cliente.repo, transporte, agora);
-  return cliente;
-}
-
-function sqliteDe(c: ReturnType<typeof criarCliente>): Database.Database {
-  return (c.repo as unknown as { db: { $client: Database.Database } }).db.$client;
-}
-
-/** Linhas fisicamente no SQLite do client, tombstones incluídos. */
-function fisicos(c: ReturnType<typeof criarCliente>): string[] {
-  return (sqliteDe(c).prepare('select id from items').all() as { id: string }[]).map((l) => l.id);
-}
-
-async function doisAparelhos(nome: string) {
-  const { userId, token } = await env.admin.criarConta(nome);
-  const token2 = await env.admin.emitirToken(userId, 'segundo aparelho');
-  return { userId, a: criarCliente(token), b: criarCliente(token2) };
-}
-
-async function linhasNoServidor(userId: string) {
-  const r = await dono.query(
-    'select id, title, deleted_at from items where user_id = $1 order by id',
-    [userId],
-  );
-  return r.rows as { id: string; title: string; deleted_at: Date | null }[];
-}
-
-const novoEvento = (titulo: string) => ({
-  title: titulo,
-  notes: null,
-  kind: 'event' as const,
-  effort: null,
-  effortLockedAt: null,
-  primaryAttribute: null,
-  secondaryAttribute: null,
-  dueAt: null,
-  startAt: new Date('2026-10-05T13:00:00Z'),
-  endAt: null,
-  allDay: false,
-  timezone: 'America/Sao_Paulo',
-  rrule: null,
-  recurrenceEndsAt: null,
-  completedAt: null,
-  reminderMinutesBefore: 30,
-});
+const { ctx, fisicos, doisAparelhos, linhasNoServidor } = usarClientes();
+const sqliteDe = (c: Cliente) => c.sqlite;
 
 describe('cenário 1 — criar offline → sincronizar', () => {
   it('o item chega ao servidor e ao outro client', async () => {
     const { userId, a, b } = await doisAparelhos('Cenário 1');
     const item = a.repo.criar(novoEvento('Consulta'));
     await expect(a.motor.sincronizar()).rejects.toThrow(SemRede);
-    expect(a.repo.sujos().map((s) => s.id)).toEqual([item.id]);
+    expect(a.repo.sujos().itens.map((s) => s.id)).toEqual([item.id]);
 
     a.online = true;
     await a.motor.sincronizar();
-    expect(a.repo.sujos()).toEqual([]);
+    expect(a.repo.sujos()).toEqual({ itens: [], ocorrencias: [] });
     expect((await linhasNoServidor(userId)).map((l) => l.id)).toEqual([item.id]);
 
     b.online = true;
@@ -187,8 +73,8 @@ describe('cenário 2 — mesmo item editado nos dois clients offline', () => {
     expect(a.repo.obter(item.id)!.title).toBe(esperado);
     expect(b.repo.obter(item.id)!.title).toBe(esperado);
     expect((await linhasNoServidor(userId))[0]!.title).toBe(esperado);
-    expect(a.repo.sujos()).toEqual([]);
-    expect(b.repo.sujos()).toEqual([]);
+    expect(a.repo.sujos()).toEqual({ itens: [], ocorrencias: [] });
+    expect(b.repo.sujos()).toEqual({ itens: [], ocorrencias: [] });
   });
 });
 
@@ -253,7 +139,7 @@ describe('cenário 4 — push repetido não duplica', () => {
     expect(a.pushes).toBe(3);
     expect((await linhasNoServidor(userId)).map((l) => l.id)).toEqual([item.id]);
     expect(a.repo.listar()).toHaveLength(1);
-    expect(a.repo.sujos()).toEqual([]);
+    expect(a.repo.sujos()).toEqual({ itens: [], ocorrencias: [] });
   });
 });
 
@@ -268,11 +154,11 @@ describe('motor de sync', () => {
       a.repo.editar(item.id, { title: 'durante' });
     };
     await a.motor.sincronizar();
-    expect(a.repo.sujos().map((s) => s.title)).toEqual(['durante']);
+    expect(a.repo.sujos().itens.map((s) => s.title)).toEqual(['durante']);
     expect(a.repo.obter(item.id)!.title).toBe('durante');
 
     await a.motor.sincronizar();
-    expect(a.repo.sujos()).toEqual([]);
+    expect(a.repo.sujos()).toEqual({ itens: [], ocorrencias: [] });
     expect((await linhasNoServidor(userId))[0]!.title).toBe('durante');
   });
 
@@ -312,10 +198,10 @@ describe('motor de sync', () => {
     // A exclui; o servidor purga antes de B voltar a sincronizar.
     a.repo.excluir(item.id);
     await a.motor.sincronizar();
-    await dono.query(`update items set deleted_at = now() - interval '40 days' where id = $1`, [
+    await ctx.dono.query(`update items set deleted_at = now() - interval '40 days' where id = $1`, [
       item.id,
     ]);
-    await env.admin.purgarTombstones(30);
+    await ctx.env.admin.purgarTombstones(30);
 
     b.tempo(40 * DIA);
     const r = await b.motor.sincronizar();

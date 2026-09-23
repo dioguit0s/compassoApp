@@ -1,8 +1,9 @@
 import { esquemaItem, type ItemWire, type RespostaPull, type RespostaPush } from '../item';
+import { esquemaOcorrencia, type OcorrenciaWire } from '../ocorrencia';
 
 /** Como o motor fala com o servidor: `fetch` no app, `app.request` nos testes. */
 export interface Transporte {
-  push(itens: ItemWire[]): Promise<RespostaPush>;
+  push(lote: { itens: ItemWire[]; ocorrencias: OcorrenciaWire[] }): Promise<RespostaPush>;
   pull(cursor: string | null): Promise<RespostaPull>;
 }
 
@@ -12,12 +13,22 @@ export interface MetadadosSync {
   retencaoDias: number | null;
 }
 
+export interface Linhas {
+  itens: ItemWire[];
+  ocorrencias: OcorrenciaWire[];
+}
+
+export interface Confirmacao {
+  id: string;
+  updatedAt: string;
+}
+
 /** O que o motor precisa do banco local. Implementado por `RepositorioLocal`. */
 export interface ArmazemLocal {
-  sujos(): ItemWire[];
-  confirmar(enviados: { id: string; updatedAt: string }[]): void;
-  aplicar(recebidos: ItemWire[]): number;
-  reconciliar(idsNoServidor: string[]): number;
+  sujos(): Linhas;
+  confirmar(enviados: { itens: Confirmacao[]; ocorrencias: Confirmacao[] }): void;
+  aplicar(recebidos: Linhas): number;
+  reconciliar(noServidor: { itens: string[]; ocorrencias: string[] }): number;
   purgar(limite: Date): number;
   lerMetadados(): MetadadosSync;
   gravarMetadados(m: { cursor: string; ultimaSync: number; retencaoDias: number }): void;
@@ -67,21 +78,25 @@ export class MotorDeSync {
   }
 
   private async rodar(): Promise<ResultadoSync> {
-    // 1. Push
+    // 1. Push — itens antes das ocorrências, que dependem deles.
     const invalidos: string[] = [];
-    const validos: ItemWire[] = [];
-    for (const item of this.armazem.sujos()) {
-      if (esquemaItem.safeParse(item).success) validos.push(item);
-      else invalidos.push(item.id);
+    const sujos = this.armazem.sujos();
+    const itens = sujos.itens.filter((i) => valido(esquemaItem, i, invalidos));
+    const ocorrencias = sujos.ocorrencias.filter((o) => valido(esquemaOcorrencia, o, invalidos));
+    const lotes: Linhas[] = [];
+    for (let i = 0; i < itens.length; i += LOTE_PUSH) {
+      lotes.push({ itens: itens.slice(i, i + LOTE_PUSH), ocorrencias: [] });
     }
-    for (let i = 0; i < validos.length; i += LOTE_PUSH) {
-      const lote = validos.slice(i, i + LOTE_PUSH);
+    for (let i = 0; i < ocorrencias.length; i += LOTE_PUSH) {
+      lotes.push({ itens: [], ocorrencias: ocorrencias.slice(i, i + LOTE_PUSH) });
+    }
+    for (const lote of lotes) {
       const r = await this.transporte.push(lote);
       // Ignorado também limpa: o servidor tem versão igual ou mais nova, que chega no pull.
-      const tratados = new Set([...r.aplicados, ...r.ignorados]);
-      this.armazem.confirmar(
-        lote.filter((l) => tratados.has(l.id)).map((l) => ({ id: l.id, updatedAt: l.updatedAt })),
-      );
+      this.armazem.confirmar({
+        itens: tratados(lote.itens, r.itens),
+        ocorrencias: tratados(lote.ocorrencias, r.ocorrencias),
+      });
     }
 
     // 2. Pull
@@ -93,9 +108,12 @@ export class MotorDeSync {
       (meta.ultimaSync !== null && agora - meta.ultimaSync > retencao * DIA_MS);
 
     const resposta = await this.transporte.pull(completo ? null : meta.cursor);
-    const aplicados = this.armazem.aplicar(resposta.itens);
+    const aplicados = this.armazem.aplicar(resposta);
     if (completo && meta.cursor !== null) {
-      this.armazem.reconciliar(resposta.itens.map((i) => i.id));
+      this.armazem.reconciliar({
+        itens: resposta.itens.map((i) => i.id),
+        ocorrencias: resposta.ocorrencias.map((o) => o.id),
+      });
     }
     this.armazem.gravarMetadados({
       cursor: resposta.cursor,
@@ -107,12 +125,30 @@ export class MotorDeSync {
     const purgados = this.armazem.purgar(new Date(agora - resposta.retencaoDias * DIA_MS));
 
     return {
-      enviados: validos.length,
-      recebidos: resposta.itens.length,
+      enviados: itens.length + ocorrencias.length,
+      recebidos: resposta.itens.length + resposta.ocorrencias.length,
       aplicados,
       invalidos,
       completo,
       purgados,
     };
   }
+}
+
+function valido<T extends { id: string }>(
+  esquema: { safeParse(v: unknown): { success: boolean } },
+  linha: T,
+  invalidos: string[],
+): boolean {
+  if (esquema.safeParse(linha).success) return true;
+  invalidos.push(linha.id);
+  return false;
+}
+
+function tratados(
+  enviados: { id: string; updatedAt: string }[],
+  r: { aplicados: string[]; ignorados: string[] },
+): Confirmacao[] {
+  const ok = new Set([...r.aplicados, ...r.ignorados]);
+  return enviados.filter((l) => ok.has(l.id)).map((l) => ({ id: l.id, updatedAt: l.updatedAt }));
 }

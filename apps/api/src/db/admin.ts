@@ -62,10 +62,15 @@ export class Admin {
    * cada conta já excluiu há mais tempo que a retenção.
    */
   async purgarTombstones(dias: number): Promise<number> {
-    const r = await this.cliente.query(
+    // Desvios de itens purgados saem junto (FK com ON DELETE CASCADE).
+    const oc = await this.cliente.query(
+      `delete from item_occurrences where deleted_at < now() - make_interval(days => $1)`,
+      [dias],
+    );
+    const it = await this.cliente.query(
       `delete from items where deleted_at < now() - make_interval(days => $1)`,
       [dias],
     );
-    return r.rowCount ?? 0;
+    return (oc.rowCount ?? 0) + (it.rowCount ?? 0);
   }
 }

@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { ATRIBUTOS } from '../atributos';
 
 /**
@@ -83,3 +83,36 @@ export const metadados = sqliteTable('metadados', {
   chave: text().primaryKey(),
   valor: text().notNull(),
 });
+
+/**
+ * Desvios de ocorrência de série (especificação §5). A identidade é `(item_id, occurrence_date)`,
+ * com índice único: dois aparelhos que criem offline o desvio da mesma data convergem nela
+ * (ADR-0004). `occurrence_date` é texto `AAAA-MM-DD`, o dia civil original em São Paulo.
+ */
+export const itemOccurrences = sqliteTable(
+  'item_occurrences',
+  {
+    id: text().primaryKey(),
+    itemId: text().notNull(),
+    occurrenceDate: text().notNull(),
+    type: text({ enum: ['completed', 'cancelled', 'moved', 'edited'] }).notNull(),
+    status: text({ enum: ['open', 'done'] })
+      .notNull()
+      .default('open'),
+    completedAt: data(),
+    startAt: data(),
+    endAt: data(),
+    titleOverride: text(),
+    notesOverride: text(),
+    deletedAt: data(),
+    createdAt: data().notNull(),
+    updatedAt: data().notNull(),
+    dirty: integer({ mode: 'boolean' }).notNull().default(false),
+  },
+  (t) => [
+    uniqueIndex('item_occurrences_item_data_idx').on(t.itemId, t.occurrenceDate),
+    index('item_occurrences_dirty_idx').on(t.dirty),
+  ],
+);
+
+export type OcorrenciaLocal = typeof itemOccurrences.$inferSelect;

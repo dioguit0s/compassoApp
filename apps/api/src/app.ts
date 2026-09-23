@@ -4,6 +4,7 @@ import { autenticacao, type VariaveisAutenticadas } from './auth';
 import type { Config } from './config';
 import type { Banco } from './db/banco';
 import type { Usuario } from './db/repositorios';
+import { rotasDeItens } from './itens';
 import { rotasDeSync } from './sync';
 
 export function serializarUsuario(u: Usuario) {
@@ -40,6 +41,7 @@ export function criarApp(banco: Banco, config: Config) {
   });
 
   autenticada.route('/sync', rotasDeSync(config));
+  autenticada.route('/', rotasDeItens());
 
   app.route('/', autenticada);
   return app;
