@@ -41,6 +41,8 @@ export default function Raiz() {
       <Stack>
         <Stack.Screen name="(abas)" options={{ headerShown: false }} />
         <Stack.Screen name="diagnostico" options={{ title: 'Diagnóstico' }} />
+        <Stack.Screen name="captura" options={{ title: 'Captura rápida', presentation: 'modal' }} />
+        <Stack.Screen name="item/[id]" options={{ title: 'Item', presentation: 'modal' }} />
       </Stack>
     </>
   );

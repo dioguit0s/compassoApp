@@ -1,5 +1,6 @@
 import { ESFORCOS, iniciais } from '@compasso/core';
-import { perfil } from '@compasso/core/local';
+import { metadados, perfil } from '@compasso/core/local';
+import { eq } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -7,11 +8,16 @@ import { Button, ScrollView, StyleSheet, Text, TextInput, View } from 'react-nat
 import { db } from '../../src/db';
 import { atualizarPerfil } from '../../src/perfil';
 import { esquecerConexao, lerConexao, salvarConexao } from '../../src/servidor';
+import { sincronizarAgora } from '../../src/sync';
 
 export default function Perfil() {
   // A tela lê do SQLite, nunca da resposta da API.
   const { data } = useLiveQuery(db.select().from(perfil));
   const conta = data[0];
+  const { data: sync } = useLiveQuery(
+    db.select().from(metadados).where(eq(metadados.chave, 'ultimaSync')),
+  );
+  const ultimaSync = sync[0] ? new Date(Number(sync[0].valor)).toLocaleString('pt-BR') : 'nunca';
   const [temConexao, setTemConexao] = useState<boolean | null>(null);
   const [estado, setEstado] = useState('');
 
@@ -22,6 +28,7 @@ export default function Perfil() {
   async function atualizar() {
     setEstado('buscando…');
     const r = await atualizarPerfil();
+    await sincronizarAgora();
     setEstado(
       r === 'ok' ? 'atualizado' : r === 'falhou' ? 'sem resposta do servidor' : 'sem conexão',
     );
@@ -57,6 +64,7 @@ export default function Perfil() {
         <View style={estilos.bloco}>
           <Button title="Atualizar do servidor" onPress={atualizar} />
           {estado ? <Text style={estilos.detalhe}>{estado}</Text> : null}
+          <Text style={estilos.detalhe}>última sincronização: {ultimaSync}</Text>
           <Button
             title="Esquecer servidor e token"
             color="#8C2F4A"

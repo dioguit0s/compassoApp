@@ -10,55 +10,33 @@ mova o registro para o PR/commit correspondente.
 
 ## Tarefa atual
 
-**Objetivo:** executar o roadmap a partir da F0, issue por issue, na branch
-`claude/dev-roadmap-issues-d913ui`.
+**Objetivo:** seguir o roadmap além da F1 (autorizado pelo usuário em 2026-09-23), com fuso fixo
+de São Paulo (ADR-0003). Commits quando fizer sentido.
 
-**Pronto quando:**
-- [x] F0 (#1–#13) implementada; o que exige aparelho/servidor real está documentado
-- [x] F1 (#15–#24) implementada, com os quatro cenários de sync passando
-- [x] `npm run lint`, `npm run typecheck` e `npm test` passam da raiz
-
-**Parar e perguntar se:** a próxima fase depende de decisão de produto (F2 abre com #26, fuso ao
-viajar) ou de verificação no aparelho real (#14, #25). → **Parado aqui.**
+**Parar e perguntar se:** decisão de produto (#55 fim de semestre na F5; #64 congelamento e #65
+estorno na F6) ou contradição com especificação/roadmap/ADR.
 
 ### Checklist
-- [x] #1 monorepo, lint, typecheck, test
-- [x] #2 Postgres + Drizzle + migrações
-- [x] #3 RLS
-- [x] #4 API, middleware de token, /me, /health
-- [x] #5 camada de repositório
-- [x] #6 script de criação de conta
-- [x] #7 app Expo, dev build, quatro abas (código; build no aparelho pendente)
-- [x] #8 core via Metro (bundles Android/iOS exportam; aparelho pendente)
-- [x] #9 datas com fuso — tela de diagnóstico (resultado no aparelho pendente)
-- [x] #10 SQLite local + cache do /me (código; modo avião no aparelho pendente)
-- [x] #11 docs/deploy.md + units + cloudflared (execução no servidor pendente)
-- [x] #12 backup pg_dump (testado localmente: retenção 9→7, falha alta)
-- [x] #13 restauração documentada com comandos testados localmente (servidor real pendente)
-- [x] #15 items no Postgres com CHECKs
-- [x] #16 UUIDv7
-- [x] #17 items no SQLite
-- [x] #18 CRUD local
-- [x] #19 tela provisória
-- [x] #20 /sync/push
-- [x] #21 /sync/pull
-- [x] #22 motor de sync no app
-- [x] #23 purga de tombstones
-- [x] #24 testes de integração dos 4 cenários
-- [x] revisar o próprio diff
+- [x] F0 e F1 (ver commits até 53f6b11)
+- [x] #26 decisão de fuso → ADR-0003
+- [x] #27 consulta por intervalo + funções de calendário no core
+- [x] #28 semana, #29 mês, #30 alternância, #31 Hoje, #32 captura, #33 detalhe, #34 dia inteiro,
+      #35 distinção visual (código; aparelho pendente)
+- [ ] F3 #37–#45 recorrência
+- [ ] F4 #47–#53 notificações e ICS
+- [ ] revisar o próprio diff
 
 ### Decisões tomadas
-- Ferramentas da F0 — ver docs/adr/0002-ferramentas-e-convencoes-da-fundacao.md
-- Protocolo de sync (janela 60 s, cursor, LWW, purga, aparelho parado) — ver docs/sincronizacao.md
-- F2 cria só `event` (compromisso puro), porque `task` exige `effort` e a UI de esforço é da F6
-  (contradição apontada na #15; sugestão do próprio roadmap)
-- Token por aparelho em `api_tokens` (hash), no lugar de `AUTH_TOKEN` em variável de ambiente
+- F0/F1: ADR-0002 e docs/sincronizacao.md
+- Semana começa no domingo (calendário brasileiro e `classSlots.weekday`)
+- Dia inteiro: `startAt` = 00:00 SP do primeiro dia, `endAt` = 00:00 SP do dia seguinte ao último
+- Mês: evento de vários dias repetido em cada dia (não faixa contínua)
+- Última visão do calendário guardada em `metadados` com prefixo `ui.` (não sincroniza)
+- Tela provisória da F1 removida; Perfil mostra a última sincronização
 
 ### Pendências para o usuário
-- #14 e #25: executar no aparelho real, túnel e servidor doméstico
-- #26 (fuso ao viajar) bloqueia a F2
+- #14, #25, #36: critérios de saída no aparelho real (captura < 3 s cronometrada)
 
 ### Não confirmado
-- `Intl` com `timeZone` no Hermes do aparelho real — só no Node; a tela de diagnóstico confere
-- zod v4 no Hermes — o bundle compila, execução não verificada em aparelho
-- build nativo (`expo run:android/ios`) — sem Android SDK/Xcode neste ambiente; só `expo export`
+- Telas não foram vistas rodando: sem emulador neste ambiente; só typecheck e `expo export`
+- `Intl` com `timeZone` e zod v4 no Hermes do aparelho
