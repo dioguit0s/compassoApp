@@ -88,6 +88,22 @@ describe('foto de perfil (#84)', () => {
     expect(readdirSync(config.avatarDir)).not.toContain(segunda.corpo.avatarPath);
   });
 
+  it('GET /avatares/:arquivo serve a foto sem token, como o Nginx; nome fora do padrão → 404', async () => {
+    const { token } = await doisAparelhos('Foto servida');
+    const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: '#0a0' } })
+      .png()
+      .toBuffer();
+    const r = await enviarAvatar(token, png, 'x.png');
+    const foto = await ctx.env.app.request(`/avatares/${r.corpo.avatarPath as string}`);
+    expect(foto.status).toBe(200);
+    expect(foto.headers.get('content-type')).toBe('image/jpeg');
+    expect((await sharp(Buffer.from(await foto.arrayBuffer())).metadata()).width).toBe(256);
+
+    for (const ruim of ['..%2F..%2Fpackage.json', 'x.jpg', `${crypto.randomUUID()}.jpg`]) {
+      expect((await ctx.env.app.request(`/avatares/${ruim}`)).status).toBe(404);
+    }
+  });
+
   it('arquivo que não é imagem é recusado pelo conteúdo, não pela extensão', async () => {
     const { token } = await doisAparelhos('Não é imagem');
     const r = await enviarAvatar(token, Buffer.from('#!/bin/sh\necho oi'), 'foto.jpg');

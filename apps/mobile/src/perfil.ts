@@ -80,7 +80,11 @@ async function baixarFoto(me: MeResposta, conexao: ConexaoServidor): Promise<str
   if (info.exists) return destino;
   try {
     const r = await FileSystem.downloadAsync(`${conexao.url}/avatares/${me.avatarPath}`, destino);
-    return r.status === 200 ? destino : null;
+    if (r.status === 200) return destino;
+    // O downloadAsync grava o corpo mesmo com erro: sem apagar, a próxima chamada acharia o
+    // arquivo e usaria o JSON do 401/404 como foto para sempre (visto no emulador).
+    await FileSystem.deleteAsync(destino, { idempotent: true });
+    return null;
   } catch {
     return null;
   }

@@ -18,13 +18,14 @@ const esquemaMe = z
   .strict();
 
 /** Nome de arquivo aleatório: não enumera contas, não sobrescreve outra, e troca a URL (cache). */
-const ARQUIVO_AVATAR = /^[0-9a-f-]{36}\.jpg$/;
+export const ARQUIVO_AVATAR = /^[0-9a-f-]{36}\.jpg$/;
 const FORMATOS_ACEITOS = new Set(['jpeg', 'png', 'webp', 'heif', 'avif']);
 
 /**
  * Perfil (especificação §6.3, §7): `PATCH /me`, `PUT`/`DELETE /me/avatar`, lixeira.
  * A foto é redimensionada para 256px no servidor, sem metadados (EXIF/GPS), e salva como um
- * arquivo em `AVATAR_DIR`, servido pelo Nginx em `/avatares/` (deploy/nginx.conf.example).
+ * arquivo em `AVATAR_DIR`, servido pelo Nginx em `/avatares/` (deploy/nginx.conf.example) — e, sem
+ * Nginx (desenvolvimento), pela própria API em `app.ts`.
  */
 export function rotasDePerfil(config: Config) {
   const rotas = new Hono<{ Variables: VariaveisAutenticadas }>();
