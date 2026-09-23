@@ -50,9 +50,12 @@ export function Botao(p: {
   const tema = useTema();
   const cor = p.perigo ? tema.perigo : tema.destaque;
   return (
+    // Desativado continua capturando o toque (só não faz nada): com `disabled`, o toque passava
+    // para o Pressable de fora — no cartão de recompensa, "Resgatar" em carência abria a edição.
     <Pressable
-      onPress={p.aoTocar}
-      disabled={p.desativado}
+      onPress={p.desativado ? undefined : p.aoTocar}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!p.desativado }}
       style={[estilos.botao, { borderColor: cor, opacity: p.desativado ? 0.4 : 1 }]}
     >
       <Text style={{ color: cor, fontWeight: '600' }}>{p.rotulo}</Text>
