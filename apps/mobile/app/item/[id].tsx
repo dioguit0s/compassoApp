@@ -8,8 +8,8 @@ import {
   type Dia,
 } from '@compasso/core';
 import { ErroDeValidacao, serieDoItem, type DadosItem, type ItemLocal } from '@compasso/core/local';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -125,6 +125,42 @@ function Formulario({
   const disciplinas = grade.disciplinas.filter((c) => c.semesterId === ativo?.id);
   const [erros, setErros] = useState<string[]>([]);
   const rolagem = useRef<ScrollView>(null);
+
+  // Sair com alterações não salvas pergunta antes de descartar (voltar, gesto, botão do sistema).
+  // Salvar e excluir fecham pelo `tentar`, que libera a saída.
+  const retrato = () =>
+    JSON.stringify([
+      titulo,
+      notas,
+      diaInteiro,
+      inicio.getTime(),
+      fim?.getTime() ?? null,
+      lembrete,
+      rrule,
+      disciplina,
+      pontuacao,
+      tipo,
+    ]);
+  const [original] = useState(retrato);
+  const alterado = retrato() !== original;
+  const saidaLiberada = useRef(false);
+  const navegacao = useNavigation();
+  useEffect(
+    () =>
+      navegacao.addListener('beforeRemove', (e) => {
+        if (!alterado || saidaLiberada.current) return;
+        e.preventDefault();
+        Alert.alert('Descartar alterações?', 'O que você mudou nesta tela não foi salvo.', [
+          { text: 'Continuar editando', style: 'cancel' },
+          {
+            text: 'Descartar',
+            style: 'destructive',
+            onPress: () => navegacao.dispatch(e.data.action),
+          },
+        ]);
+      }),
+    [navegacao, alterado],
+  );
   const ehTarefa = tipo === 'task';
   const concluivel = item.effort !== null;
 
@@ -148,7 +184,10 @@ function Formulario({
   function tentar(fn: () => void, fechar = true) {
     try {
       fn();
-      if (fechar) aoTerminar();
+      if (fechar) {
+        saidaLiberada.current = true;
+        aoTerminar();
+      }
     } catch (e) {
       setErros(e instanceof ErroDeValidacao ? e.motivos : [(e as Error).message]);
       rolagem.current?.scrollTo({ y: 0, animated: true });
