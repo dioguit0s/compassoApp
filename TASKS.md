@@ -10,32 +10,49 @@ mova o registro para o PR/commit correspondente.
 
 ## Tarefa atual
 
-_Nenhuma._
-
-<!--
-Modelo:
-
-## Tarefa atual
-
-**Objetivo:** o que deve existir ao final.
+**Objetivo:** executar o roadmap a partir da F0, issue por issue, na branch
+`claude/dev-roadmap-issues-d913ui`.
 
 **Pronto quando:**
-- [ ] critério verificável (ex.: testes passam)
-- [ ] critério verificável (ex.: client antigo removido)
+- [ ] F0 (#1–#13) implementada; o que exige aparelho/servidor real está documentado
+- [ ] F1 (#15–#24) implementada, com os quatro cenários de sync passando
+- [ ] `npm run lint`, `npm run typecheck` e `npm test` passam da raiz
 
-**Parar e perguntar se:** situação específica em que a decisão é minha.
+**Parar e perguntar se:** a próxima fase depende de decisão de produto (F2 abre com #26, fuso ao
+viajar) ou de verificação no aparelho real (#14, #25).
 
 ### Checklist
-- [ ] etapa 1
-- [ ] etapa 2
+- [ ] #1 monorepo, lint, typecheck, test
+- [ ] #2 Postgres + Drizzle + migrações
+- [ ] #3 RLS
+- [ ] #4 API, middleware de token, /me, /health
+- [ ] #5 camada de repositório
+- [ ] #6 script de criação de conta
+- [ ] #7 app Expo, dev build, quatro abas
+- [ ] #8 core via Metro
+- [ ] #9 datas com fuso no Hermes (tela de diagnóstico)
+- [ ] #10 SQLite local + cache do /me
+- [ ] #11 docs/deploy.md + túnel
+- [ ] #12 backup pg_dump
+- [ ] #13 restauração documentada
+- [ ] #15 items no Postgres com CHECKs
+- [ ] #16 UUIDv7
+- [ ] #17 items no SQLite
+- [ ] #18 CRUD local
+- [ ] #19 tela provisória
+- [ ] #20 /sync/push
+- [ ] #21 /sync/pull
+- [ ] #22 motor de sync no app
+- [ ] #23 purga de tombstones
+- [ ] #24 testes de integração dos 4 cenários
 - [ ] revisar o próprio diff
 
 ### Decisões tomadas
-- decisão — motivo
+- (preenchido durante o trabalho)
 
 ### Pendências para o usuário
-- pergunta ou bloqueio
+- #14 e #25 exigem aparelho real, túnel e servidor doméstico
+- #26 (fuso ao viajar) bloqueia a F2
 
 ### Não confirmado
-- afirmação — onde procurei
--->
+- (preenchido durante o trabalho)
