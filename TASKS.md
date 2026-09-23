@@ -13,34 +13,34 @@ mova o registro para o PR/commit correspondente.
 **Objetivo:** seguir o roadmap além da F1 (autorizado pelo usuário em 2026-09-23), com fuso fixo
 de São Paulo (ADR-0003). Commits quando fizer sentido.
 
-**Parar e perguntar se:** decisão de produto (#55 fim de semestre na F5; #64 congelamento e #65
-estorno na F6) ou contradição com especificação/roadmap/ADR. → **Parado em #55.**
+**Parar e perguntar se:** decisão de produto ou contradição com especificação/roadmap/ADR.
+→ **Parado no fim da F8**: a F9 é calibração com semanas de uso real, e a F10 é pós-v1.
 
 ### Checklist
-- [x] F0 e F1 (ver commits até 53f6b11)
-- [x] #26 decisão de fuso → ADR-0003
-- [x] #27 consulta por intervalo + funções de calendário no core
-- [x] #28 semana, #29 mês, #30 alternância, #31 Hoje, #32 captura, #33 detalhe, #34 dia inteiro,
-      #35 distinção visual (código; aparelho pendente)
-- [x] F3 #37–#45 recorrência (ADR-0004)
-- [x] F4 #47–#53 notificações e ICS (docs/notificacoes.md)
-- [ ] revisar o próprio diff
+- [x] F0, F1 (ADR-0002, docs/sincronizacao.md)
+- [x] F2 — calendário (ADR-0003, fuso fixo de São Paulo)
+- [x] F3 — recorrência (ADR-0004)
+- [x] F4 — notificações e ICS (docs/notificacoes.md)
+- [x] F5 — grade acadêmica (ADR-0005)
+- [x] F6 — gamificação (ADR-0006)
+- [x] F7 — economia (ADR-0007)
+- [x] F8 — perfil, foto, configurações, lixeira, histórico, estados
+- [ ] revisão do diff F2–F8 em três fatias (core, API, app) — em andamento
 
-### Decisões tomadas
-- F0/F1: ADR-0002 e docs/sincronizacao.md
-- Semana começa no domingo (calendário brasileiro e `classSlots.weekday`)
-- Dia inteiro: `startAt` = 00:00 SP do primeiro dia, `endAt` = 00:00 SP do dia seguinte ao último
-- Mês: evento de vários dias repetido em cada dia (não faixa contínua)
-- Última visão do calendário guardada em `metadados` com prefixo `ui.` (não sincroniza)
-- Tela provisória da F1 removida; Perfil mostra a última sincronização
+### Decisões do usuário
+- #26 fuso: sempre São Paulo → ADR-0003
+- #55 semestre: híbrido (um corrente, datas limitam) → ADR-0005
+- #64 congelamento: gravação preguiçosa → ADR-0006
+- #65 estorno: saldo pode ficar negativo → ADR-0006
 
 ### Pendências para o usuário
-- #14, #25, #36, #46, #54: critérios de saída no aparelho real
-- #55: decisão de fim de semestre, antes da F5
+- Critérios de saída no aparelho/servidor real: #14, #25, #36, #46, #54, #63, #76, #82, #89
+- #66: escrever a régua de esforço com exemplos da própria vida (hoje é provisória, genérica)
+- F9 (#90–#93): só depois de 3–4 semanas de uso com a gamificação ligada
 
 ### Não confirmado
-- Telas não foram vistas rodando: sem emulador neste ambiente; só typecheck e `expo export`
-- `Intl` com `timeZone` e zod v4 no Hermes do aparelho
-- Notificações e tarefa de background: nada disparou de verdade (sem aparelho); só a lógica pura
-  está testada
+- Nenhuma tela foi vista rodando: sem emulador/aparelho neste ambiente; só typecheck,
+  `expo export` (bundle Hermes) e `expo config --type prebuild`
+- `Intl` com `timeZone` e zod v4 no Hermes do aparelho real
+- Notificações, tarefa de background, seletor de data/foto: nada disparou de verdade
 - Se o alarme exato foi negado no Android: o app não consegue saber (expo-notifications não expõe)

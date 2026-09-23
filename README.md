@@ -16,11 +16,11 @@ horas — porque um app de tarefa que ignora a agenda mente sobre o tempo dispon
 
 ## Status
 
-🚧 **Em construção — F0 (Fundação) e F1 (Sincronização) implementadas.** API com PostgreSQL, RLS e
-token por aparelho; app Expo com SQLite local, CRUD offline e sincronização push/pull com
-last-write-wins. Os critérios de saída das duas fases (#14 e #25) ainda precisam ser executados no
-aparelho real e no servidor doméstico. O plano está no [roadmap](docs/roadmap.md): dez fases, marco
-de migração no fim da F4, v1 completa no fim da F8.
+🚧 **Código da v1 escrito (F0 a F8 do [roadmap](docs/roadmap.md)), ainda não validado em uso real.**
+Calendário offline-first com recorrência, lembretes locais, importação do Google Calendar, grade
+acadêmica, gamificação (esforço, XP, radar) e economia (moedas, recompensas). Os critérios de
+saída de cada fase exigem o aparelho e o servidor doméstico e ainda não foram executados; a F9
+(calibração) só começa depois de semanas de uso.
 
 ## Estrutura
 
@@ -41,6 +41,7 @@ compasso/
     ├── roadmap.md                    # em que ordem construir: fases, critérios de saída
     ├── desenvolvimento.md            # como rodar, testar e evoluir o schema
     ├── sincronizacao.md              # como a F1 implementou o protocolo da §6.6
+    ├── notificacoes.md               # lembretes locais e importação de ICS (F4)
     ├── deploy.md                     # deploy em quatro comandos, backup e restauração
     ├── guia-opus-5-5.md              # como pedir, revisar e usar comandos com o Opus 5.5
     └── adr/                          # decisões isoladas e datadas, com as alternativas
@@ -86,5 +87,6 @@ e a especificação divergirem, o ADR é mais recente.
 
 ## Próximos passos
 
-- Executar os critérios de saída da F0 e da F1 no aparelho e no servidor (#14, #25)
-- Decidir o comportamento de fuso ao viajar (#26), que abre a F2
+- Executar os critérios de saída no aparelho e no servidor, fase a fase (#14 … #89)
+- Escrever a régua de esforço com exemplos reais (#66)
+- Usar por 3–4 semanas e calibrar (F9)
