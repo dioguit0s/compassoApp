@@ -8,7 +8,8 @@ import { useEstadoSync } from '../hooks';
 import { useTema } from '../tema';
 
 /**
- * Indicador discreto (issue #88): sincronizando, sem rede, ou quando foi a última sincronização.
+ * Indicador discreto (issue #88): sincronizando, sem rede, erro do servidor, ou quando foi a
+ * última sincronização.
  * Sem rede não é erro — o Compasso funciona offline; é só informação.
  */
 export function IndicadorSync() {
@@ -31,7 +32,9 @@ export function IndicadorSync() {
     estado === null
       ? 'sincronizando…'
       : estado?.tipo === 'falhou'
-        ? `sem rede · dados deste aparelho (última sync ${quando})`
+        ? estado.semRede
+          ? `sem rede · dados deste aparelho (última sync ${quando})`
+          : `erro ao sincronizar (${estado.mensagem}) · dados deste aparelho`
         : estado?.tipo === 'sem-conexao'
           ? 'servidor não configurado · só neste aparelho'
           : `sincronizado ${quando}`;

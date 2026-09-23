@@ -9,7 +9,7 @@ import { sql } from 'drizzle-orm';
 import * as tabelasLocais from '@compasso/core/local';
 import { RepositorioLocal } from '@compasso/core/local';
 import { db } from './db';
-import { chamarApi, lerConexao } from './servidor';
+import { chamarApi, ErroHttp, lerConexao } from './servidor';
 
 /** Repositório local único do app. Toda escrita da UI passa por ele. */
 export const repositorio = new RepositorioLocal(db);
@@ -53,7 +53,9 @@ const tabelas = [
 export type EstadoSync =
   | { tipo: 'ok'; resultado: ResultadoSync }
   | { tipo: 'sem-conexao' }
-  | { tipo: 'falhou'; mensagem: string };
+  // semRede: não houve resposta (offline, servidor fora). Com resposta de erro (HTTP 4xx/5xx) é
+  // outra coisa: o indicador não pode dizer "sem rede" quando o servidor recusou o envio.
+  | { tipo: 'falhou'; mensagem: string; semRede: boolean };
 
 /**
  * Dispara push → pull. Nunca lança: sem rede, o que não foi confirmado continua sujo e vai na
@@ -66,7 +68,11 @@ export async function sincronizarAgora(): Promise<EstadoSync> {
   try {
     return publicar({ tipo: 'ok', resultado: await motor.sincronizar() });
   } catch (erro) {
-    return publicar({ tipo: 'falhou', mensagem: (erro as Error).message });
+    return publicar({
+      tipo: 'falhou',
+      mensagem: (erro as Error).message,
+      semRede: !(erro instanceof ErroHttp),
+    });
   }
 }
 
