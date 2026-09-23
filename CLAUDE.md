@@ -4,8 +4,9 @@ Instruções para o Claude Code neste repositório. Lidas no início de toda ses
 
 ## Projeto
 
-Compasso: calendário principal + registrador de esforço num único app. Ainda em **fase de
-especificação** — não existe código. As fontes de verdade são:
+Compasso: calendário principal + registrador de esforço num único app. **F0 e F1 implementadas**
+(monorepo em `apps/api`, `apps/mobile`, `packages/core`); o resto do roadmap ainda não. As fontes de
+verdade são:
 
 - `docs/especificacao-tecnica-v1.md` — escopo, modelo de dados, arquitetura, regras de gamificação.
 - `docs/roadmap.md` — ordem de construção, fases, critérios de saída.

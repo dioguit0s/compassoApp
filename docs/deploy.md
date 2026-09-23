@@ -74,6 +74,9 @@ comandos.
 - mantém os `BACKUP_KEEP_DAILY` (padrão 7) mais recentes, contados pelo nome
 - qualquer falha sai com código ≠ 0 e mensagem no journal: `journalctl -u compasso-manutencao`
 
+Depois do dump, o mesmo serviço roda a purga de tombstones com mais de `TRASH_RETENTION_DAYS`
+(`npm run db:purgar -w @compasso/api`) — nessa ordem, para o dump do dia ainda carregar o que sai.
+
 Rodar à mão: `sudo systemctl start compasso-manutencao && ls -lh /var/backups/compasso`.
 
 A senha vem do `.pgpass`, nunca do crontab nem da unit.

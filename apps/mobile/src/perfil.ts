@@ -31,10 +31,12 @@ export async function atualizarPerfil(): Promise<'ok' | 'sem-conexao' | 'falhou'
       updatedAt: new Date(me.updatedAt),
       buscadoEm: new Date(),
     };
-    await db.transaction(async (tx) => {
+    // Transação síncrona: o driver do expo-sqlite no Drizzle é síncrono, e um callback async
+    // deixaria o segundo comando rodar depois do commit.
+    db.transaction((tx) => {
       // Uma conta por aparelho: trocar de token troca o perfil inteiro.
-      await tx.delete(perfil);
-      await tx.insert(perfil).values(linha);
+      tx.delete(perfil).run();
+      tx.insert(perfil).values(linha).run();
     });
     return 'ok';
   } catch {

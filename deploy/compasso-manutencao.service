@@ -1,5 +1,5 @@
 # /etc/systemd/system/compasso-manutencao.service
-# Backup diário + purga de tombstones. Disparado por compasso-manutencao.timer.
+# Backup diário + purga de tombstones (lê DATABASE_ADMIN_URL e TRASH_RETENTION_DAYS do .env). Disparado por compasso-manutencao.timer.
 [Unit]
 Description=Compasso: backup diário e purga de tombstones
 After=postgresql.service
@@ -7,8 +7,10 @@ After=postgresql.service
 [Service]
 Type=oneshot
 User=compasso
-WorkingDirectory=/opt/compasso/apps/api
+WorkingDirectory=/opt/compasso
 # Senha do compasso_owner fica em ~compasso/.pgpass (libpq), nunca aqui.
 Environment=PGHOST=localhost PGUSER=compasso_owner PGDATABASE=compasso
 Environment=BACKUP_DIR=/var/backups/compasso BACKUP_KEEP_DAILY=7
 ExecStart=/opt/compasso/apps/api/scripts/backup.sh
+# Purga depois do backup: o dump do dia ainda carrega os tombstones que saem agora.
+ExecStart=/usr/bin/npm run db:purgar -w @compasso/api

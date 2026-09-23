@@ -8,6 +8,7 @@ import { Text, View } from 'react-native';
 import migracoes from '../drizzle/migrations';
 import { db } from '../src/db';
 import { atualizarPerfil } from '../src/perfil';
+import { sincronizarAgora } from '../src/sync';
 
 // UUIDv7 do core usa a aleatoriedade nativa do expo-crypto — sem polyfill global no Hermes.
 configurarAleatoriedade((bytes) => {
@@ -18,7 +19,10 @@ export default function Raiz() {
   const { success, error } = useMigrations(db, migracoes);
 
   useEffect(() => {
-    if (success) void atualizarPerfil();
+    if (!success) return;
+    // Na abertura: perfil e sincronização, sem bloquear a tela — ela já lê do SQLite.
+    void atualizarPerfil();
+    void sincronizarAgora();
   }, [success]);
 
   if (error) {

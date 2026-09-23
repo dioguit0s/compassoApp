@@ -1,8 +1,9 @@
 # Compasso — Especificação Técnica — v1
 
-> Documento de especificação, não de arquitetura implementada. Nada aqui foi verificado contra
-> código, porque ainda não existe código. Toda seção marcada com `PROPOSTA` é sugestão sujeita a
-> revisão; `DECIDIDO` já foi acordado.
+> Documento de especificação, não de arquitetura implementada. A implementação começou (F0 e F1
+> do [roadmap](roadmap.md)); onde o código precisou decidir algo que este documento deixava em
+> aberto, a decisão está em [`adr/`](adr/) ou em [`sincronizacao.md`](sincronizacao.md). Toda
+> seção marcada com `PROPOSTA` é sugestão sujeita a revisão; `DECIDIDO` já foi acordado.
 >
 > **Nome:** Compasso. `DECIDIDO`.
 
@@ -837,9 +838,10 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
   demais não cobre uma transação lenta; longo demais reprocessa à toa a cada sincronização. A
   resposta provavelmente sai de medir a duração real do `complete`, que é a transação mais longa do
   sistema — o que só dá para fazer depois da F6. Até lá, um valor conservador serve, porque
-  reprocessar é inofensivo. Esta questão nasceu com a troca para PostgreSQL: o change stream do
-  Mongo resolveria isso com um cursor ordenado por commit, e abrir mão dele foi o custo aceito no
-  [ADR-0001](adr/0001-postgresql-em-vez-de-mongodb.md).
+  reprocessar é inofensivo. Valor provisório desde a F1: **60 segundos**
+  (`SYNC_CURSOR_WINDOW_SECONDS`, ver [`sincronizacao.md`](sincronizacao.md)). Esta questão nasceu
+  com a troca para PostgreSQL: o change stream do Mongo resolveria isso com um cursor ordenado por
+  commit, e abrir mão dele foi o custo aceito no [ADR-0001](adr/0001-postgresql-em-vez-de-mongodb.md).
 - **Recorrência da grade acadêmica versus RRULE.** Agora que a v1 tem expansão de RRULE, `classSlots`
   passou a ser um segundo mecanismo de repetição no mesmo sistema. A duplicação se justifica por
   enquanto — a grade carrega sala e disciplina, e aula não pontua — mas se ela começar a divergir em

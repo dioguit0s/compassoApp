@@ -55,4 +55,17 @@ export class Admin {
     );
     return token;
   }
+
+  /**
+   * Purga física dos tombstones mais antigos que `dias` (especificação §6.6). Roda com o papel
+   * dono, que não está sujeito ao RLS: é a única operação que atravessa contas, e só apaga o que
+   * cada conta já excluiu há mais tempo que a retenção.
+   */
+  async purgarTombstones(dias: number): Promise<number> {
+    const r = await this.cliente.query(
+      `delete from items where deleted_at < now() - make_interval(days => $1)`,
+      [dias],
+    );
+    return r.rowCount ?? 0;
+  }
 }

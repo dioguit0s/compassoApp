@@ -16,33 +16,54 @@ horas — porque um app de tarefa que ignora a agenda mente sobre o tempo dispon
 
 ## Status
 
-📋 **Fase de especificação.** Ainda não existe código — este repositório documenta o que vai ser
-construído antes de começar a construir. O plano de construção está no
-[roadmap](docs/roadmap.md): dez fases, marco de migração no fim da F4, v1 completa no fim da F8.
+🚧 **Em construção — F0 (Fundação) e F1 (Sincronização) implementadas.** API com PostgreSQL, RLS e
+token por aparelho; app Expo com SQLite local, CRUD offline e sincronização push/pull com
+last-write-wins. Os critérios de saída das duas fases (#14 e #25) ainda precisam ser executados no
+aparelho real e no servidor doméstico. O plano está no [roadmap](docs/roadmap.md): dez fases, marco
+de migração no fim da F4, v1 completa no fim da F8.
 
 ## Estrutura
 
 ```
 compasso/
+├── apps/
+│   ├── api/                          # API Node (Hono + Drizzle + PostgreSQL)
+│   └── mobile/                       # app Expo (development build) com SQLite local
+├── packages/
+│   └── core/                         # lógica pura compartilhada: IDs, invariantes, sync, datas
+├── deploy/                           # units do systemd e exemplo do cloudflared
 ├── CLAUDE.md                         # instruções do Claude Code: quando continuar e quando parar
 ├── TASKS.md                          # checklist persistente para tarefas longas do Claude
 ├── .claude/commands/                 # comandos do projeto: /revisar-diff, /auditoria
 └── docs/
-    ├── guia-opus-5-5.md              # como pedir, revisar e usar comandos com o Opus 5.5
     ├── especificacao-tecnica-v1.md   # o que vai ser construído: escopo, modelo de dados,
     │                                 # arquitetura, regras de gamificação e decisões
-    ├── roadmap.md                    # em que ordem construir: fases, critérios de saída,
-    │                                 # marcos, estimativas e armadilhas conhecidas
+    ├── roadmap.md                    # em que ordem construir: fases, critérios de saída
+    ├── desenvolvimento.md            # como rodar, testar e evoluir o schema
+    ├── sincronizacao.md              # como a F1 implementou o protocolo da §6.6
+    ├── deploy.md                     # deploy em quatro comandos, backup e restauração
+    ├── guia-opus-5-5.md              # como pedir, revisar e usar comandos com o Opus 5.5
     └── adr/                          # decisões isoladas e datadas, com as alternativas
-        └── 0001-postgresql-em-vez-de-mongodb.md
 ```
 
-## Stack prevista
+## Stack
 
-- **Client**: React Native / Expo, SQLite local (offline-first)
-- **API**: Node.js
-- **Banco**: PostgreSQL, com Drizzle e migrações versionadas ([ADR-0001](docs/adr/0001-postgresql-em-vez-de-mongodb.md))
+- **Client**: React Native / Expo SDK 57 (development build), Expo Router, SQLite local via
+  `expo-sqlite` + Drizzle (offline-first)
+- **API**: Node.js 22, Hono, zod
+- **Banco**: PostgreSQL com Drizzle, migrações versionadas e Row-Level Security
+  ([ADR-0001](docs/adr/0001-postgresql-em-vez-de-mongodb.md), [ADR-0002](docs/adr/0002-ferramentas-e-convencoes-da-fundacao.md))
 - **Infra**: servidor doméstico, exposto via Cloudflare Tunnel
+
+## Começar
+
+```sh
+npm install
+npm run lint && npm run typecheck && npm test   # os testes sobem um PostgreSQL descartável sozinhos
+```
+
+O resto — banco de desenvolvimento, conta, app no aparelho — está em
+[`docs/desenvolvimento.md`](docs/desenvolvimento.md).
 
 ## Pilares de design
 
@@ -65,5 +86,5 @@ e a especificação divergirem, o ADR é mais recente.
 
 ## Próximos passos
 
-- Calibrar a curva de nível e a régua de esforço com uso real
-- Iniciar a implementação a partir da camada de dados (`items`, `xpEntries`, `coinEntries`)
+- Executar os critérios de saída da F0 e da F1 no aparelho e no servidor (#14, #25)
+- Decidir o comportamento de fuso ao viajar (#26), que abre a F2

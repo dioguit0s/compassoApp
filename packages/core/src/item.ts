@@ -17,7 +17,10 @@ export const esquemaItem = z
     kind: z.enum(['task', 'event']),
     effort: z
       .number()
-      .refine((v) => (ESFORCOS as readonly number[]).includes(v), 'esforço fora da escala 1, 2, 3, 5, 8')
+      .refine(
+        (v) => (ESFORCOS as readonly number[]).includes(v),
+        'esforço fora da escala 1, 2, 3, 5, 8',
+      )
       .nullable(),
     effortLockedAt: dataOpcional,
     primaryAttribute: z.enum(ATRIBUTOS).nullable(),
@@ -38,7 +41,8 @@ export const esquemaItem = z
     updatedAt: dataIso,
   })
   .superRefine((item, ctx) => {
-    for (const motivo of violacoesDeInvariante(item)) ctx.addIssue({ code: 'custom', message: motivo });
+    for (const motivo of violacoesDeInvariante(item))
+      ctx.addIssue({ code: 'custom', message: motivo });
   });
 
 export type ItemWire = z.infer<typeof esquemaItem>;
