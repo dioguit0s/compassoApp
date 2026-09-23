@@ -26,6 +26,8 @@ import { repositorio } from '../../src/sync';
 import { useTema } from '../../src/tema';
 import { CampoDataHora } from '../../src/ui/CampoDataHora';
 import { EditorRecorrencia } from '../../src/ui/EditorRecorrencia';
+import { useGrade } from '../../src/hooks';
+import { Chip } from '../../src/ui/Campos';
 
 const LEMBRETES: { rotulo: string; minutos: number | null }[] = [
   { rotulo: 'Nenhum', minutos: null },
@@ -100,6 +102,10 @@ function Formulario({
   const [fim, setFim] = useState<Date | null>(inicial.fim);
   const [lembrete, setLembrete] = useState<number | null>(item.reminderMinutesBefore);
   const [rrule, setRrule] = useState<string | null>(item.rrule);
+  const [disciplina, setDisciplina] = useState<string | null>(item.courseId);
+  const grade = useGrade();
+  const ativo = grade.semestres.find((s) => s.active);
+  const disciplinas = grade.disciplinas.filter((c) => c.semesterId === ativo?.id);
   const [erros, setErros] = useState<string[]>([]);
   const ehTarefa = item.kind === 'task';
   const concluivel = ocorrencia !== null && item.effort !== null;
@@ -136,6 +142,7 @@ function Formulario({
     allDay: ehTarefa ? false : diaInteiro,
     ...(ehTarefa ? { dueAt: inicio } : { startAt: inicio, endAt: fim }),
     reminderMinutesBefore: lembrete,
+    courseId: disciplina,
     ...(rrule !== item.rrule ? { rrule } : {}),
   });
 
@@ -314,6 +321,28 @@ function Formulario({
 
       <Text style={{ color: tema.sutil }}>Repetição</Text>
       <EditorRecorrencia rrule={rrule} inicio={inicio} aoMudar={setRrule} />
+
+      {disciplinas.length || disciplina ? (
+        <>
+          <Text style={{ color: tema.sutil }}>Disciplina (prova, trabalho, entrega)</Text>
+          <View style={estilos.chips}>
+            <Chip
+              rotulo="Nenhuma"
+              ativo={disciplina === null}
+              aoTocar={() => setDisciplina(null)}
+            />
+            {disciplinas.map((c) => (
+              <Chip
+                key={c.id}
+                rotulo={c.code ?? c.name}
+                cor={c.color}
+                ativo={disciplina === c.id}
+                aoTocar={() => setDisciplina(c.id)}
+              />
+            ))}
+          </View>
+        </>
+      ) : null}
 
       <Text style={{ color: tema.sutil }}>Lembrete antes</Text>
       <View style={estilos.chips}>

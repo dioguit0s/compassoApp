@@ -1,4 +1,12 @@
-import { diaDe, FUSO_PADRAO, projetarAgenda, type Dia, type EntradaAgenda } from '@compasso/core';
+import {
+  aulasDoDia,
+  diaDe,
+  FUSO_PADRAO,
+  projetarAgenda,
+  type Aula,
+  type Dia,
+  type EntradaAgenda,
+} from '@compasso/core';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
@@ -33,4 +41,23 @@ export function useAgenda(de: Date, ate: Date): EntradaAgenda[] {
   ]);
   const { data: desvios } = useLiveQuery(repositorio.consultaDesvios());
   return useMemo(() => projetarAgenda(itens, desvios, de, ate), [itens, desvios, de, ate]);
+}
+
+/** A grade acadêmica do SQLite, observada. */
+export function useGrade() {
+  const q = repositorio.consultasDaGrade();
+  const { data: semestres } = useLiveQuery(q.semestres);
+  const { data: disciplinas } = useLiveQuery(q.disciplinas);
+  const { data: horarios } = useLiveQuery(q.horarios);
+  const { data: excecoes } = useLiveQuery(q.excecoes);
+  return useMemo(
+    () => ({ semestres, disciplinas, horarios, excecoes }),
+    [semestres, disciplinas, horarios, excecoes],
+  );
+}
+
+/** Aulas projetadas (nunca gravadas) de cada dia pedido — a mesma função de `GET /agenda`. */
+export function useAulas(dias: Dia[]): Map<Dia, Aula[]> {
+  const grade = useGrade();
+  return useMemo(() => new Map(dias.map((d) => [d, aulasDoDia(grade, d)])), [grade, dias]);
 }

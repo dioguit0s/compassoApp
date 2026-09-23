@@ -9,6 +9,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { useDisciplina } from '../disciplinas';
 import { repositorio } from '../sync';
 import { useTema, type Tema } from '../tema';
 
@@ -82,6 +83,9 @@ export function EntradaItem({
 }) {
   const tema = useTema();
   const router = useRouter();
+  // Disciplina excluída: o vínculo foi anulado e o selo some sozinho.
+  const disciplina = useDisciplina(item.courseId);
+  const selo = disciplina ? (disciplina.code ?? disciplina.name.slice(0, 4)) : null;
   const estado = estadoDaEntrada(item);
   const e = estiloDoEstado(estado, tema);
   const marcador = MARCA[estado];
@@ -97,6 +101,9 @@ export function EntradaItem({
     return (
       <Pressable onPress={abrir} style={[estilos.mini, e.caixa, style]}>
         <Text numberOfLines={1} style={[estilos.textoMini, e.texto]}>
+          {selo ? (
+            <Text style={{ color: disciplina!.color, fontWeight: '700' }}>{selo} </Text>
+          ) : null}
           {marcador}
           {item.title}
         </Text>
@@ -107,6 +114,7 @@ export function EntradaItem({
     return (
       <Pressable onPress={abrir} style={[estilos.bloco, e.caixa, style]}>
         <Text numberOfLines={3} style={[estilos.textoBloco, e.texto]}>
+          {selo ? <Text style={{ fontWeight: '700' }}>{selo} </Text> : null}
           {marcador}
           {item.title}
         </Text>
@@ -153,6 +161,11 @@ export function EntradaItem({
         >
           {item.title}
         </Text>
+        {selo ? (
+          <View style={[estilos.selo, { backgroundColor: disciplina!.color }]}>
+            <Text style={estilos.textoSelo}>{selo}</Text>
+          </View>
+        ) : null}
         <Text style={{ color: tema.sutil }}>
           {rotuloDeHora(item)}
           {item.ocorrencia ? ' · repete' : ''}
@@ -183,6 +196,8 @@ const estilos = StyleSheet.create({
   },
   titulo: { fontSize: 16, fontWeight: '500' },
   riscado: { textDecorationLine: 'line-through' },
+  selo: { alignSelf: 'flex-start', borderRadius: 4, paddingHorizontal: 5, marginVertical: 2 },
+  textoSelo: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
   mini: { borderWidth: 1, borderRadius: 3, paddingHorizontal: 2, marginTop: 1 },
   textoMini: { fontSize: 10 },
   bloco: { borderWidth: 1.5, borderRadius: 4, padding: 2, overflow: 'hidden' },

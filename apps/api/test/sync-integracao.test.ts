@@ -2,6 +2,7 @@
  * Os quatro cenários de sincronização do roadmap (F1) com dois clients de verdade (ver
  * `clientes.ts`), contra a API e um PostgreSQL reais.
  */
+import { linhasVazias } from '@compasso/core';
 import { describe, expect, it } from 'vitest';
 import { DIA, novoEvento, SemRede, usarClientes, type Cliente } from './clientes';
 
@@ -17,7 +18,7 @@ describe('cenário 1 — criar offline → sincronizar', () => {
 
     a.online = true;
     await a.motor.sincronizar();
-    expect(a.repo.sujos()).toEqual({ itens: [], ocorrencias: [] });
+    expect(a.repo.sujos()).toEqual(linhasVazias());
     expect((await linhasNoServidor(userId)).map((l) => l.id)).toEqual([item.id]);
 
     b.online = true;
@@ -73,8 +74,8 @@ describe('cenário 2 — mesmo item editado nos dois clients offline', () => {
     expect(a.repo.obter(item.id)!.title).toBe(esperado);
     expect(b.repo.obter(item.id)!.title).toBe(esperado);
     expect((await linhasNoServidor(userId))[0]!.title).toBe(esperado);
-    expect(a.repo.sujos()).toEqual({ itens: [], ocorrencias: [] });
-    expect(b.repo.sujos()).toEqual({ itens: [], ocorrencias: [] });
+    expect(a.repo.sujos()).toEqual(linhasVazias());
+    expect(b.repo.sujos()).toEqual(linhasVazias());
   });
 });
 
@@ -139,7 +140,7 @@ describe('cenário 4 — push repetido não duplica', () => {
     expect(a.pushes).toBe(3);
     expect((await linhasNoServidor(userId)).map((l) => l.id)).toEqual([item.id]);
     expect(a.repo.listar()).toHaveLength(1);
-    expect(a.repo.sujos()).toEqual({ itens: [], ocorrencias: [] });
+    expect(a.repo.sujos()).toEqual(linhasVazias());
   });
 });
 
@@ -158,7 +159,7 @@ describe('motor de sync', () => {
     expect(a.repo.obter(item.id)!.title).toBe('durante');
 
     await a.motor.sincronizar();
-    expect(a.repo.sujos()).toEqual({ itens: [], ocorrencias: [] });
+    expect(a.repo.sujos()).toEqual(linhasVazias());
     expect((await linhasNoServidor(userId))[0]!.title).toBe('durante');
   });
 

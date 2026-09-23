@@ -16,10 +16,15 @@ export function rotasDeSync(config: Config) {
     if (!corpo.success) {
       return c.json({ erro: 'payload inválido', detalhes: corpo.error.issues }, 400);
     }
-    // Uma transação: itens antes dos desvios, que dependem deles.
+    // Uma transação, cada tabela depois das que ela referencia (ordem de TABELAS_SYNC).
+    const d = corpo.data;
     const resposta: RespostaPush = await c.var.transacao(async (r) => ({
-      itens: await r.itens.aplicarPush(corpo.data.itens),
-      ocorrencias: await r.ocorrencias.aplicarPush(corpo.data.ocorrencias),
+      semestres: await r.grade.aplicarPush('semestres', d.semestres),
+      disciplinas: await r.grade.aplicarPush('disciplinas', d.disciplinas),
+      horarios: await r.grade.aplicarPush('horarios', d.horarios),
+      excecoes: await r.grade.aplicarPush('excecoes', d.excecoes),
+      itens: await r.itens.aplicarPush(d.itens),
+      ocorrencias: await r.ocorrencias.aplicarPush(d.ocorrencias),
     }));
     return c.json(resposta);
   });

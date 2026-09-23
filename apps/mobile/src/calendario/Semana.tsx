@@ -3,6 +3,7 @@ import {
   diaDe,
   diasDaSemana,
   intervaloDosDias,
+  minutosDeHora,
   minutosDoDia,
   nomeCurtoDoDia,
   partesDoDia,
@@ -11,8 +12,9 @@ import {
   type Dia,
 } from '@compasso/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { useAgenda } from '../hooks';
+import { useRouter } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useAgenda, useAulas } from '../hooks';
 import { useTema } from '../tema';
 import { EntradaItem } from '../ui/EntradaItem';
 
@@ -22,11 +24,13 @@ const MARGEM = 32;
 /** Visão de semana: onde o dia tem altura e dá para ver os buracos entre compromissos. */
 export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
   const tema = useTema();
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const dias = useMemo(() => diasDaSemana(referencia), [referencia]);
   const { de, ate } = useMemo(() => intervaloDosDias(dias[0]!, dias[6]!), [dias]);
   const itens = useAgenda(de, ate);
   const porDia = useMemo(() => agruparPorDia(itens, dias), [itens, dias]);
+  const aulas = useAulas(dias);
   const larguraDia = (width - MARGEM) / 7;
   const rolagem = useRef<ScrollView>(null);
   const [agora, setAgora] = useState(() => new Date());
@@ -97,6 +101,32 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
                   style={[estilos.linhaHora, { top: h * HORA_PX, borderColor: tema.borda }]}
                 />
               ))}
+              {/* Aulas ao fundo: ocupam o tempo sem competir com os itens (issue #61). Canceladas
+                  não aparecem na semana — a aba Hoje é quem mostra o cancelamento. */}
+              {(aulas.get(d) ?? [])
+                .filter((a) => !a.cancelada)
+                .map((a) => (
+                  <Pressable
+                    key={a.id}
+                    onPress={() =>
+                      router.push({ pathname: '/aula', params: { slotId: a.slotId, dia: a.dia } })
+                    }
+                    style={[
+                      estilos.aula,
+                      {
+                        top: (minutosDeHora(a.inicio) / 60) * HORA_PX,
+                        height: ((minutosDeHora(a.fim) - minutosDeHora(a.inicio)) / 60) * HORA_PX,
+                        // Cor da disciplina com transparência no fundo, texto opaco por cima.
+                        backgroundColor: `${a.cor}38`,
+                        borderLeftColor: a.cor,
+                      },
+                    ]}
+                  >
+                    <Text numberOfLines={2} style={[estilos.textoAula, { color: tema.texto }]}>
+                      {a.codigo ?? a.disciplina}
+                    </Text>
+                  </Pressable>
+                ))}
               {posicionarNoDia(porDia.get(d) ?? [], d).map((b) => (
                 <EntradaItem
                   key={b.item.id}
@@ -134,4 +164,6 @@ const estilos = StyleSheet.create({
   hora: { position: 'absolute', right: 4, fontSize: 10 },
   linhaHora: { position: 'absolute', left: 0, right: 0, borderTopWidth: StyleSheet.hairlineWidth },
   agora: { position: 'absolute', left: 0, right: 0, height: 2 },
+  aula: { position: 'absolute', left: 0, right: 0, borderRadius: 2, borderLeftWidth: 2 },
+  textoAula: { fontSize: 9, padding: 1 },
 });

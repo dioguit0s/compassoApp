@@ -303,7 +303,9 @@ classSlots:{ _id, userId, courseId,
 
 classExceptions: { _id, userId, slotId, date,
                    type: "cancelled" | "room_change" | "extra",
-                   room: String | null, note: String | null }
+                   room: String | null, note: String | null,
+                   startTime, endTime: String | null,   // só em extra (ADR-0005)
+                   deletedAt }
 ```
 
 **Horário é string `HH:mm`, não `Date`.** Aula das 19:00 é hora de parede: acontece às 19:00 toda
@@ -316,6 +318,11 @@ semestre sem carregar o padrão inteiro.
 
 Um `semesterId` com `active: false` mantém a grade antiga intacta para consulta, e trocar de
 semestre é criar um novo, não editar o anterior.
+
+`DECIDIDO` **Um semestre corrente por vez, e as datas limitam a projeção**
+([ADR-0005](adr/0005-semestre-corrente-e-grade.md)): criar um semestre novo o torna o corrente;
+fora de `startDate`–`endDate` a aba Hoje não mostra aulas. Feriado e recesso são exceções de
+cancelamento.
 
 ### items
 
@@ -844,6 +851,9 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 >
 > **Resolvida.** *Fuso ao viajar*: todo horário é hora de São Paulo. Ver
 > [ADR-0003](adr/0003-fuso-fixo-de-sao-paulo.md) e a seção 5.
+>
+> **Resolvida.** *Fim de semestre*: um semestre corrente por vez, e as datas limitam a projeção
+> (férias sem aulas). Ver [ADR-0005](adr/0005-semestre-corrente-e-grade.md).
 
 - **Tamanho da janela de segurança do cursor de sync.** A seção 6.6 decide que o pull recua alguns
   segundos para não perder escrita que fez commit fora de ordem. Falta escolher o número. Curto
@@ -871,9 +881,6 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 - **XP por presença em aula.** Tentador e provavelmente errado: exigiria transformar cada aula numa
   ocorrência completável, que é exatamente o que a seção 5 evita. Se for muito desejado depois, o
   caminho barato é um check-in diário único que credita XP fixo em Mente, sem materializar nada.
-- **Fim de semestre.** Nada hoje marca automaticamente um semestre como encerrado quando `endDate`
-  passa. Decidir se a virada é manual ou automática, e o que a tela de Hoje mostra num dia sem
-  semestre ativo.
 - **Estorno de moeda.** Desfazer a conclusão de um item cuja moeda já foi gasta em recompensa deixa
   o saldo negativo. Comportamento não definido.
 - **Modelo de autenticação real.** Quando as contas de amigos entrarem: senha própria, link mágico

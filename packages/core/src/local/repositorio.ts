@@ -14,8 +14,16 @@ import {
 } from 'drizzle-orm';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { inicioDoDia, type Dia } from '../calendario';
+import { aulasDoDia, type GradeParaProjecao } from '../grade';
 import { novoId } from '../id';
-import { violacoesDeInvariante, type ItemWire } from '../item';
+import {
+  ESQUEMAS_SYNC,
+  linhasVazias,
+  TABELAS_SYNC,
+  violacoesDeInvariante,
+  type ItemWire,
+  type TabelaSync,
+} from '../item';
 import { violacoesDeOcorrencia, type OcorrenciaWire, type TipoOcorrencia } from '../ocorrencia';
 import { projetarAgenda, type EntradaAgenda } from '../projecao';
 import {
@@ -26,9 +34,23 @@ import {
   serializarRRule,
   type Serie,
 } from '../rrule';
-import type { ArmazemLocal, Confirmacao, Linhas, MetadadosSync } from '../sync/motor';
+import type { ArmazemLocal, Confirmacoes, Linhas, MetadadosSync } from '../sync/motor';
 import type * as schema from './schema';
-import { itemOccurrences, items, metadados, type ItemLocal, type OcorrenciaLocal } from './schema';
+import {
+  classExceptions,
+  classSlots,
+  courses,
+  itemOccurrences,
+  items,
+  metadados,
+  semesters,
+  type DisciplinaLocal,
+  type ExcecaoLocal,
+  type HorarioLocal,
+  type ItemLocal,
+  type OcorrenciaLocal,
+  type SemestreLocal,
+} from './schema';
 
 /**
  * Banco local em modo síncrono: é o que o `expo-sqlite` (app) e o `better-sqlite3` (testes em
@@ -85,6 +107,7 @@ export function localParaWire(l: ItemLocal): ItemWire {
     timezone: l.timezone,
     rrule: l.rrule,
     sourceUid: l.sourceUid,
+    courseId: l.courseId,
     recurrenceEndsAt: iso(l.recurrenceEndsAt),
     status: l.status,
     completedAt: iso(l.completedAt),
@@ -453,6 +476,7 @@ export class RepositorioLocal implements ArmazemLocal {
       timezone: item.timezone,
       rrule: serializarRRule({ ...regra, count: restante }),
       sourceUid: null,
+      courseId: item.courseId,
       completedAt: null,
       reminderMinutesBefore: item.reminderMinutesBefore,
     };
@@ -515,47 +539,269 @@ export class RepositorioLocal implements ArmazemLocal {
     });
   }
 
+  // ---- grade acadêmica (F5) -------------------------------------------------------------------
+
+  /** Valida pelo esquema de transporte (o mesmo do servidor) antes de gravar. */
+  private validarGrade(tabela: TabelaGrade, linha: Record<string, unknown>): void {
+    const r = ESQUEMAS_SYNC[tabela].safeParse(linhaParaWire(linha));
+    if (!r.success) throw new ErroDeValidacao(r.error.issues.map((i) => i.message));
+  }
+
+  private gravarGrade<T extends { id: string; updatedAt: Date; createdAt: Date }>(
+    tabela: TabelaGrade,
+    dados: Omit<T, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'dirty'>,
+  ): T {
+    const t = this.carimbo();
+    const linha = {
+      ...dados,
+      id: novoId(),
+      createdAt: t,
+      updatedAt: t,
+      deletedAt: null,
+      dirty: true,
+    };
+    this.validarGrade(tabela, linha);
+    this.db
+      .insert(TABELAS_GRADE[tabela])
+      .values(linha as never)
+      .run();
+    return linha as unknown as T;
+  }
+
+  private editarGrade<T extends { id: string; updatedAt: Date }>(
+    tabela: TabelaGrade,
+    id: string,
+    mudancas: Partial<T>,
+  ): T {
+    const t = TABELAS_GRADE[tabela];
+    const atual = this.db
+      .select()
+      .from(t)
+      .where(and(eq(t.id, id), isNull(t.deletedAt)))
+      .get() as T | undefined;
+    if (!atual) throw new ErroDeValidacao(['registro não encontrado']);
+    const novo = {
+      ...atual,
+      ...mudancas,
+      id,
+      updatedAt: this.carimbo(atual.updatedAt),
+      dirty: true,
+    };
+    this.validarGrade(tabela, novo);
+    this.db
+      .update(t)
+      .set(novo as never)
+      .where(eq(t.id, id))
+      .run();
+    return novo;
+  }
+
+  private excluirGrade(tabela: TabelaGrade, ids: string[]): void {
+    const t = TABELAS_GRADE[tabela];
+    for (const id of ids) {
+      const atual = this.db
+        .select({ updatedAt: t.updatedAt })
+        .from(t)
+        .where(and(eq(t.id, id), isNull(t.deletedAt)))
+        .get();
+      if (!atual) continue;
+      const c = this.carimbo(atual.updatedAt);
+      this.db.update(t).set({ deletedAt: c, updatedAt: c, dirty: true }).where(eq(t.id, id)).run();
+    }
+  }
+
+  /**
+   * Semestre novo já nasce ativo e desativa os outros: só um semestre corrente por vez
+   * (ADR-0005). Trocar de semestre é criar o novo, não editar o anterior.
+   */
+  criarSemestre(dados: { label: string; startDate: Dia; endDate: Dia }): SemestreLocal {
+    let novo!: SemestreLocal;
+    this.db.transaction(() => {
+      novo = this.gravarGrade<SemestreLocal>('semestres', { ...dados, active: true });
+      this.desativarOutros(novo.id);
+    });
+    return novo;
+  }
+
+  ativarSemestre(id: string): void {
+    this.db.transaction(() => {
+      this.editarGrade<SemestreLocal>('semestres', id, { active: true });
+      this.desativarOutros(id);
+    });
+  }
+
+  private desativarOutros(id: string): void {
+    const ativos = this.db
+      .select({ id: semesters.id })
+      .from(semesters)
+      .where(and(eq(semesters.active, true), isNull(semesters.deletedAt)))
+      .all();
+    for (const s of ativos) {
+      if (s.id !== id) this.editarGrade<SemestreLocal>('semestres', s.id, { active: false });
+    }
+  }
+
+  editarSemestre(id: string, m: Partial<Pick<SemestreLocal, 'label' | 'startDate' | 'endDate'>>) {
+    return this.editarGrade<SemestreLocal>('semestres', id, m);
+  }
+
+  criarDisciplina(
+    dados: Omit<DisciplinaLocal, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'dirty'>,
+  ) {
+    return this.gravarGrade<DisciplinaLocal>('disciplinas', dados);
+  }
+
+  editarDisciplina(id: string, m: Partial<DisciplinaLocal>) {
+    return this.editarGrade<DisciplinaLocal>('disciplinas', id, m);
+  }
+
+  /**
+   * Exclusão lógica da disciplina: horários e exceções dela saem junto, e os itens ligados
+   * (prova, trabalho) ficam intactos com `courseId` anulado — o tombstone é um UPDATE, então o
+   * `ON DELETE SET NULL` do banco não dispara; quem anula é a aplicação (issue #57).
+   */
+  excluirDisciplina(id: string): void {
+    this.db.transaction(() => {
+      const horarios = this.db
+        .select({ id: classSlots.id })
+        .from(classSlots)
+        .where(and(eq(classSlots.courseId, id), isNull(classSlots.deletedAt)))
+        .all()
+        .map((h) => h.id);
+      for (const h of horarios) this.excluirHorario(h);
+      const ligados = this.db
+        .select({ id: items.id })
+        .from(items)
+        .where(and(eq(items.courseId, id), isNull(items.deletedAt)))
+        .all();
+      for (const l of ligados) this.editar(l.id, { courseId: null });
+      this.excluirGrade('disciplinas', [id]);
+    });
+  }
+
+  criarHorario(
+    dados: Omit<HorarioLocal, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'dirty'>,
+  ) {
+    return this.gravarGrade<HorarioLocal>('horarios', dados);
+  }
+
+  editarHorario(id: string, m: Partial<HorarioLocal>) {
+    return this.editarGrade<HorarioLocal>('horarios', id, m);
+  }
+
+  excluirHorario(id: string): void {
+    this.db.transaction(() => {
+      const excecoes = this.db
+        .select({ id: classExceptions.id })
+        .from(classExceptions)
+        .where(and(eq(classExceptions.slotId, id), isNull(classExceptions.deletedAt)))
+        .all()
+        .map((e) => e.id);
+      this.excluirGrade('excecoes', excecoes);
+      this.excluirGrade('horarios', [id]);
+    });
+  }
+
+  /** Exceção de um dia: cancelamento, troca de sala ou aula extra (reposição). */
+  registrarExcecao(
+    dados: Omit<ExcecaoLocal, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'dirty'>,
+  ): ExcecaoLocal {
+    return this.gravarGrade<ExcecaoLocal>('excecoes', dados);
+  }
+
+  removerExcecao(id: string): void {
+    this.excluirGrade('excecoes', [id]);
+  }
+
+  /** "Não tem aula hoje" (feriado, recesso): cancela todas as aulas regulares do dia. */
+  cancelarAulasDoDia(dia: Dia, nota: string | null = null): number {
+    const aulas = aulasDoDia(this.grade(), dia).filter((a) => !a.cancelada && !a.extra);
+    this.db.transaction(() => {
+      for (const a of aulas) {
+        this.registrarExcecao({
+          slotId: a.slotId,
+          date: dia,
+          type: 'cancelled',
+          room: null,
+          note: nota,
+          startTime: null,
+          endTime: null,
+        });
+      }
+    });
+    return aulas.length;
+  }
+
+  consultasDaGrade() {
+    return {
+      semestres: this.db.select().from(semesters).where(isNull(semesters.deletedAt)),
+      disciplinas: this.db.select().from(courses).where(isNull(courses.deletedAt)),
+      horarios: this.db.select().from(classSlots).where(isNull(classSlots.deletedAt)),
+      excecoes: this.db.select().from(classExceptions).where(isNull(classExceptions.deletedAt)),
+    };
+  }
+
+  grade(): GradeParaProjecao {
+    const q = this.consultasDaGrade();
+    return {
+      semestres: q.semestres.all(),
+      disciplinas: q.disciplinas.all(),
+      horarios: q.horarios.all(),
+      excecoes: q.excecoes.all(),
+    };
+  }
+
   // ---- lado local da sincronização ---------------------------------------------------------
 
   sujos(): Linhas {
-    return {
-      itens: this.db.select().from(items).where(eq(items.dirty, true)).all().map(localParaWire),
-      ocorrencias: this.db
+    const saida = linhasVazias();
+    saida.itens = this.db
+      .select()
+      .from(items)
+      .where(eq(items.dirty, true))
+      .all()
+      .map(localParaWire);
+    saida.ocorrencias = this.db
+      .select()
+      .from(itemOccurrences)
+      .where(eq(itemOccurrences.dirty, true))
+      .all()
+      .map(ocorrenciaParaWire);
+    for (const tabela of TABELAS_DA_GRADE) {
+      const t = TABELAS_GRADE[tabela];
+      (saida[tabela] as unknown[]) = this.db
         .select()
-        .from(itemOccurrences)
-        .where(eq(itemOccurrences.dirty, true))
+        .from(t)
+        .where(eq(t.dirty, true))
         .all()
-        .map(ocorrenciaParaWire),
-    };
+        .map((l) => linhaParaWire(l as Record<string, unknown>));
+    }
+    return saida;
   }
 
   /**
    * Limpa `dirty` só das linhas que o servidor confirmou E que não mudaram de novo desde o envio
    * (mesmo `updatedAt`). Uma edição feita com o push em voo continua suja e vai no próximo.
    */
-  confirmar(enviados: { itens: Confirmacao[]; ocorrencias: Confirmacao[] }): void {
-    this.db.transaction((tx) => {
-      for (const e of enviados.itens) {
-        tx.update(items)
-          .set({ dirty: false })
-          .where(and(eq(items.id, e.id), eq(items.updatedAt, new Date(e.updatedAt))))
-          .run();
-      }
-      for (const e of enviados.ocorrencias) {
-        tx.update(itemOccurrences)
-          .set({ dirty: false })
-          .where(
-            and(eq(itemOccurrences.id, e.id), eq(itemOccurrences.updatedAt, new Date(e.updatedAt))),
-          )
-          .run();
+  confirmar(enviados: Confirmacoes): void {
+    this.db.transaction(() => {
+      for (const tabela of TABELAS_SYNC) {
+        const t = tabelaLocal(tabela);
+        for (const e of enviados[tabela]) {
+          this.db
+            .update(t)
+            .set({ dirty: false })
+            .where(and(eq(t.id, e.id), eq(t.updatedAt, new Date(e.updatedAt))))
+            .run();
+        }
       }
     });
   }
 
   /**
    * Aplica o pull com LWW, idempotente. Linha suja só é sobrescrita por versão estritamente mais
-   * nova; linha limpa aceita igual ou mais nova (o empate é o próprio eco). Ocorrências casam
-   * pela identidade `(itemId, occurrenceDate)`, não pelo `id`.
+   * nova; linha limpa aceita igual ou mais nova (o empate é o próprio eco). Desvios de ocorrência
+   * casam pela identidade `(itemId, occurrenceDate)`, não pelo `id` (ADR-0004).
    */
   aplicar(recebidos: Linhas): number {
     let aplicados = 0;
@@ -565,20 +811,35 @@ export class RepositorioLocal implements ArmazemLocal {
       const t = local.updatedAt.getTime();
       return local.dirty ? r > t : r >= t;
     };
-    this.db.transaction((tx) => {
-      for (const w of recebidos.itens) {
-        const local = tx
-          .select({ updatedAt: items.updatedAt, dirty: items.dirty })
-          .from(items)
-          .where(eq(items.id, w.id))
-          .get();
-        if (!vence(local, w.updatedAt)) continue;
-        const linha = wireParaLocal(w, false);
-        tx.insert(items).values(linha).onConflictDoUpdate({ target: items.id, set: linha }).run();
-        aplicados++;
-      }
+    this.db.transaction(() => {
+      const porId = (
+        tabela: Exclude<TabelaSync, 'ocorrencias'>,
+        linhas: { id: string; updatedAt: string }[],
+      ) => {
+        const t = tabelaLocal(tabela);
+        for (const w of linhas) {
+          const local = this.db
+            .select({ updatedAt: t.updatedAt, dirty: t.dirty })
+            .from(t)
+            .where(eq(t.id, w.id))
+            .get();
+          if (!vence(local, w.updatedAt)) continue;
+          const linha =
+            tabela === 'itens'
+              ? wireParaLocal(w as ItemWire, false)
+              : { ...wireParaLinha(w as unknown as Record<string, unknown>), dirty: false };
+          this.db
+            .insert(t)
+            .values(linha as never)
+            .onConflictDoUpdate({ target: t.id, set: linha as never })
+            .run();
+          aplicados++;
+        }
+      };
+      for (const tabela of TABELAS_DA_GRADE) porId(tabela, recebidos[tabela]);
+      porId('itens', recebidos.itens);
       for (const w of recebidos.ocorrencias) {
-        const local = tx
+        const local = this.db
           .select({
             id: itemOccurrences.id,
             updatedAt: itemOccurrences.updatedAt,
@@ -595,9 +856,10 @@ export class RepositorioLocal implements ArmazemLocal {
         if (!vence(local, w.updatedAt)) continue;
         const linha = wireParaOcorrencia(w, false);
         if (local && local.id !== w.id) {
-          tx.delete(itemOccurrences).where(eq(itemOccurrences.id, local.id)).run();
+          this.db.delete(itemOccurrences).where(eq(itemOccurrences.id, local.id)).run();
         }
-        tx.insert(itemOccurrences)
+        this.db
+          .insert(itemOccurrences)
           .values(linha)
           .onConflictDoUpdate({ target: itemOccurrences.id, set: linha })
           .run();
@@ -611,40 +873,33 @@ export class RepositorioLocal implements ArmazemLocal {
    * Depois de um pull completo (sem cursor): remove as linhas limpas que o servidor não tem mais
    * — tombstones já purgados lá enquanto este aparelho estava parado.
    */
-  reconciliar(noServidor: { itens: string[]; ocorrencias: string[] }): number {
-    const a = this.db
-      .delete(items)
-      .where(and(eq(items.dirty, false), notInArray(items.id, noServidor.itens)))
-      .run();
-    const b = this.db
-      .delete(itemOccurrences)
-      .where(
-        and(
-          eq(itemOccurrences.dirty, false),
-          notInArray(itemOccurrences.id, noServidor.ocorrencias),
-        ),
-      )
-      .run();
-    return mudancas(a) + mudancas(b);
+  reconciliar(noServidor: Record<TabelaSync, string[]>): number {
+    let n = 0;
+    for (const tabela of TABELAS_SYNC) {
+      const t = tabelaLocal(tabela);
+      n += mudancas(
+        this.db
+          .delete(t)
+          .where(and(eq(t.dirty, false), notInArray(t.id, noServidor[tabela])))
+          .run(),
+      );
+    }
+    return n;
   }
 
   /** Purga física local de tombstones já confirmados, mais antigos que `limite`. */
   purgar(limite: Date): number {
-    const a = this.db
-      .delete(items)
-      .where(and(isNotNull(items.deletedAt), lt(items.deletedAt, limite), eq(items.dirty, false)))
-      .run();
-    const b = this.db
-      .delete(itemOccurrences)
-      .where(
-        and(
-          isNotNull(itemOccurrences.deletedAt),
-          lt(itemOccurrences.deletedAt, limite),
-          eq(itemOccurrences.dirty, false),
-        ),
-      )
-      .run();
-    return mudancas(a) + mudancas(b);
+    let n = 0;
+    for (const tabela of TABELAS_SYNC) {
+      const t = tabelaLocal(tabela);
+      n += mudancas(
+        this.db
+          .delete(t)
+          .where(and(isNotNull(t.deletedAt), lt(t.deletedAt, limite), eq(t.dirty, false)))
+          .run(),
+      );
+    }
+    return n;
   }
 
   lerMetadados(): MetadadosSync {
@@ -671,6 +926,39 @@ export class RepositorioLocal implements ArmazemLocal {
       }
     });
   }
+}
+
+type TabelaGrade = 'semestres' | 'disciplinas' | 'horarios' | 'excecoes';
+const TABELAS_DA_GRADE: TabelaGrade[] = ['semestres', 'disciplinas', 'horarios', 'excecoes'];
+const TABELAS_GRADE = {
+  semestres: semesters,
+  disciplinas: courses,
+  horarios: classSlots,
+  excecoes: classExceptions,
+} as const;
+
+function tabelaLocal(tabela: TabelaSync) {
+  if (tabela === 'itens') return items;
+  if (tabela === 'ocorrencias') return itemOccurrences;
+  return TABELAS_GRADE[tabela];
+}
+
+const CARIMBOS = ['deletedAt', 'createdAt', 'updatedAt'] as const;
+
+/** Linha local da grade → transporte: carimbos Date → ISO; `dirty` sai. */
+function linhaParaWire(l: Record<string, unknown>): Record<string, unknown> {
+  const { dirty: _dirty, ...resto } = l;
+  for (const c of CARIMBOS) {
+    const v = resto[c];
+    resto[c] = v instanceof Date ? v.toISOString() : (v ?? null);
+  }
+  return resto;
+}
+
+function wireParaLinha(w: Record<string, unknown>): Record<string, unknown> {
+  const l = { ...w };
+  for (const c of CARIMBOS) l[c] = w[c] ? new Date(w[c] as string) : null;
+  return l;
 }
 
 function mudancas(r: unknown): number {

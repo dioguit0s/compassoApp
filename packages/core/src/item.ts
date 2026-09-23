@@ -1,5 +1,15 @@
 import { z } from 'zod';
 import { ATRIBUTOS, ESFORCOS } from './atributos';
+import {
+  esquemaDisciplina,
+  esquemaExcecao,
+  esquemaHorario,
+  esquemaSemestre,
+  type DisciplinaWire,
+  type ExcecaoWire,
+  type HorarioWire,
+  type SemestreWire,
+} from './grade';
 import { esquemaOcorrencia, type OcorrenciaWire } from './ocorrencia';
 import { validarRRule } from './rrule';
 
@@ -35,6 +45,8 @@ export const esquemaItem = z
     rrule: z.string().max(1000).nullable(),
     /** UID de origem na importação de ICS (null para itens nativos). Idempotência da reimportação. */
     sourceUid: z.string().max(1000).nullable().default(null),
+    /** Disciplina da prova/trabalho (F5). Null quando não está ligado a nenhuma. */
+    courseId: z.uuid().nullable().default(null),
     recurrenceEndsAt: dataOpcional,
     status: z.enum(['open', 'done']),
     completedAt: dataOpcional,
@@ -109,9 +121,50 @@ export function violacoesDeInvariante(item: {
   return v;
 }
 
+/**
+ * Tabelas sincronizadas, NA ORDEM de aplicação no push: quem é referenciado vem antes de quem
+ * referencia (semestre → disciplina → horário → exceção; disciplina → item → desvio).
+ */
+export const TABELAS_SYNC = [
+  'semestres',
+  'disciplinas',
+  'horarios',
+  'excecoes',
+  'itens',
+  'ocorrencias',
+] as const;
+export type TabelaSync = (typeof TABELAS_SYNC)[number];
+
+export const ESQUEMAS_SYNC = {
+  semestres: esquemaSemestre,
+  disciplinas: esquemaDisciplina,
+  horarios: esquemaHorario,
+  excecoes: esquemaExcecao,
+  itens: esquemaItem,
+  ocorrencias: esquemaOcorrencia,
+} as const;
+
+export interface LinhasSync {
+  semestres: SemestreWire[];
+  disciplinas: DisciplinaWire[];
+  horarios: HorarioWire[];
+  excecoes: ExcecaoWire[];
+  itens: ItemWire[];
+  ocorrencias: OcorrenciaWire[];
+}
+
+export function linhasVazias(): LinhasSync {
+  return { semestres: [], disciplinas: [], horarios: [], excecoes: [], itens: [], ocorrencias: [] };
+}
+
+const lista = <T extends z.ZodType>(e: T) => z.array(e).max(1000).default([]);
 export const esquemaPush = z.object({
-  itens: z.array(esquemaItem).max(1000).default([]),
-  ocorrencias: z.array(esquemaOcorrencia).max(1000).default([]),
+  semestres: lista(esquemaSemestre),
+  disciplinas: lista(esquemaDisciplina),
+  horarios: lista(esquemaHorario),
+  excecoes: lista(esquemaExcecao),
+  itens: lista(esquemaItem),
+  ocorrencias: lista(esquemaOcorrencia),
 });
 export type RequisicaoPush = z.input<typeof esquemaPush>;
 
@@ -123,14 +176,9 @@ export interface ResultadoDaTabela {
   ignorados: string[];
 }
 
-export interface RespostaPush {
-  itens: ResultadoDaTabela;
-  ocorrencias: ResultadoDaTabela;
-}
+export type RespostaPush = Record<TabelaSync, ResultadoDaTabela>;
 
-export interface RespostaPull {
-  itens: ItemWire[];
-  ocorrencias: OcorrenciaWire[];
+export interface RespostaPull extends LinhasSync {
   /** Relógio do servidor no início da consulta. Opaco para o client. */
   cursor: string;
   /** Prazo da lixeira e da purga de tombstones, em dias. */

@@ -1,4 +1,5 @@
 import { nomeDoMes, partesDoDia, somarDias, somarMeses, type Dia } from '@compasso/core';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Mes } from '../../src/calendario/Mes';
@@ -16,6 +17,7 @@ type Visao = 'semana' | 'mes';
  */
 export default function Calendario() {
   const tema = useTema();
+  const router = useRouter();
   const hoje = useHoje();
   const [visao, setVisaoEstado] = useState<Visao>(() =>
     lerPreferencia('calendario.visao') === 'mes' ? 'mes' : 'semana',
@@ -55,7 +57,12 @@ export default function Calendario() {
             </Pressable>
           ))}
         </View>
-        {/* F5: acesso à tela Semestre entra aqui, no cabeçalho do Calendário */}
+        {/* Tela Semestre: no cabeçalho do Calendário, não numa quinta aba (especificação §7). */}
+        <Botao
+          rotulo="Grade"
+          dica="Semestre e grade de aulas"
+          aoTocar={() => router.push('/semestre')}
+        />
       </View>
       {visao === 'semana' ? (
         <Semana referencia={referencia} hoje={hoje} />

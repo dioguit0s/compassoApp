@@ -62,6 +62,16 @@ export class Admin {
    * cada conta já excluiu há mais tempo que a retenção.
    */
   async purgarTombstones(dias: number): Promise<number> {
+    // Filhos antes dos pais; os que sobrarem saem por ON DELETE CASCADE. Itens ligados a uma
+    // disciplina purgada ficam, com course_id anulado (ON DELETE SET NULL (course_id)).
+    let grade = 0;
+    for (const t of ['class_exceptions', 'class_slots', 'courses', 'semesters']) {
+      const r = await this.cliente.query(
+        `delete from ${t} where deleted_at < now() - make_interval(days => $1)`,
+        [dias],
+      );
+      grade += r.rowCount ?? 0;
+    }
     // Desvios de itens purgados saem junto (FK com ON DELETE CASCADE).
     const oc = await this.cliente.query(
       `delete from item_occurrences where deleted_at < now() - make_interval(days => $1)`,
@@ -71,6 +81,6 @@ export class Admin {
       `delete from items where deleted_at < now() - make_interval(days => $1)`,
       [dias],
     );
-    return (oc.rowCount ?? 0) + (it.rowCount ?? 0);
+    return grade + (oc.rowCount ?? 0) + (it.rowCount ?? 0);
   }
 }

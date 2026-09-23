@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { Text, View } from 'react-native';
 import migracoes from '../drizzle/migrations';
 import { db } from '../src/db';
+import { ProvedorDeDisciplinas } from '../src/disciplinas';
 import { observarMudancas, reagendar, registrarTarefaDeBackground } from '../src/notificacoes';
 import { atualizarPerfil } from '../src/perfil';
 import { sincronizarAgora } from '../src/sync';
@@ -59,7 +60,7 @@ export default function Raiz() {
   if (!success) return null;
 
   return (
-    <>
+    <ProvedorDeDisciplinas>
       <StatusBar style="auto" />
       <Stack>
         <Stack.Screen name="(abas)" options={{ headerShown: false }} />
@@ -68,7 +69,10 @@ export default function Raiz() {
         <Stack.Screen name="item/[id]" options={{ title: 'Item', presentation: 'modal' }} />
         <Stack.Screen name="notificacoes" options={{ title: 'Lembretes agendados' }} />
         <Stack.Screen name="importar" options={{ title: 'Importar calendário' }} />
+        <Stack.Screen name="semestre" options={{ title: 'Semestre' }} />
+        <Stack.Screen name="disciplina" options={{ title: 'Disciplina' }} />
+        <Stack.Screen name="aula" options={{ title: 'Aula', presentation: 'modal' }} />
       </Stack>
-    </>
+    </ProvedorDeDisciplinas>
   );
 }

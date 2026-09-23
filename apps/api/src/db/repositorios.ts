@@ -1,4 +1,10 @@
 import {
+  aulasDoDia,
+  diaDe,
+  somarDias,
+  type Aula,
+  type LinhasSync,
+  ESQUEMAS_SYNC,
   ehOcorrencia,
   fimDaSerie,
   novoId,
@@ -25,7 +31,15 @@ import {
 } from 'drizzle-orm';
 import type { PlanoDeImportacao } from '../ics';
 import type { Tx } from './banco';
-import { itemOccurrences, items, users } from './schema';
+import {
+  classExceptions,
+  classSlots,
+  courses,
+  itemOccurrences,
+  items,
+  semesters,
+  users,
+} from './schema';
 
 export type Usuario = typeof users.$inferSelect;
 type LinhaItem = typeof items.$inferSelect;
@@ -51,6 +65,7 @@ function itemParaWire(l: LinhaItem): ItemWire {
     timezone: l.timezone,
     rrule: l.rrule,
     sourceUid: l.sourceUid,
+    courseId: l.courseId,
     recurrenceEndsAt: paraIso(l.recurrenceEndsAt),
     status: l.status,
     completedAt: paraIso(l.completedAt),
@@ -125,7 +140,8 @@ const snake = (s: string) => s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
  * No conflito, todas as colunas vêm do client — menos a identidade, `user_id` (nunca muda de
  * dono) e `server_updated_at` (o trigger preenche).
  */
-function colunasDoConflito(tabela: typeof items | typeof itemOccurrences, fixas: string[]) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function colunasDoConflito(tabela: any, fixas: string[]) {
   return Object.fromEntries(
     Object.keys(getTableColumns(tabela))
       .filter((k) => ![...fixas, 'userId', 'serverUpdatedAt'].includes(k))
@@ -147,6 +163,51 @@ function simplesNoIntervalo(de: Date, ate: Date) {
     ),
   );
   return or(tarefa, evento);
+}
+
+type TabelaGrade = 'semestres' | 'disciplinas' | 'horarios' | 'excecoes';
+export const TABELAS_DA_GRADE: TabelaGrade[] = ['semestres', 'disciplinas', 'horarios', 'excecoes'];
+
+/** Cada tabela da grade, e a tabela-pai que precisa existir (na mesma conta) para a linha entrar. */
+const GRADE = {
+  semestres: { tabela: semesters, pai: null },
+  disciplinas: { tabela: courses, pai: { tabela: semesters, coluna: 'semesterId' as const } },
+  horarios: { tabela: classSlots, pai: { tabela: courses, coluna: 'courseId' as const } },
+  excecoes: { tabela: classExceptions, pai: { tabela: classSlots, coluna: 'slotId' as const } },
+};
+const conflitoGrade = Object.fromEntries(
+  TABELAS_DA_GRADE.map((t) => [t, colunasDoConflito(GRADE[t].tabela as never, ['id'])]),
+) as Record<TabelaGrade, Record<string, unknown>>;
+
+const CARIMBOS = ['deletedAt', 'createdAt', 'updatedAt'] as const;
+
+function gradeParaWire(l: Record<string, unknown>): Record<string, unknown> {
+  const { userId: _u, serverUpdatedAt: _s, ...resto } = l;
+  for (const c of CARIMBOS)
+    resto[c] = resto[c] instanceof Date ? (resto[c] as Date).toISOString() : null;
+  return resto;
+}
+
+function wireParaGrade(w: Record<string, unknown>, userId: string): Record<string, unknown> {
+  const l: Record<string, unknown> = { ...w, userId };
+  for (const c of CARIMBOS) l[c] = w[c] ? new Date(w[c] as string) : null;
+  return l;
+}
+
+export class ErroDeGrade extends Error {
+  constructor(
+    readonly status: 400 | 404,
+    mensagem: string,
+  ) {
+    super(mensagem);
+  }
+}
+
+function validarGrade(tabela: TabelaGrade, linha: Record<string, unknown>): void {
+  const w = { ...linha };
+  for (const c of CARIMBOS) if (w[c] instanceof Date) w[c] = (w[c] as Date).toISOString();
+  const r = ESQUEMAS_SYNC[tabela].safeParse(w);
+  if (!r.success) throw new ErroDeGrade(400, r.error.issues.map((i) => i.message).join('; '));
 }
 
 export class ErroDeOcorrencia extends Error {
@@ -173,6 +234,11 @@ export interface MudancaDeOcorrencia {
 export function criarRepositorios(tx: Tx, userId: string) {
   const doUsuario = eq(items.userId, userId);
   const ocDoUsuario = eq(itemOccurrences.userId, userId);
+  /** O driver do Drizzle devolve timestamptz de SQL cru como texto. */
+  const relogio = async () => {
+    const { rows } = await tx.execute<{ agora: string }>(sql`select now() as agora`);
+    return new Date(rows[0]!.agora);
+  };
 
   const itensRepo = {
     async listar(opcoes: { incluirExcluidos?: boolean } = {}): Promise<ItemWire[]> {
@@ -196,9 +262,30 @@ export function criarRepositorios(tx: Tx, userId: string) {
      */
     async aplicarPush(recebidos: ItemWire[]): Promise<ResultadoDaTabela> {
       if (recebidos.length === 0) return { aplicados: [], ignorados: [] };
+      // Disciplina que não existe (mais) nesta conta: o vínculo cai, o item entra.
+      const citadas = [
+        ...new Set(recebidos.map((r) => r.courseId).filter((c): c is string => !!c)),
+      ];
+      const existentes = new Set(
+        citadas.length
+          ? (
+              await tx
+                .select({ id: courses.id })
+                .from(courses)
+                .where(and(eq(courses.userId, userId), inArray(courses.id, citadas)))
+            ).map((c) => c.id)
+          : [],
+      );
       const gravados = await tx
         .insert(items)
-        .values(recebidos.map((w) => wireParaLinha(w, userId)))
+        .values(
+          recebidos.map((w) =>
+            wireParaLinha(
+              w.courseId && !existentes.has(w.courseId) ? { ...w, courseId: null } : w,
+              userId,
+            ),
+          ),
+        )
         .onConflictDoUpdate({
           target: items.id,
           set: conflitoItens,
@@ -336,6 +423,187 @@ export function criarRepositorios(tx: Tx, userId: string) {
         })
         .returning();
       return ocorrenciaParaWire(gravada!);
+    },
+  };
+
+  const gradeRepo = {
+    /** LWW por `id`, como `items`. Linha cuja tabela-pai não existe nesta conta é ignorada. */
+    async aplicarPush(
+      tabela: TabelaGrade,
+      recebidos: Record<string, unknown>[],
+    ): Promise<ResultadoDaTabela> {
+      if (recebidos.length === 0) return { aplicados: [], ignorados: [] };
+      const { tabela: t, pai } = GRADE[tabela];
+      let validos = recebidos;
+      if (pai) {
+        const ids = [...new Set(recebidos.map((r) => r[pai.coluna] as string))];
+        const ok = new Set(
+          (
+            await tx
+              .select({ id: pai.tabela.id })
+              .from(pai.tabela)
+              .where(and(eq(pai.tabela.userId, userId), inArray(pai.tabela.id, ids)))
+          ).map((l) => l.id),
+        );
+        validos = recebidos.filter((r) => ok.has(r[pai.coluna] as string));
+      }
+      const gravados = validos.length
+        ? await tx
+            .insert(t)
+            .values(validos.map((w) => wireParaGrade(w, userId)) as never)
+            .onConflictDoUpdate({
+              target: t.id,
+              set: conflitoGrade[tabela] as never,
+              setWhere: sql`${t.updatedAt} < excluded.updated_at and ${t.userId} = excluded.user_id`,
+            })
+            .returning({ id: t.id })
+        : [];
+      const aplicados = new Set(gravados.map((g) => g.id));
+      return {
+        aplicados: [...aplicados],
+        ignorados: recebidos.map((r) => r.id as string).filter((id) => !aplicados.has(id)),
+      };
+    },
+
+    async alteradosDesde(tabela: TabelaGrade, desde: ReturnType<typeof sql> | null) {
+      const t = GRADE[tabela].tabela;
+      const linhas = await tx
+        .select()
+        .from(t)
+        .where(
+          desde ? and(eq(t.userId, userId), gt(t.serverUpdatedAt, desde)) : eq(t.userId, userId),
+        )
+        .orderBy(t.serverUpdatedAt);
+      return linhas.map((l) => gradeParaWire(l as Record<string, unknown>));
+    },
+
+    /**
+     * Escrita feita direto pela API (rotas da §6.3). Valida com o mesmo esquema do sync;
+     * `updated_at` é o relógio do banco, que é quem escreve.
+     */
+    async criar(tabela: TabelaGrade, dados: Record<string, unknown>) {
+      const agora = await relogio();
+      const linha = { ...dados, id: novoId(), deletedAt: null, createdAt: agora, updatedAt: agora };
+      validarGrade(tabela, linha);
+      const r = await gradeRepo.aplicarPush(tabela, [gradeParaWire(linha)]);
+      if (!r.aplicados.length) throw new ErroDeGrade(404, 'registro de referência não encontrado');
+      return gradeParaWire(linha);
+    },
+
+    async obter(tabela: TabelaGrade, id: string) {
+      const t = GRADE[tabela].tabela;
+      const [l] = await tx
+        .select()
+        .from(t)
+        .where(and(eq(t.userId, userId), eq(t.id, id), isNull(t.deletedAt)));
+      return l ? gradeParaWire(l as Record<string, unknown>) : null;
+    },
+
+    async editar(tabela: TabelaGrade, id: string, mudancas: Record<string, unknown>) {
+      const atual = await gradeRepo.obter(tabela, id);
+      if (!atual) throw new ErroDeGrade(404, 'registro não encontrado');
+      const agora = await relogio();
+      const novo = { ...atual, ...mudancas, id, updatedAt: agora.toISOString() };
+      validarGrade(tabela, novo);
+      const t = GRADE[tabela].tabela;
+      const { id: _i, createdAt: _c, ...campos } = wireParaGrade(novo, userId);
+      await tx
+        .update(t)
+        .set(campos as never)
+        .where(and(eq(t.userId, userId), eq(t.id, id)));
+      return novo;
+    },
+
+    /** Tombstone em cascata na aplicação; itens ligados a uma disciplina excluída perdem o vínculo. */
+    async excluir(tabela: TabelaGrade, id: string): Promise<void> {
+      if (!(await gradeRepo.obter(tabela, id)))
+        throw new ErroDeGrade(404, 'registro não encontrado');
+      const agora = await relogio();
+      const marcar = async (t: TabelaGrade, filtro: ReturnType<typeof eq>) => {
+        const tb = GRADE[t].tabela;
+        await tx
+          .update(tb)
+          .set({ deletedAt: agora, updatedAt: agora } as never)
+          .where(and(eq(tb.userId, userId), isNull(tb.deletedAt), filtro));
+      };
+      if (tabela === 'disciplinas') {
+        const slots = await tx
+          .select({ id: classSlots.id })
+          .from(classSlots)
+          .where(and(eq(classSlots.userId, userId), eq(classSlots.courseId, id)));
+        if (slots.length)
+          await marcar(
+            'excecoes',
+            inArray(
+              classExceptions.slotId,
+              slots.map((x) => x.id),
+            ) as never,
+          );
+        await marcar('horarios', eq(classSlots.courseId, id));
+        await tx
+          .update(items)
+          .set({ courseId: null, updatedAt: agora })
+          .where(and(doUsuario, eq(items.courseId, id)));
+      }
+      if (tabela === 'horarios') await marcar('excecoes', eq(classExceptions.slotId, id));
+      await marcar(tabela, eq(GRADE[tabela].tabela.id, id));
+    },
+
+    async disciplinasComHorarios(semesterId: string | null) {
+      const cs = await tx
+        .select()
+        .from(courses)
+        .where(
+          and(
+            eq(courses.userId, userId),
+            isNull(courses.deletedAt),
+            semesterId ? eq(courses.semesterId, semesterId) : undefined,
+          ),
+        )
+        .orderBy(courses.name);
+      const hs = cs.length
+        ? await tx
+            .select()
+            .from(classSlots)
+            .where(
+              and(
+                eq(classSlots.userId, userId),
+                isNull(classSlots.deletedAt),
+                inArray(
+                  classSlots.courseId,
+                  cs.map((c) => c.id),
+                ),
+              ),
+            )
+            .orderBy(classSlots.weekday, classSlots.startTime)
+        : [];
+      return cs.map((c) => ({
+        ...gradeParaWire(c as Record<string, unknown>),
+        horarios: hs
+          .filter((h) => h.courseId === c.id)
+          .map((h) => gradeParaWire(h as Record<string, unknown>)),
+      }));
+    },
+
+    /** A grade inteira (sem excluídos), para a projeção das aulas. */
+    async paraProjecao() {
+      const vivos = <
+        T extends typeof semesters | typeof courses | typeof classSlots | typeof classExceptions,
+      >(
+        t: T,
+      ) =>
+        tx
+          .select()
+          .from(t as typeof semesters)
+          .where(and(eq(t.userId, userId), isNull(t.deletedAt)));
+      return {
+        semestres: await vivos(semesters),
+        disciplinas: (await vivos(courses)) as unknown as (typeof courses.$inferSelect)[],
+        horarios: (await vivos(classSlots)) as unknown as (typeof classSlots.$inferSelect)[],
+        excecoes: (await vivos(
+          classExceptions,
+        )) as unknown as (typeof classExceptions.$inferSelect)[],
+      };
     },
   };
 
@@ -506,6 +774,7 @@ export function criarRepositorios(tx: Tx, userId: string) {
     itens: itensRepo,
     ocorrencias: ocorrenciasRepo,
     importacao: importacaoRepo,
+    grade: gradeRepo,
 
     sync: {
       /**
@@ -535,11 +804,14 @@ export function criarRepositorios(tx: Tx, userId: string) {
           .from(itemOccurrences)
           .where(desde ? and(ocDoUsuario, gt(itemOccurrences.serverUpdatedAt, desde)) : ocDoUsuario)
           .orderBy(itemOccurrences.serverUpdatedAt);
-        return {
+        const saida = {
           itens: linhasItens.map(itemParaWire),
           ocorrencias: linhasOc.map(ocorrenciaParaWire),
-          cursor: agora!.cursor,
-        };
+        } as unknown as LinhasSync;
+        for (const t of TABELAS_DA_GRADE) {
+          (saida[t] as unknown) = await gradeRepo.alteradosDesde(t, desde);
+        }
+        return { ...saida, cursor: agora!.cursor };
       },
     },
 
@@ -573,6 +845,16 @@ export function criarRepositorios(tx: Tx, userId: string) {
               )
           : [];
         return projetarAgenda(candidatos, desvios, de, ate);
+      },
+
+      /** Aulas projetadas em cada dia civil que toca `[de, ate)` — a mesma função do app. */
+      async aulas(de: Date, ate: Date): Promise<Aula[]> {
+        const grade = await gradeRepo.paraProjecao();
+        const saida: Aula[] = [];
+        const ultimo = diaDe(new Date(ate.getTime() - 1));
+        for (let d = diaDe(de); d <= ultimo; d = somarDias(d, 1))
+          saida.push(...aulasDoDia(grade, d));
+        return saida;
       },
     },
   };

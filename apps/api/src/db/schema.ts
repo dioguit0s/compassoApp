@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  type AnyPgColumn,
   index,
   integer,
   pgPolicy,
@@ -125,6 +126,12 @@ export const items = pgTable(
     completedAt: timestamp(tz),
     /** UID do VEVENT de origem na importação de ICS; null para itens nativos. */
     sourceUid: text(),
+    /**
+     * Disciplina de prova/trabalho (F5). A FK composta (user_id, course_id) → courses, com
+     * ON DELETE SET NULL (course_id), está na migração 0009 (o Drizzle não expressa o SET NULL de
+     * uma coluna só): excluir a disciplina não exclui a prova.
+     */
+    courseId: uuid(),
     postponeCount: integer().notNull().default(0),
     reminderMinutesBefore: integer(),
     deletedAt: timestamp(tz),
@@ -139,6 +146,7 @@ export const items = pgTable(
     index('items_user_id_start_at_idx').on(t.userId, t.startAt),
     index('items_user_id_due_at_idx').on(t.userId, t.dueAt),
     index('items_deleted_at_idx').on(t.deletedAt),
+    index('items_user_id_course_id_idx').on(t.userId, t.courseId),
     // Alvo da FK composta de item_occurrences: o desvio só aponta para item da mesma conta.
     uniqueIndex('items_user_id_id_idx').on(t.userId, t.id),
     // Reimportar o mesmo .ics atualiza em vez de duplicar (especificação §6.5).
@@ -231,5 +239,146 @@ export const itemOccurrences = pgTable(
       using: sql`${t.userId} = ${usuarioAtual}`,
       withCheck: sql`${t.userId} = ${usuarioAtual}`,
     }),
+  ],
+);
+
+// ---- grade acadêmica (F5, especificação §5, ADR-0005) ---------------------------------------
+
+const regexHora = sql.raw(`'^([01][0-9]|2[0-3]):[0-5][0-9]$'`);
+const politica = (nome: string, userId: AnyPgColumn) =>
+  pgPolicy(nome, {
+    for: 'all',
+    to: papelApp,
+    using: sql`${userId} = ${usuarioAtual}`,
+    withCheck: sql`${userId} = ${usuarioAtual}`,
+  });
+const colunasDeSync = {
+  deletedAt: timestamp(tz),
+  createdAt: timestamp(tz).notNull(),
+  updatedAt: timestamp(tz).notNull(),
+  serverUpdatedAt: timestamp(tz)
+    .notNull()
+    .default(sql`clock_timestamp()`),
+};
+
+export const semesters = pgTable(
+  'semesters',
+  {
+    id: uuid().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    label: text().notNull(),
+    startDate: date({ mode: 'string' }).notNull(),
+    endDate: date({ mode: 'string' }).notNull(),
+    active: boolean().notNull().default(false),
+    ...colunasDeSync,
+  },
+  (t) => [
+    uniqueIndex('semesters_user_id_id_idx').on(t.userId, t.id),
+    index('semesters_user_id_server_updated_at_idx').on(t.userId, t.serverUpdatedAt),
+    check('semesters_intervalo_check', sql`${t.endDate} >= ${t.startDate}`),
+    check('semesters_label_check', sql`length(${t.label}) > 0`),
+    politica('semesters_dono', t.userId),
+  ],
+);
+
+export const courses = pgTable(
+  'courses',
+  {
+    id: uuid().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    semesterId: uuid().notNull(),
+    name: text().notNull(),
+    code: text(),
+    professor: text(),
+    color: text().notNull(),
+    defaultRoom: text(),
+    notes: text(),
+    ...colunasDeSync,
+  },
+  (t) => [
+    uniqueIndex('courses_user_id_id_idx').on(t.userId, t.id),
+    index('courses_user_id_server_updated_at_idx').on(t.userId, t.serverUpdatedAt),
+    foreignKey({
+      name: 'courses_semester_fk',
+      columns: [t.userId, t.semesterId],
+      foreignColumns: [semesters.userId, semesters.id],
+    }).onDelete('cascade'),
+    check('courses_color_check', sql`${t.color} ~ '^#[0-9A-Fa-f]{6}$'`),
+    check('courses_name_check', sql`length(${t.name}) > 0`),
+    politica('courses_dono', t.userId),
+  ],
+);
+
+export const classSlots = pgTable(
+  'class_slots',
+  {
+    id: uuid().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    courseId: uuid().notNull(),
+    /** 0 = domingo … 6 = sábado. */
+    weekday: smallint().notNull(),
+    /** Hora de parede `HH:mm` — nunca timestamp (especificação §5). */
+    startTime: text().notNull(),
+    endTime: text().notNull(),
+    room: text(),
+    ...colunasDeSync,
+  },
+  (t) => [
+    uniqueIndex('class_slots_user_id_id_idx').on(t.userId, t.id),
+    index('class_slots_user_id_server_updated_at_idx').on(t.userId, t.serverUpdatedAt),
+    foreignKey({
+      name: 'class_slots_course_fk',
+      columns: [t.userId, t.courseId],
+      foreignColumns: [courses.userId, courses.id],
+    }).onDelete('cascade'),
+    check('class_slots_weekday_check', sql`${t.weekday} between 0 and 6`),
+    check('class_slots_start_time_check', sql`${t.startTime} ~ ${regexHora}`),
+    check('class_slots_end_time_check', sql`${t.endTime} ~ ${regexHora}`),
+    check('class_slots_intervalo_check', sql`${t.endTime} > ${t.startTime}`),
+    politica('class_slots_dono', t.userId),
+  ],
+);
+
+export const classExceptions = pgTable(
+  'class_exceptions',
+  {
+    id: uuid().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    slotId: uuid().notNull(),
+    date: date({ mode: 'string' }).notNull(),
+    type: text({ enum: ['cancelled', 'room_change', 'extra'] }).notNull(),
+    room: text(),
+    note: text(),
+    /** Só em `extra`: horário da reposição quando difere do regular (ADR-0005). */
+    startTime: text(),
+    endTime: text(),
+    ...colunasDeSync,
+  },
+  (t) => [
+    index('class_exceptions_user_id_server_updated_at_idx').on(t.userId, t.serverUpdatedAt),
+    index('class_exceptions_slot_id_date_idx').on(t.slotId, t.date),
+    foreignKey({
+      name: 'class_exceptions_slot_fk',
+      columns: [t.userId, t.slotId],
+      foreignColumns: [classSlots.userId, classSlots.id],
+    }).onDelete('cascade'),
+    check('class_exceptions_type_check', sql`${t.type} in ('cancelled', 'room_change', 'extra')`),
+    check(
+      'class_exceptions_sala_check',
+      sql`${t.type} <> 'room_change' or length(coalesce(${t.room}, '')) > 0`,
+    ),
+    check(
+      'class_exceptions_horario_check',
+      sql`(${t.startTime} is null and ${t.endTime} is null) or (${t.type} = 'extra' and ${t.startTime} ~ ${regexHora} and ${t.endTime} ~ ${regexHora} and ${t.endTime} > ${t.startTime})`,
+    ),
+    politica('class_exceptions_dono', t.userId),
   ],
 );

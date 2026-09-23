@@ -70,8 +70,11 @@ export function rotasDeItens() {
     if (fim <= inicio || fim.getTime() - inicio.getTime() > 400 * 86_400_000) {
       return c.json({ erro: 'intervalo precisa ter entre 1 ms e 400 dias' }, 400);
     }
-    const entradas = await c.var.transacao((r) => r.agenda.projetar(inicio, fim));
-    return c.json({ entradas: entradas.map(entradaParaJson) });
+    const { entradas, aulas } = await c.var.transacao(async (r) => ({
+      entradas: await r.agenda.projetar(inicio, fim),
+      aulas: await r.agenda.aulas(inicio, fim),
+    }));
+    return c.json({ entradas: entradas.map(entradaParaJson), aulas });
   });
 
   return rotas;

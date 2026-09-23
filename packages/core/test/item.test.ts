@@ -19,6 +19,7 @@ export function eventoValido(extra: Partial<ItemWire> = {}): ItemWire {
     timezone: 'America/Sao_Paulo',
     rrule: null,
     sourceUid: null,
+    courseId: null,
     recurrenceEndsAt: null,
     status: 'open',
     completedAt: null,

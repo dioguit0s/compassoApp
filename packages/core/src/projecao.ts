@@ -14,6 +14,7 @@ export interface ItemParaProjecao extends ItemDeAgenda {
   timezone: string;
   recurrenceEndsAt: Date | null;
   reminderMinutesBefore: number | null;
+  courseId: string | null;
   deletedAt: Date | null;
 }
 
@@ -37,6 +38,8 @@ export interface EntradaAgenda extends ItemDeAgenda {
   ocorrencia: Dia | null;
   notes: string | null;
   reminderMinutesBefore: number | null;
+  /** Disciplina ligada (prova, trabalho) — o selo na interface. */
+  courseId: string | null;
   /** Ocorrência movida ou editada em relação à regra. */
   desviada: boolean;
 }
@@ -136,6 +139,7 @@ function base(item: ItemParaProjecao) {
     status: item.status,
     notes: item.notes,
     reminderMinutesBefore: item.reminderMinutesBefore,
+    courseId: item.courseId,
   };
 }
 
@@ -157,6 +161,7 @@ export function entradaParaJson(e: EntradaAgenda) {
     status: e.status,
     desviada: e.desviada,
     reminderMinutesBefore: e.reminderMinutesBefore,
+    courseId: e.courseId,
   };
 }
 export type EntradaAgendaJson = ReturnType<typeof entradaParaJson>;

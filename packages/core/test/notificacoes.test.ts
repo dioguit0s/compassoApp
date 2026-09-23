@@ -25,6 +25,7 @@ function item(extra: Partial<ItemParaProjecao>): ItemParaProjecao {
     timezone: 'America/Sao_Paulo',
     recurrenceEndsAt: null,
     reminderMinutesBefore: 15,
+    courseId: null,
     deletedAt: null,
     ...extra,
   };

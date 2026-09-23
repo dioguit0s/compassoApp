@@ -21,6 +21,7 @@ export function novoCompromisso(titulo: string, inicio: Date, fim: Date | null):
     timezone: FUSO_PADRAO,
     rrule: null,
     sourceUid: null,
+    courseId: null,
     completedAt: null,
     reminderMinutesBefore: null,
   };

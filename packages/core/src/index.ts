@@ -3,6 +3,7 @@ export * from './atributos';
 export * from './avatar';
 export * from './calendario';
 export * from './datas';
+export * from './grade';
 export * from './id';
 export * from './item';
 export * from './notificacoes';

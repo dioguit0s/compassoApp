@@ -1,9 +1,16 @@
-import { esquemaItem, type ItemWire, type RespostaPull, type RespostaPush } from '../item';
-import { esquemaOcorrencia, type OcorrenciaWire } from '../ocorrencia';
+import {
+  ESQUEMAS_SYNC,
+  linhasVazias,
+  TABELAS_SYNC,
+  type LinhasSync,
+  type RespostaPull,
+  type RespostaPush,
+  type TabelaSync,
+} from '../item';
 
 /** Como o motor fala com o servidor: `fetch` no app, `app.request` nos testes. */
 export interface Transporte {
-  push(lote: { itens: ItemWire[]; ocorrencias: OcorrenciaWire[] }): Promise<RespostaPush>;
+  push(lote: LinhasSync): Promise<RespostaPush>;
   pull(cursor: string | null): Promise<RespostaPull>;
 }
 
@@ -13,22 +20,21 @@ export interface MetadadosSync {
   retencaoDias: number | null;
 }
 
-export interface Linhas {
-  itens: ItemWire[];
-  ocorrencias: OcorrenciaWire[];
-}
+export type Linhas = LinhasSync;
 
 export interface Confirmacao {
   id: string;
   updatedAt: string;
 }
 
+export type Confirmacoes = Record<TabelaSync, Confirmacao[]>;
+
 /** O que o motor precisa do banco local. Implementado por `RepositorioLocal`. */
 export interface ArmazemLocal {
   sujos(): Linhas;
-  confirmar(enviados: { itens: Confirmacao[]; ocorrencias: Confirmacao[] }): void;
+  confirmar(enviados: Confirmacoes): void;
   aplicar(recebidos: Linhas): number;
-  reconciliar(noServidor: { itens: string[]; ocorrencias: string[] }): number;
+  reconciliar(noServidor: Record<TabelaSync, string[]>): number;
   purgar(limite: Date): number;
   lerMetadados(): MetadadosSync;
   gravarMetadados(m: { cursor: string; ultimaSync: number; retencaoDias: number }): void;
@@ -78,25 +84,30 @@ export class MotorDeSync {
   }
 
   private async rodar(): Promise<ResultadoSync> {
-    // 1. Push — itens antes das ocorrências, que dependem deles.
+    // 1. Push — cada tabela depois das que ela referencia (TABELAS_SYNC já está nessa ordem).
     const invalidos: string[] = [];
     const sujos = this.armazem.sujos();
-    const itens = sujos.itens.filter((i) => valido(esquemaItem, i, invalidos));
-    const ocorrencias = sujos.ocorrencias.filter((o) => valido(esquemaOcorrencia, o, invalidos));
-    const lotes: Linhas[] = [];
-    for (let i = 0; i < itens.length; i += LOTE_PUSH) {
-      lotes.push({ itens: itens.slice(i, i + LOTE_PUSH), ocorrencias: [] });
-    }
-    for (let i = 0; i < ocorrencias.length; i += LOTE_PUSH) {
-      lotes.push({ itens: [], ocorrencias: ocorrencias.slice(i, i + LOTE_PUSH) });
-    }
-    for (const lote of lotes) {
-      const r = await this.transporte.push(lote);
-      // Ignorado também limpa: o servidor tem versão igual ou mais nova, que chega no pull.
-      this.armazem.confirmar({
-        itens: tratados(lote.itens, r.itens),
-        ocorrencias: tratados(lote.ocorrencias, r.ocorrencias),
+    let enviados = 0;
+    for (const tabela of TABELAS_SYNC) {
+      const esquema = ESQUEMAS_SYNC[tabela];
+      const validas = (sujos[tabela] as { id: string; updatedAt: string }[]).filter((l) => {
+        if (esquema.safeParse(l).success) return true;
+        invalidos.push(l.id);
+        return false;
       });
+      enviados += validas.length;
+      for (let i = 0; i < validas.length; i += LOTE_PUSH) {
+        const fatia = validas.slice(i, i + LOTE_PUSH);
+        const lote = linhasVazias();
+        (lote[tabela] as unknown[]) = fatia;
+        const r = await this.transporte.push(lote);
+        // Ignorado também limpa: o servidor tem versão igual ou mais nova, que chega no pull.
+        const confirmacoes = Object.fromEntries(
+          TABELAS_SYNC.map((t) => [t, []]),
+        ) as unknown as Confirmacoes;
+        confirmacoes[tabela] = tratados(fatia, r[tabela]);
+        this.armazem.confirmar(confirmacoes);
+      }
     }
 
     // 2. Pull
@@ -110,10 +121,11 @@ export class MotorDeSync {
     const resposta = await this.transporte.pull(completo ? null : meta.cursor);
     const aplicados = this.armazem.aplicar(resposta);
     if (completo && meta.cursor !== null) {
-      this.armazem.reconciliar({
-        itens: resposta.itens.map((i) => i.id),
-        ocorrencias: resposta.ocorrencias.map((o) => o.id),
-      });
+      this.armazem.reconciliar(
+        Object.fromEntries(
+          TABELAS_SYNC.map((t) => [t, (resposta[t] as { id: string }[]).map((l) => l.id)]),
+        ) as Record<TabelaSync, string[]>,
+      );
     }
     this.armazem.gravarMetadados({
       cursor: resposta.cursor,
@@ -125,24 +137,14 @@ export class MotorDeSync {
     const purgados = this.armazem.purgar(new Date(agora - resposta.retencaoDias * DIA_MS));
 
     return {
-      enviados: itens.length + ocorrencias.length,
-      recebidos: resposta.itens.length + resposta.ocorrencias.length,
+      enviados,
+      recebidos: TABELAS_SYNC.reduce((n, t) => n + resposta[t].length, 0),
       aplicados,
       invalidos,
       completo,
       purgados,
     };
   }
-}
-
-function valido<T extends { id: string }>(
-  esquema: { safeParse(v: unknown): { success: boolean } },
-  linha: T,
-  invalidos: string[],
-): boolean {
-  if (esquema.safeParse(linha).success) return true;
-  invalidos.push(linha.id);
-  return false;
 }
 
 function tratados(

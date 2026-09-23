@@ -57,6 +57,7 @@ export const items = sqliteTable(
       .default('open'),
     completedAt: data(),
     sourceUid: text(),
+    courseId: text(),
     postponeCount: integer().notNull().default(0),
     reminderMinutesBefore: integer(),
     deletedAt: data(),
@@ -117,3 +118,74 @@ export const itemOccurrences = sqliteTable(
 );
 
 export type OcorrenciaLocal = typeof itemOccurrences.$inferSelect;
+
+// ---- grade acadêmica (F5) ---------------------------------------------------------------------
+// Mesmas colunas do servidor (menos user_id e server_updated_at) + dirty. Datas civis em texto
+// AAAA-MM-DD; horários em texto HH:mm (hora de parede em São Paulo, ADR-0003 e ADR-0005).
+
+const sync = {
+  deletedAt: data(),
+  createdAt: data().notNull(),
+  updatedAt: data().notNull(),
+  dirty: integer({ mode: 'boolean' }).notNull().default(false),
+};
+
+export const semesters = sqliteTable('semesters', {
+  id: text().primaryKey(),
+  label: text().notNull(),
+  startDate: text().notNull(),
+  endDate: text().notNull(),
+  active: integer({ mode: 'boolean' }).notNull().default(false),
+  ...sync,
+});
+
+export const courses = sqliteTable(
+  'courses',
+  {
+    id: text().primaryKey(),
+    semesterId: text().notNull(),
+    name: text().notNull(),
+    code: text(),
+    professor: text(),
+    color: text().notNull(),
+    defaultRoom: text(),
+    notes: text(),
+    ...sync,
+  },
+  (t) => [index('courses_semester_id_idx').on(t.semesterId)],
+);
+
+export const classSlots = sqliteTable(
+  'class_slots',
+  {
+    id: text().primaryKey(),
+    courseId: text().notNull(),
+    weekday: integer().notNull(),
+    startTime: text().notNull(),
+    endTime: text().notNull(),
+    room: text(),
+    ...sync,
+  },
+  (t) => [index('class_slots_course_id_idx').on(t.courseId)],
+);
+
+export const classExceptions = sqliteTable(
+  'class_exceptions',
+  {
+    id: text().primaryKey(),
+    slotId: text().notNull(),
+    date: text().notNull(),
+    type: text({ enum: ['cancelled', 'room_change', 'extra'] }).notNull(),
+    room: text(),
+    note: text(),
+    startTime: text(),
+    endTime: text(),
+    ...sync,
+  },
+  (t) => [index('class_exceptions_slot_id_date_idx').on(t.slotId, t.date)],
+);
+
+export type SemestreLocal = typeof semesters.$inferSelect;
+export type DisciplinaLocal = typeof courses.$inferSelect;
+export type HorarioLocal = typeof classSlots.$inferSelect;
+export type ExcecaoLocal = typeof classExceptions.$inferSelect;

@@ -2,6 +2,7 @@
  * F3 — recorrência: desvios de ocorrência no banco e no sync (#39), rotas de ocorrência (#40),
  * GET /agenda (#41), paridade da projeção client × API (#42) e divisão de série (#44).
  */
+import { linhasVazias } from '@compasso/core';
 import {
   entradaParaJson,
   instanteDeParede,
@@ -125,7 +126,7 @@ describe('item_occurrences no banco (#39)', () => {
     expect(a.repo.obterDesvio(s.id, '2026-09-08')!.id).toBe(
       b.repo.obterDesvio(s.id, '2026-09-08')!.id,
     );
-    expect(a.repo.sujos()).toEqual({ itens: [], ocorrencias: [] });
+    expect(a.repo.sujos()).toEqual(linhasVazias());
   });
 
   it('série não aceita status done nem data fora da regra', async () => {

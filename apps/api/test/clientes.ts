@@ -122,6 +122,7 @@ export const novoEvento = (titulo: string): DadosItem => ({
   timezone: 'America/Sao_Paulo',
   rrule: null,
   sourceUid: null,
+  courseId: null,
   completedAt: null,
   reminderMinutesBefore: 30,
 });
