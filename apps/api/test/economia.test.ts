@@ -91,6 +91,25 @@ describe('carência (#78)', () => {
   });
 });
 
+describe('preço alterado no aparelho (#80)', () => {
+  it('baixar o preço de recompensa vigente e sincronizar grava o pendente no servidor', async () => {
+    const { a, userId } = await doisAparelhos('Preço pelo sync');
+    const id = await recompensaVigente(userId, 100, 0);
+    await sincronizar(a);
+    a.repo.editarRecompensa(id, { price: 10 });
+    await sincronizar(a);
+    const linha = await ctx.dono.query(
+      `select price, pending_price, pending_from::text as pending_from from rewards where id = $1`,
+      [id],
+    );
+    expect(linha.rows[0]).toMatchObject({
+      price: 100,
+      pending_price: 10,
+      pending_from: proximaSegunda(hoje()),
+    });
+  });
+});
+
 describe('resgate (#79)', () => {
   it('dentro do cooldown falha mesmo com saldo sobrando', async () => {
     const { token, userId } = await doisAparelhos('Cooldown');

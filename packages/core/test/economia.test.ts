@@ -114,6 +114,22 @@ describe('normalização no servidor (#78, anti-antecipação)', () => {
     const legitimo = alterarPreco(servidor, 5, '2026-09-23');
     expect(normalizarPrecos(servidor, legitimo, '2026-09-23')).toEqual(legitimo);
   });
+
+  it('devolve só os campos de preço, mesmo recebendo a linha inteira do servidor', () => {
+    // O servidor espalha o resultado sobre a linha recebida: carimbos do servidor não podem vazar
+    // e sobrescrever o updatedAt do aparelho (o LWW ignoraria a alteração).
+    const linha = {
+      ...precosDaNova(100, '2026-09-01'),
+      id: 'r1',
+      updatedAt: 'do-servidor',
+      createdAt: 'do-servidor',
+    };
+    const campos = ['pendingFrom', 'pendingPrice', 'price', 'priceEffectiveFrom'];
+    expect(
+      Object.keys(normalizarPrecos(linha, { ...linha, price: 5 }, '2026-09-23')).sort(),
+    ).toEqual(campos);
+    expect(Object.keys(normalizarPrecos(linha, linha, '2026-09-23')).sort()).toEqual(campos);
+  });
 });
 
 describe('estado da recompensa (#79, #80)', () => {

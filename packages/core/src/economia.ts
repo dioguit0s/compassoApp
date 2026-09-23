@@ -98,7 +98,15 @@ export function promover(r: Precos, hoje: Dia): Precos {
       pendingFrom: null,
     };
   }
-  return { ...r };
+  // Só os campos de preço. `{ ...r }` devolvia a linha inteira (o tipo não impede): no push o
+  // servidor espalha o resultado sobre o que recebeu, e o updatedAt do servidor sobrescrevia o do
+  // aparelho — o LWW ignorava a alteração de preço (visto no emulador).
+  return {
+    price: r.price,
+    priceEffectiveFrom: r.priceEffectiveFrom,
+    pendingPrice: r.pendingPrice,
+    pendingFrom: r.pendingFrom,
+  };
 }
 
 /**
