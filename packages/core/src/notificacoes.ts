@@ -16,8 +16,8 @@ export const HORIZONTE_NOTIFICACOES_DIAS = 45;
 
 export interface Disparo {
   /**
-   * Identificador estável: muda se o instante mudar, então reagendar cancela o antigo e agenda o
-   * novo; se nada mudou, o mesmo id é reconhecido e nada é refeito.
+   * Identificador estável: muda se o instante ou o texto mudar, então reagendar cancela o antigo
+   * e agenda o novo; se nada mudou, o mesmo id é reconhecido e nada é refeito.
    */
   id: string;
   itemId: string;
@@ -29,6 +29,13 @@ export interface Disparo {
 
 function inicioDaEntrada(e: EntradaAgenda): Date | null {
   return e.kind === 'task' ? e.dueAt : e.startAt;
+}
+
+/** Hash curto (djb2, base 36) do texto — só para o id mudar quando título ou corpo mudam. */
+function resumo(texto: string): string {
+  let h = 5381;
+  for (let i = 0; i < texto.length; i++) h = (h * 33 + texto.charCodeAt(i)) >>> 0;
+  return h.toString(36);
 }
 
 /** Prefixo dos identificadores do Compasso no agendador do sistema. */
@@ -47,13 +54,14 @@ export function selecionarDisparos(
     if (!inicio) continue;
     const instante = new Date(inicio.getTime() - e.reminderMinutesBefore * 60_000);
     if (instante <= agora) continue;
+    const corpo = descreverQuando(e);
     disparos.push({
-      id: `${PREFIXO_DISPARO}${e.itemId}@${e.ocorrencia ?? 'unico'}@${instante.getTime()}`,
+      id: `${PREFIXO_DISPARO}${e.itemId}@${e.ocorrencia ?? 'unico'}@${instante.getTime()}@${resumo(`${e.title}\n${corpo}`)}`,
       itemId: e.itemId,
       ocorrencia: e.ocorrencia,
       instante,
       titulo: e.title,
-      corpo: descreverQuando(e),
+      corpo,
     });
   }
   disparos.sort((a, b) => a.instante.getTime() - b.instante.getTime() || a.id.localeCompare(b.id));

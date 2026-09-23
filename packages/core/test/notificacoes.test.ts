@@ -95,7 +95,7 @@ describe('selecionarDisparos (#48)', () => {
     expect(selecionarDisparos(entradas, agora).map((x) => x.ocorrencia)).toEqual(['2026-10-03']);
   });
 
-  it('id estável por item+ocorrência+instante', () => {
+  it('id estável por item+ocorrência+instante+texto', () => {
     const e = projetarAgenda(
       [item({ id: 'x', rrule: 'FREQ=DAILY;COUNT=1', startAt: sp(10, 1, 8) })],
       [],
@@ -105,7 +105,9 @@ describe('selecionarDisparos (#48)', () => {
     const [a] = selecionarDisparos(e, agora);
     const [b] = selecionarDisparos(e, agora);
     expect(a!.id).toBe(b!.id);
-    expect(a!.id).toBe(`compasso:x@2026-10-01@${sp(10, 1, 7, 45).getTime()}`);
+    expect(a!.id.startsWith(`compasso:x@2026-10-01@${sp(10, 1, 7, 45).getTime()}@`)).toBe(true);
+    const renomeado = e.map((x) => ({ ...x, title: 'Outro título' }));
+    expect(selecionarDisparos(renomeado, agora)[0]!.id).not.toBe(a!.id);
   });
 });
 

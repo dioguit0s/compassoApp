@@ -1,4 +1,4 @@
-import { ESFORCOS, iniciais } from '@compasso/core';
+import { ESFORCOS, FUSO_PADRAO, iniciais } from '@compasso/core';
 import { metadados, perfil, redemptions } from '@compasso/core/local';
 import { desc, eq } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
@@ -47,7 +47,9 @@ export default function Perfil() {
   const { data: resgates } = useLiveQuery(
     db.select().from(redemptions).orderBy(desc(redemptions.redeemedAt)).limit(5),
   );
-  const ultimaSync = sync[0] ? new Date(Number(sync[0].valor)).toLocaleString('pt-BR') : 'nunca';
+  const ultimaSync = sync[0]
+    ? new Date(Number(sync[0].valor)).toLocaleString('pt-BR', { timeZone: FUSO_PADRAO })
+    : 'nunca';
   const [temConexao, setTemConexao] = useState<boolean | null>(null);
   const [permissao, setPermissao] = useState<EstadoPermissao | null>(null);
   const [estado, setEstado] = useState('');
@@ -119,7 +121,8 @@ export default function Perfil() {
           </Pressable>
           <Text style={[estilos.nome, { color: tema.texto }]}>{conta.displayName}</Text>
           <Text style={[estilos.detalhe, { color: tema.sutil }]}>
-            no Compasso desde {conta.createdAt.toLocaleDateString('pt-BR')}
+            no Compasso desde{' '}
+            {conta.createdAt.toLocaleDateString('pt-BR', { timeZone: FUSO_PADRAO })}
           </Text>
         </View>
       ) : (
@@ -158,7 +161,8 @@ export default function Perfil() {
           <HistoricoXp gatilho={progresso} />
           {resgates.map((r) => (
             <Text key={r.id} style={{ color: tema.texto }}>
-              {r.redeemedAt.toLocaleDateString('pt-BR')} · resgate de {r.pricePaid} moedas
+              {r.redeemedAt.toLocaleDateString('pt-BR', { timeZone: FUSO_PADRAO })} · resgate de{' '}
+              {r.pricePaid} moedas
             </Text>
           ))}
         </View>

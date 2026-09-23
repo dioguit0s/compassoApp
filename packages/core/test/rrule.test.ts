@@ -81,6 +81,20 @@ describe('expansor (#38)', () => {
     ]);
   });
 
+  it('início com segundos não perde a primeira ocorrência', () => {
+    const s: Serie = {
+      rrule: 'FREQ=DAILY;COUNT=3',
+      inicio: new Date('2026-09-23T22:00:30Z'),
+      duracaoMs: 0,
+    };
+    expect(datas(s, sp(2026, 9, 20), sp(2026, 10, 1))).toEqual([
+      '2026-09-23',
+      '2026-09-24',
+      '2026-09-25',
+    ]);
+    expect(ocorrencias(s, sp(2026, 9, 23), sp(2026, 9, 24))[0]!.inicio).toEqual(s.inicio);
+  });
+
   it('WEEKLY com BYDAY: terça e quinta às 19:00', () => {
     const s: Serie = { rrule: 'FREQ=WEEKLY;BYDAY=TU,TH', inicio: sp(2026, 9, 1, 19), duracaoMs: 0 };
     const os = ocorrencias(s, sp(2026, 9, 1), sp(2026, 9, 15));

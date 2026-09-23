@@ -28,7 +28,9 @@ export default function Semestre() {
         .sort((a, b) => a.name.localeCompare(b.name)),
     [grade, ativo],
   );
-  const [criando, setCriando] = useState(grade.semestres.length === 0);
+  // null = o usuário ainda não escolheu; segue a grade, que chega depois do primeiro render.
+  const [escolha, setCriando] = useState<boolean | null>(null);
+  const criando = escolha ?? grade.semestres.length === 0;
 
   const fmt = (d: string) => formatarDiaCurto(d, 0);
   return (

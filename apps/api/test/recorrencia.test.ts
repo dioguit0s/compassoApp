@@ -363,6 +363,23 @@ describe('editar série: alcance (#44)', () => {
     ]);
   });
 
+  it('dividir a série a partir de uma ocorrência concluída exige desfazer antes', async () => {
+    const { a } = await doisAparelhos('Dividir concluída');
+    const s = a.repo.criar(
+      serie('treino', 'FREQ=WEEKLY;BYDAY=TU', sp(9, 1, 19), HORA, {
+        effort: 3,
+        primaryAttribute: 'corpo',
+        secondaryAttribute: null,
+      }),
+    );
+    a.repo.concluir(s.id, '2026-09-22');
+    expect(() => a.repo.alterarDaquiEmDiante(s.id, '2026-09-15', { title: 'x' })).toThrow(
+      /desfaça a conclusão de 2026-09-22/,
+    );
+    a.repo.desfazerConclusao(s.id, '2026-09-22');
+    expect(a.repo.alterarDaquiEmDiante(s.id, '2026-09-15', { title: 'x' }).title).toBe('x');
+  });
+
   it('"só esta" não altera nenhuma outra ocorrência', async () => {
     const { a } = await doisAparelhos('Só esta');
     const s = a.repo.criar(serie('treino', 'FREQ=WEEKLY;BYDAY=TU', sp(9, 1, 19)));

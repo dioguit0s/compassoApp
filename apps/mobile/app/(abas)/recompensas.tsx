@@ -1,5 +1,6 @@
 import {
   estadoDaRecompensa,
+  FUSO_PADRAO,
   formatarDiaCurto,
   novoId,
   proximaSegunda,
@@ -166,7 +167,8 @@ export default function Recompensas() {
                 recompensas.find((r) => r.id === h.rewardId)?.name ?? 'recompensa removida';
               return (
                 <Text key={h.id} style={{ color: tema.texto }}>
-                  {h.redeemedAt.toLocaleDateString('pt-BR')} · {nome} · {h.pricePaid} moedas
+                  {h.redeemedAt.toLocaleDateString('pt-BR', { timeZone: FUSO_PADRAO })} · {nome} ·{' '}
+                  {h.pricePaid} moedas
                 </Text>
               );
             })

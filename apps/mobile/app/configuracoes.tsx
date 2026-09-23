@@ -2,9 +2,10 @@ import { FUSO_PADRAO } from '@compasso/core';
 import { perfil } from '@compasso/core/local';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { Link, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { db } from '../src/db';
+import { reagendar } from '../src/notificacoes';
 import { salvarPreferencias } from '../src/perfil';
 import { esquecerConexao } from '../src/servidor';
 import { apagarDadosLocais, repositorio } from '../src/sync';
@@ -26,6 +27,10 @@ export default function Configuracoes() {
   const { data } = useLiveQuery(db.select().from(perfil));
   const conta = data[0];
   const [nome, setNome] = useState(conta?.displayName ?? '');
+  // A consulta viva começa vazia: preenche o nome quando a conta chega (ou muda pelo sync).
+  useEffect(() => {
+    if (conta) setNome(conta.displayName);
+  }, [conta?.displayName]);
   const [erro, setErro] = useState('');
 
   return (
@@ -99,9 +104,14 @@ export default function Configuracoes() {
                 text: 'Sair',
                 style: 'destructive',
                 onPress: async () => {
-                  await esquecerConexao();
-                  apagarDadosLocais();
-                  router.replace('/perfil');
+                  try {
+                    await esquecerConexao();
+                    apagarDadosLocais();
+                    await reagendar(); // cancela os lembretes da conta que saiu
+                    router.replace('/perfil');
+                  } catch (e) {
+                    setErro((e as Error).message);
+                  }
                 },
               },
             ],

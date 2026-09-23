@@ -321,6 +321,9 @@ export function ocorrencias(serie: Serie, de: Date, ate: Date): Ocorrencia[] {
   const duracao = serie.duracaoMs ?? 0;
   const p = partesNoFuso(serie.inicio, fuso);
   const primeiroDia = montarDia(p.ano, p.mes, p.dia);
+  // Segundos e milissegundos do início (a hora de parede só tem hora e minuto): sem eles, um
+  // início às 19:00:30 descartaria a primeira ocorrência, gerada às 19:00:00.
+  const restoMs = serie.inicio.getTime() % 60_000;
 
   // Dia civil mais tardio que pode produzir ocorrência no intervalo.
   let limite = diaDe(new Date(ate.getTime() - 1), fuso);
@@ -340,7 +343,9 @@ export function ocorrencias(serie: Serie, de: Date, ate: Date): Ocorrencia[] {
     contadas++;
     if (dia < diaMinimo && r.count === null) continue;
     const { ano, mes, dia: d } = partesDoDia(dia);
-    const inicio = instanteDeParede(ano, mes, d, p.hora, p.minuto, fuso);
+    const inicio = new Date(
+      instanteDeParede(ano, mes, d, p.hora, p.minuto, fuso).getTime() + restoMs,
+    );
     if (inicio < serie.inicio) {
       contadas--;
       continue;

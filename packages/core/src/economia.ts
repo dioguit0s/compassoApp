@@ -80,6 +80,9 @@ export function precosDaNova(preco: number, hoje: Dia): Precos {
  * antes. Duas alterações na mesma semana: vale a última, na mesma segunda.
  */
 export function alterarPreco(r: Precos, novo: number, hoje: Dia): Precos {
+  // Ainda na carência da criação: nenhum preço valeu, então o novo substitui o inicial.
+  if (hoje < r.priceEffectiveFrom)
+    return { ...r, price: novo, pendingPrice: null, pendingFrom: null };
   const base = promover(r, hoje);
   if (novo === base.price && base.pendingPrice === null) return base;
   return { ...base, pendingPrice: novo, pendingFrom: proximaSegunda(hoje) };
@@ -108,11 +111,20 @@ export function normalizarPrecos(servidor: Precos | null, recebido: Precos, hoje
   const minimo = proximaSegunda(hoje);
   if (!servidor) {
     const inicio = recebido.priceEffectiveFrom < minimo ? minimo : recebido.priceEffectiveFrom;
+    // Recompensa nova: um pendente vindo junto é uma alteração feita ainda na carência — vale a
+    // última (ADR-0007), sem se perder.
     return {
-      price: recebido.price,
+      price: recebido.pendingPrice ?? recebido.price,
       priceEffectiveFrom: inicio,
       pendingPrice: null,
       pendingFrom: null,
+    };
+  }
+  if (hoje < servidor.priceEffectiveFrom) {
+    // Ainda na carência da criação: como em `alterarPreco`, o último preço substitui o inicial.
+    return {
+      ...normalizarPrecos(null, recebido, hoje),
+      priceEffectiveFrom: servidor.priceEffectiveFrom,
     };
   }
   const atual = promover(servidor, hoje);

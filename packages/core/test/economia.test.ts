@@ -44,6 +44,16 @@ describe('carência até a segunda-feira seguinte (#78)', () => {
     expect(duas).toMatchObject({ price: 100, pendingPrice: 60, pendingFrom: '2026-09-28' });
   });
 
+  it('alterar ainda na carência da criação substitui o preço inicial', () => {
+    const r = alterarPreco(precosDaNova(10, '2026-09-23'), 15, '2026-09-23');
+    expect(r).toEqual({
+      price: 15,
+      priceEffectiveFrom: '2026-09-28',
+      pendingPrice: null,
+      pendingFrom: null,
+    });
+  });
+
   it('pendente que já venceu é promovido antes de uma nova alteração', () => {
     const r = alterarPreco(precosDaNova(100, '2026-09-01'), 80, '2026-09-22'); // 80 a partir de 28/09
     const depois = alterarPreco(r, 50, '2026-09-30');
@@ -57,6 +67,27 @@ describe('carência até a segunda-feira seguinte (#78)', () => {
 });
 
 describe('normalização no servidor (#78, anti-antecipação)', () => {
+  it('recompensa nova com preço pendente não perde a alteração', () => {
+    const recebido = {
+      price: 10,
+      priceEffectiveFrom: '2026-09-28',
+      pendingPrice: 15,
+      pendingFrom: '2026-09-28',
+    };
+    expect(normalizarPrecos(null, recebido, '2026-09-23')).toMatchObject({
+      price: 15,
+      pendingPrice: null,
+    });
+    const servidor = precosDaNova(10, '2026-09-23');
+    const novo = alterarPreco(servidor, 15, '2026-09-24');
+    expect(normalizarPrecos(servidor, novo, '2026-09-24')).toEqual({
+      price: 15,
+      priceEffectiveFrom: '2026-09-28',
+      pendingPrice: null,
+      pendingFrom: null,
+    });
+  });
+
   it('recompensa nova com vigência no passado é empurrada para a próxima segunda do servidor', () => {
     const r = normalizarPrecos(
       null,

@@ -1,3 +1,4 @@
+import { FUSO_PADRAO } from '@compasso/core';
 import { metadados } from '@compasso/core/local';
 import { eq } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
@@ -19,6 +20,7 @@ export function IndicadorSync() {
   const ultima = data[0] ? new Date(Number(data[0].valor)) : null;
   const quando = ultima
     ? ultima.toLocaleString('pt-BR', {
+        timeZone: FUSO_PADRAO,
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',

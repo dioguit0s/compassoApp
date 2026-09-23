@@ -5,6 +5,7 @@ import {
   type ResultadoSync,
   type Transporte,
 } from '@compasso/core';
+import { sql } from 'drizzle-orm';
 import * as tabelasLocais from '@compasso/core/local';
 import { RepositorioLocal } from '@compasso/core/local';
 import { db } from './db';
@@ -90,6 +91,11 @@ export function observarSync(o: Ouvinte): () => void {
 /** "Sair da conta": apaga todos os dados deste aparelho (o token é apagado à parte). */
 export function apagarDadosLocais(): void {
   db.transaction((tx) => {
-    for (const t of Object.values(tabelas)) tx.delete(t).run();
+    // Com WHERE, o SQLite não usa a otimização de truncate — que pula o update hook — e as
+    // consultas vivas e o observador de lembretes ficam sabendo da remoção.
+    for (const t of Object.values(tabelas))
+      tx.delete(t)
+        .where(sql`1`)
+        .run();
   });
 }

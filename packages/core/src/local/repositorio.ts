@@ -771,6 +771,26 @@ export class RepositorioLocal implements ArmazemLocal {
     const antes = this.ocorrenciasAntes(serie, dataOc);
     if (antes.length === 0) return this.editar(itemId, mudancas);
 
+    // O ledger é por (item, data): uma conclusão de `dataOc` em diante ficaria presa à série
+    // antiga, e a mesma ocorrência poderia ser concluída de novo na nova — crédito em dobro
+    // (ADR-0006). Então a divisão exige desfazer antes (ADR-0004 §5).
+    const concluidas = this.db
+      .selectDistinct({ d: completions.occurrenceDate })
+      .from(completions)
+      .where(and(eq(completions.itemId, itemId), gte(completions.occurrenceDate, dataOc)))
+      .all()
+      .map((c) => c.d!)
+      .filter((d) => {
+        const { xp, moedas } = this.estadoDoAlvo(itemId, d);
+        return efeitoDaConclusao('uncomplete', item, xp, moedas).tipo !== 'nada';
+      })
+      .sort();
+    if (concluidas.length) {
+      throw new ErroDeValidacao([
+        `desfaça a conclusão de ${concluidas.join(', ')} antes de alterar esta e as futuras`,
+      ]);
+    }
+
     const regra = interpretar(item.rrule!, item.timezone);
     const restante = regra.count !== null ? regra.count - antes.length : null;
     const antiga = serializarRRule({

@@ -82,17 +82,25 @@ async function configurarCanal(): Promise<void> {
 }
 
 let emAndamento: Promise<number> | null = null;
+let proxima: Promise<number> | null = null;
 
 /**
  * Sincroniza o agendador do sistema com a janela deslizante. Devolve quantas notificações do
  * Compasso ficaram pendentes (nunca mais que o orçamento). Sem permissão, não faz nada.
  */
 export function reagendar(): Promise<number> {
-  if (!emAndamento) {
-    emAndamento = executarReagendamento().finally(() => {
-      emAndamento = null;
+  if (emAndamento) {
+    // A execução em curso pode ter lido a agenda antes da mudança que pediu esta: roda de novo
+    // ao terminar — uma vez só, por mais pedidos que cheguem nesse meio-tempo.
+    proxima ??= emAndamento.then(() => {
+      proxima = null;
+      return reagendar();
     });
+    return proxima;
   }
+  emAndamento = executarReagendamento().finally(() => {
+    emAndamento = null;
+  });
   return emAndamento;
 }
 

@@ -93,6 +93,10 @@ function Formulario({
   const tema = useTema();
   const desvio = ocorrencia ? repositorio.obterDesvio(item.id, ocorrencia) : null;
   const vivo = desvio && !desvio.deletedAt ? desvio : null;
+  // Concluir não fecha a tela (preserva edições não salvas): relê o status a cada render.
+  const [, setVersao] = useState(0);
+  const concluido =
+    (ocorrencia ? vivo?.status : (repositorio.obter(item.id)?.status ?? item.status)) === 'done';
   const inicial = ocorrencia
     ? limitesDaOcorrencia(item, ocorrencia)
     : { inicio: item.startAt ?? item.dueAt ?? new Date(), fim: item.endAt };
@@ -113,7 +117,8 @@ function Formulario({
     secondaryAttribute: item.secondaryAttribute,
   });
   const [tipo, setTipo] = useState<'task' | 'event'>(item.kind);
-  const congelado = item.effortLockedAt !== null;
+  // Numa ocorrência, mudar o esforço é "esta e as futuras" — série nova, ainda livre (ADR-0006).
+  const congelado = item.effortLockedAt !== null && !ocorrencia;
   const aviso = useAviso();
   const grade = useGrade();
   const ativo = grade.semestres.find((s) => s.active);
@@ -139,10 +144,10 @@ function Formulario({
     }
   }
 
-  function tentar(fn: () => void) {
+  function tentar(fn: () => void, fechar = true) {
     try {
       fn();
-      aoTerminar();
+      if (fechar) aoTerminar();
     } catch (e) {
       setErros(e instanceof ErroDeValidacao ? e.motivos : [(e as Error).message]);
     }
@@ -181,16 +186,29 @@ function Formulario({
       tentar(() => repositorio.editar(item.id, mudancasDoItem()));
       return;
     }
-    const regraMudou = rrule !== item.rrule;
-    Alert.alert('Aplicar a alteração a…', `Ocorrência de ${tituloDoDia(ocorrencia)}`, [
-      ...(regraMudou ? [] : [{ text: 'Só esta', onPress: soEsta }]),
-      {
-        text: 'Esta e as futuras',
-        onPress: () =>
-          tentar(() => repositorio.alterarDaquiEmDiante(item.id, ocorrencia, mudancasDoItem())),
-      },
-      { text: 'Cancelar', style: 'cancel' as const },
-    ]);
+    // "Só esta" guarda só horário, título e notas; mudar outro campo é "esta e as futuras".
+    const soDaSerie =
+      rrule !== item.rrule ||
+      tipo !== item.kind ||
+      diaInteiro !== item.allDay ||
+      lembrete !== item.reminderMinutesBefore ||
+      disciplina !== item.courseId ||
+      pontuacao.effort !== item.effort ||
+      pontuacao.primaryAttribute !== item.primaryAttribute ||
+      pontuacao.secondaryAttribute !== item.secondaryAttribute;
+    Alert.alert(
+      'Aplicar a alteração a…',
+      `Ocorrência de ${tituloDoDia(ocorrencia)}${soDaSerie ? '\n\nTipo, dia inteiro, lembrete, disciplina, esforço e repetição só mudam nesta e nas futuras.' : ''}`,
+      [
+        ...(soDaSerie ? [] : [{ text: 'Só esta', onPress: soEsta }]),
+        {
+          text: 'Esta e as futuras',
+          onPress: () =>
+            tentar(() => repositorio.alterarDaquiEmDiante(item.id, ocorrencia, mudancasDoItem())),
+        },
+        { text: 'Cancelar', style: 'cancel' as const },
+      ],
+    );
   }
 
   function excluir() {
@@ -253,17 +271,17 @@ function Formulario({
         <Pressable
           onPress={() =>
             tentar(() => {
-              const feito = ocorrencia ? vivo?.status === 'done' : item.status === 'done';
-              const efeito = feito
+              const efeito = concluido
                 ? repositorio.desfazerConclusao(item.id, ocorrencia)
                 : repositorio.concluir(item.id, ocorrencia);
               if (efeito.tipo !== 'nada') aviso({ texto: descreverEfeito(efeito) });
-            })
+              setVersao((v) => v + 1);
+            }, false)
           }
           style={[estilos.botao, { borderColor: tema.pontuavel }]}
         >
           <Text style={{ color: tema.pontuavel, fontWeight: '600' }}>
-            {(ocorrencia ? vivo?.status : item.status) === 'done'
+            {concluido
               ? 'Desfazer conclusão'
               : ocorrencia
                 ? 'Concluir esta ocorrência'
@@ -271,7 +289,7 @@ function Formulario({
           </Text>
         </Pressable>
       ) : null}
-      {concluivel && !ocorrencia && !item.rrule && item.status !== 'done' ? (
+      {concluivel && !ocorrencia && !item.rrule && !concluido ? (
         <Pressable
           onPress={() => tentar(() => repositorio.adiar(item.id, 1))}
           style={[estilos.botao, { borderColor: tema.borda }]}

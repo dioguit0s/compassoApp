@@ -41,6 +41,12 @@ desvios da data escolhida em diante saem da série antiga (tombstone) e são rec
 a data continua sendo ocorrência dela — um feriado cancelado continua cancelado. O desvio da própria
 data escolhida é descartado: as mudanças pedidas passam a ser a regra.
 
+Adendo (revisão da F8): se alguma ocorrência da data escolhida em diante está **concluída** no
+ledger, a divisão é recusada até o usuário desfazer essa conclusão. O ledger é por
+`(itemId, occurrenceDate)` (ADR-0006); dividir deixaria o crédito preso à série antiga e a mesma
+ocorrência concluível de novo na nova — crédito em dobro. Migrar os eventos de conclusão para a
+série nova foi descartado por exigir reescrever eventos append-only no servidor.
+
 **6. Excluir "esta e as futuras"** encerra a série na ocorrência anterior; se a data escolhida é a
 primeira ocorrência, a série inteira vai para a lixeira.
 

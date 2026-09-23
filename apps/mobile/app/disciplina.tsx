@@ -34,9 +34,9 @@ function Formulario({
   const [nome, setNome] = useState(disciplina?.name ?? '');
   const [codigo, setCodigo] = useState(disciplina?.code ?? '');
   const [professor, setProfessor] = useState(disciplina?.professor ?? '');
-  const [cor, setCor] = useState(
-    disciplina?.color ?? PALETA_DESTAQUE[grade.disciplinas.length % PALETA_DESTAQUE.length]!,
-  );
+  // Sem escolha, a cor padrão acompanha a grade (que chega depois do primeiro render).
+  const [corEscolhida, setCor] = useState<string | null>(disciplina?.color ?? null);
+  const cor = corEscolhida ?? PALETA_DESTAQUE[grade.disciplinas.length % PALETA_DESTAQUE.length]!;
   const [sala, setSala] = useState(disciplina?.defaultRoom ?? '');
   const [notas, setNotas] = useState(disciplina?.notes ?? '');
   const [erro, setErro] = useState('');
