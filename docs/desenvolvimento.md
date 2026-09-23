@@ -111,12 +111,47 @@ SDK 52 o Expo detecta os workspaces do npm e configura o Metro sozinho; `metro.c
 acrescenta a extensão `.sql` das migrações. Duas regras evitam o problema clássico de React
 duplicado:
 
-- `overrides` no `package.json` da raiz fixa `react`, `react-native` e `react-native-worklets` nas
-  versões do SDK — sem isso, dependências com `peerDependencies: react: *` puxam outra versão;
+- `overrides` no `package.json` da raiz fixa `react`, `react-native`, `react-native-reanimated` e
+  `react-native-worklets` nas versões do SDK (`node_modules/expo/bundledNativeModules.json`) — sem
+  isso, dependências com `peerDependencies: *` puxam outra versão (o expo-router puxava o
+  reanimated 4.7, que exige worklets 0.13, e o build Android falhava);
 - não configurar `watchFolders`/`nodeModulesPaths` à mão.
 
 Verificação sem aparelho: `npm run export:android -w @compasso/mobile` empacota o bundle Hermes
 inteiro, incluindo o core.
+
+### Ponto de entrada
+
+`apps/mobile/index.ts` é o `main`: configura a aleatoriedade do UUIDv7 e importa
+`src/notificacoes.ts` (que chama `TaskManager.defineTask`) **antes** do `expo-router/entry`. A
+tarefa de background roda sem UI; se a definição morasse só no que as telas importam, o
+expo-task-manager não a encontraria. Tarefa nova de background: definir no escopo global de um
+módulo importado por `index.ts`.
+
+### Emulador Android
+
+Validado em 2026-09-23 (Windows, AVD Pixel 7, Android 17 com Google APIs):
+
+- **JDK 17–23.** Com JDK 24+ (inclusive o JBR do Android Studio, que hoje é 25), o passo prefab do
+  CMake imprime o aviso de acesso nativo do JEP 472 e o AGP trata como erro
+  (`configureCMakeDebug … A restricted method in java.lang.System has been called`). Rode o build
+  com `JAVA_HOME` apontando para um JDK 23 ou anterior.
+- **Memória do AVD.** Com os 2 GB padrão o sistema inteiro dá ANR; suba com
+  `emulator -avd <nome> -memory 4096 -cores 6`.
+- A máquina é `http://10.0.2.2:3000` no emulador. Para o Metro, `adb reverse tcp:8081 tcp:8081` e
+  abrir `compasso://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081`.
+- O botão flutuante de ferramentas do development build cobre o "Salvar" do cabeçalho; arraste-o.
+- SQLite do app (build de depuração): `adb exec-out run-as com.dioguit0s.compasso cat
+  files/SQLite/compasso.db > local.db` (copie também `-wal` e `-shm`).
+- Forçar a tarefa de background: `adb shell dumpsys jobscheduler | grep dioguit0s` para o id do job
+  (muda a cada reinstalação) e `adb shell cmd jobscheduler run -f com.dioguit0s.compasso <id>`,
+  com o app em segundo plano.
+- Fuso do aparelho: `adb shell service call alarm 3 s16 Europe/Lisbon` (não persiste no reboot).
+- `npm run conta:criar -- "Nome Com Espaço"` quebra no npm do Windows (aspas do cmd); use o
+  terminal do Git Bash ou um nome sem espaço.
+- Checkout no Windows: o `.gitattributes` força LF. Um clone feito antes dele, com
+  `core.autocrlf=true`, ainda tem arquivos em CRLF no disco e o prettier falha: reclone, ou
+  converta os arquivos listados por `git ls-files --eol | grep w/crlf` para LF.
 
 ### Diagnóstico
 

@@ -15,20 +15,124 @@ fase por fase: passou / falhou (causa + correção ou issue) / fora de alcance (
 
 ### Roteiro
 - [x] Linha de base `npm run verificar` (falhava no Windows por CRLF → `.gitattributes` eol=lf)
-- [ ] Preparação: Docker + banco + conta + API + development build no emulador
-- [ ] 0. Hermes: Intl/timeZone, zod v4, UUIDv7
-- [ ] F0/F1 conexão e sync
-- [ ] F2 calendário
-- [ ] F3 recorrência
-- [ ] F4 notificações e ICS
-- [ ] F5 grade
-- [ ] F6 gamificação
-- [ ] F7 economia
-- [ ] F8 perfil e acabamento
-- [ ] iOS — fora de alcance (Windows, sem Xcode)
+- [x] Preparação: Docker + banco + conta + API + development build no emulador
+- [x] 0. Hermes: Intl/timeZone, UUIDv7 (zod v4: ver F2)
+- [x] F0/F1 conexão e sync
+- [x] F2 calendário
+- [x] F3 recorrência
+- [x] F4 notificações e ICS
+- [x] F5 grade
+- [x] F6 gamificação
+- [x] F7 economia
+- [x] F8 perfil e acabamento
+- [x] iOS — fora de alcance (Windows, sem Xcode)
+- [x] docs: `desenvolvimento.md` (emulador, JDK, ponto de entrada), README (status)
 
 ### Resultados
-(preenchido durante a validação)
+
+Ambiente: Windows 10, AVD Pixel_7 (Android 17, x86_64, Google APIs/Play), fuso do aparelho GMT.
+O AVD vem com 2 GB de RAM: ANRs do sistema inteiro; rodando com `-memory 4096 -cores 6` fica usável.
+
+**Preparação** — passou, com 3 correções:
+- `npm run verificar` falhava no Windows (CRLF) → `.gitattributes` com `eol=lf` (`726f563`)
+- build Android falhava: reanimated 4.7.0 × worklets 0.10.1 → reanimated 4.5.1 fixado (`5e76387`)
+- CMake/prefab falha com JDK 25 (aviso do JEP 472 no stderr; o JBR do Android Studio também é 25)
+  → build com `JAVA_HOME` no JDK 23. Não é código: registrar em `docs/desenvolvimento.md`.
+- `conta:criar -- "Nome Com Espaço"` quebra no npm do Windows (aspas do cmd); sem espaço funciona.
+
+**0. Hermes** — passou: 5/5 linhas de fuso (inclui Nova York nos dois lados do DST), 3 UUIDv7
+distintos e crescentes.
+
+**F0/F1** — passou depois de 2 correções:
+- ícones das abas eram retângulos vazios (sem `tabBarIcon`) → SVG (`a9924f6`)
+- **todo push do app dava 400**: mandava `{ itens: lote }` em vez do lote → corrigido (`ef03d46`)
+- URL digitada errada era aceita e não havia como corrigir → validação (`54a4fac`)
+- perfil persiste com modo avião e app reaberto ✓; 3 criados/1 editado/1 excluído offline →
+  banco exatamente igual ao religar ✓; LWW com segundo cliente pela API, nos dois sentidos ✓
+- observação: religar a rede não sincroniza sozinho (por desenho: abertura e puxar-para-atualizar)
+- observação: o indicador diz "sem rede" para qualquer falha, inclusive HTTP 400 (ver F8)
+
+**0. zod v4 no Hermes** — passou: fim antes do início → "• fim antes do início", sem crash.
+
+**F2** — passou (mecanismo):
+- semana/mês ✓, dia inteiro 25–27 ✓, 23:00→01:00 em dois dias ✓, "+3" no mês com 6 itens ✓
+- seletor de data/hora: 21:30 escolhido → 00:30Z gravado ✓; aparelho em Lisboa: nada muda de
+  hora, inclusive o evento das 23:00 SP (03:00 em Lisboa) segue no dia 23 no seletor ✓
+- captura rápida, parte do app: toque→teclado 144–303 ms, Enter→salvo 21–26 ms. Cronômetro com
+  gente digitando fica para o usuário.
+- **contradição**: especificação §2 (linha 68) promete visão de *dia*; roadmap F2 entrega só
+  semana e mês. Não há visão de um dia qualquer. → decisão do usuário
+- observação: evento de 2 h que cruza a meia-noite vai para a faixa de dia inteiro (regra
+  `vaiParaFaixaDoDia`: >1 dia civil), não para a grade de horas
+- observação: sair do detalhe com alterações descarta sem perguntar
+
+**F3** — passou: semanal + mensal pela UI; "Só esta" cancela só 30/09 ✓; "Esta e as futuras"
+em 07/10 vira UNTIL + série nova, 23/09 intacto ✓; série congelada: seletor livre no futuro ✓;
+mudar esforço não oferece "Só esta" e explica ✓; conclusão em 13/10 recusa "esta e as futuras"
+de 06/10 ✓. Correção: o erro aparecia no fim do formulário, invisível → topo (`2d8cf72`).
+
+**F4** — passou depois de 3 correções:
+- permissão pedida e concedida ✓; lembrete com app em 2º plano, modo avião, tela apagada:
+  disparou 17:55:00.068Z ✓; app removido dos recentes: 18:00:03.5Z ✓ com o título renomeado ✓
+- reiniciar: alarme volta ~2 min depois do boot, mesmo instante ✓
+- **tarefa de background nunca rodava** ("No task registered") → `index.ts` (`993fbea`);
+  depois: job forçado sincronizou 1 item e reagendou 3 ✓
+- `sound: 'default'` logava erro a cada abertura → removido (`c0e1f51`)
+- **importar .ics falhava** ("Unsupported FormDataPart") — mesmo caminho da foto → `5bf961e`;
+  depois: 30 criados/3 exceções, reimportação 0 criados/30 iguais ✓
+- alarme exato negado: **não dá para negar** — com `USE_EXACT_ALARM` o interruptor fica cinza.
+  O texto e o botão "Abrir Alarmes e lembretes" do Perfil apontam para algo que o usuário não muda.
+- o fuso do emulador volta para GMT no reboot (o `service call alarm 3` não persiste)
+- tela "Lembretes agendados" mostrava "?" no lugar da hora (id lido errado) → `4bd1194`
+
+**F5** — passou: semestre 2026.2 pela UI; "Novo semestre" recolhido depois de criado ✓; cor
+padrão da 2ª disciplina é a seguinte da paleta ✓; Hoje mostra a aula de quarta com sala trocada
+(B202) ✓; segunda 28 cancelada some da semana ✓; banco: 2 horários, 2 exceções, nenhuma linha de
+aula em `item_occurrences` ✓. (As 3 ocorrências de "Treino" no banco são da série importada do
+.ics, não de aula.)
+
+**F6** — passou: tarefa de hoje com esforço 2 (Mente) congela na criação; a UI mostra
+"Congelado" em vez do seletor ✓ e `PATCH /items/:id {effort}` → 409 ✓ (título → 200); concluir
+credita (+20 Mente, 3→5 moedas) ✓, desfazer estorna (−20, volta a 3) ✓, radar = soma do ledger
+✓; concluir no detalhe não fecha e vira "Desfazer conclusão" ✓; concluir offline + 2 syncs →
+um crédito só ✓.
+
+**F7** — passou depois de 2 correções:
+- carência bloqueia o resgate ✓ — mas tocar no "Resgatar" desativado abria a edição (toque
+  vazava para o cartão) → `9d3f3fd`
+- preço de recompensa nova alterado antes do sync persiste (4) ✓
+- **baixar o preço de recompensa vigente pelo app se perdia**: `promover` devolvia a linha
+  inteira e o updatedAt do servidor vencia o LWW; o app achava que tinha sincronizado → `f362c7d`
+  (testes no core e na API que falham sem a correção)
+- para testar resgate e cooldown, a carência foi "vencida" direto no banco
+  (`price_effective_from = 2026-09-21`): 2º resgate no cooldown recusado na UI e na API (409) com
+  4 moedas ✓; histórico mantém o preço pago (1) depois de o preço ir a 3 ✓
+
+**F8** — passou depois de 4 correções:
+- nome abre preenchido ✓; lixeira: restaurar volta no servidor ✓
+- foto: galeria → recorte → envio OK, mas **não aparecia**: sem Nginx em dev ninguém serve
+  `/avatares/`, e o JSON do 401 ficava salvo como foto → `75c82cb`; depois aparece ✓
+- indicador: sincronizando/sincronizado (hora de SP) ✓, sem rede ✓, erro do servidor agora
+  distinto ("erro ao sincronizar (HTTP 500)", banco parado) → `6719c2f`
+- sair da conta: 0 alarmes, lista de lembretes vazia, Hoje/Calendário/Recompensas/Perfil vazios,
+  todas as tabelas locais com 0 linhas ✓
+- tema escuro + fonte 130%: cabeçalho branco nas telas empilhadas, abas inativas invisíveis,
+  intervalo da semana cortado → `9f45807`; títulos "configuracoes"/lixeira/régua e "1 moedas"
+  → `30bc7b7`
+
+### Observações sem correção (decisão do usuário ou menores)
+- Especificação §2 promete visão de **dia**; roadmap F2 só semana e mês (contradição)
+- `USE_EXACT_ALARM` torna o "alarme exato" irrevogável: o aviso e o botão "Abrir Alarmes e
+  lembretes" do Perfil não têm efeito prático no Android 13+
+- religar a rede não sincroniza sozinho (só abertura e puxar-para-atualizar, por desenho)
+- evento curto que cruza a meia-noite vai para a faixa de dia inteiro, não para a grade
+- sair do detalhe com alterações descarta sem perguntar
+- concluir ocorrência futura (13/10) é permitido — conferir se é o desejado
+- a mensagem "desfaça a conclusão de 2026-10-13…" mostra a data em ISO
+- o FAB "+" cobre o fim de linhas alinhadas à direita (ex.: pontos no Perfil) durante a rolagem
+- Diagnóstico usa cores fixas (texto padrão some no tema escuro); é tela temporária
+- log do dev launcher: `ClassNotFoundException expo.modules.splashscreen.SplashScreenManager`
+  (não fatal; sem expo-splash-screen instalado)
 
 ## Tarefa anterior — roadmap F0–F8
 
@@ -61,10 +165,13 @@ de São Paulo (ADR-0003). Commits quando fizer sentido.
 - F9 (#90–#93): só depois de 3–4 semanas de uso com a gamificação ligada
 
 ### Não confirmado
-- Nenhuma tela foi vista rodando: sem emulador/aparelho neste ambiente; só typecheck,
-  `expo export` (bundle Hermes) e `expo config --type prebuild`
-- `Intl` com `timeZone` e zod v4 no Hermes do aparelho real
-- Notificações, tarefa de background, seletor de data/foto: nada disparou de verdade
-- Foto HEIC do iPhone no `PUT /me/avatar`: o sharp pré-compilado talvez não decodifique (sem arquivo para testar)
+- Aparelho físico: tudo acima foi no emulador x86_64 (Hermes igual; OEM, bateria e Doze reais não)
+- iOS inteiro (sem Xcode): modos de background, permissão, seletor de data nativo
+- Foto HEIC no `PUT /me/avatar`: o sharp pré-compilado talvez não decodifique (sem arquivo HEIC)
 - Dois `PUT /me/avatar` simultâneos podem deixar um arquivo órfão no disco (só leitura de código)
-- Se o alarme exato foi negado no Android: o app não consegue saber (expo-notifications não expõe)
+- Tarefa de background disparada pelo sistema (só forçada com `jobscheduler run -f`); intervalo
+  real e comportamento em Doze
+- Captura rápida < 3 s com gente digitando (só a parte do app foi medida: ~0,3 s)
+- Túnel cloudflared, restauração de dump, servidor doméstico
+- Linhas já divergentes antes de `f362c7d` (preço pendente só no aparelho) não se curam sozinhas;
+  não há dado real afetado (app nunca foi usado)

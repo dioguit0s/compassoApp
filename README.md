@@ -22,6 +22,12 @@ acadêmica, gamificação (esforço, XP, radar) e economia (moedas, recompensas)
 saída de cada fase exigem o aparelho e o servidor doméstico e ainda não foram executados; a F9
 (calibração) só começa depois de semanas de uso.
 
+**Validado no emulador Android (2026-09-23):** o mecanismo de F0 a F8 — sync offline e LWW com
+dois clientes, calendário e fuso fixo, recorrência, lembretes com modo avião/tela bloqueada/app
+fechado/reboot, tarefa de background, importação de ICS, grade, gamificação, economia, foto,
+lixeira, sair da conta, tema escuro e fonte grande. 15 correções em commits `fix:` (lista em
+`TASKS.md`). Falta: uso real, iOS, servidor doméstico com túnel.
+
 ## Estrutura
 
 ```
