@@ -1,0 +1,24 @@
+# /etc/systemd/system/compasso-api.service
+[Unit]
+Description=Compasso API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=compasso
+WorkingDirectory=/opt/compasso/apps/api
+# .env com DATABASE_URL (papel compasso_app), PORT etc. Permissão 600, dono compasso.
+EnvironmentFile=/opt/compasso/apps/api/.env
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# Fotos de perfil (AVATAR_DIR).
+ReadWritePaths=/var/lib/compasso/avatares
+
+[Install]
+WantedBy=multi-user.target

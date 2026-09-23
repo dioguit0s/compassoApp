@@ -14,3 +14,9 @@ build/
 .DS_Store
 .vscode/
 *.log
+
+# Expo / React Native
+apps/mobile/android/
+apps/mobile/ios/
+*.tsbuildinfo
+apps/api/avatares/

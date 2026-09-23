@@ -16,33 +16,61 @@ horas — porque um app de tarefa que ignora a agenda mente sobre o tempo dispon
 
 ## Status
 
-📋 **Fase de especificação.** Ainda não existe código — este repositório documenta o que vai ser
-construído antes de começar a construir. O plano de construção está no
-[roadmap](docs/roadmap.md): dez fases, marco de migração no fim da F4, v1 completa no fim da F8.
+🚧 **Código da v1 escrito (F0 a F8 do [roadmap](docs/roadmap.md)), ainda não validado em uso real.**
+Calendário offline-first com recorrência, lembretes locais, importação do Google Calendar, grade
+acadêmica, gamificação (esforço, XP, radar) e economia (moedas, recompensas). Os critérios de
+saída de cada fase exigem o aparelho e o servidor doméstico e ainda não foram executados; a F9
+(calibração) só começa depois de semanas de uso.
+
+**Validado no emulador Android (2026-09-23):** o mecanismo de F0 a F8 — sync offline e LWW com
+dois clientes, calendário e fuso fixo, recorrência, lembretes com modo avião/tela bloqueada/app
+fechado/reboot, tarefa de background, importação de ICS, grade, gamificação, economia, foto,
+lixeira, sair da conta, tema escuro e fonte grande. 15 correções em commits `fix:` (lista em
+`TASKS.md`). Falta: uso real, iOS, servidor doméstico com túnel.
 
 ## Estrutura
 
 ```
 compasso/
+├── apps/
+│   ├── api/                          # API Node (Hono + Drizzle + PostgreSQL)
+│   └── mobile/                       # app Expo (development build) com SQLite local
+├── packages/
+│   └── core/                         # lógica pura compartilhada: IDs, invariantes, sync, datas
+├── deploy/                           # units do systemd e exemplo do cloudflared
 ├── CLAUDE.md                         # instruções do Claude Code: quando continuar e quando parar
 ├── TASKS.md                          # checklist persistente para tarefas longas do Claude
 ├── .claude/commands/                 # comandos do projeto: /revisar-diff, /auditoria
 └── docs/
-    ├── guia-opus-5-5.md              # como pedir, revisar e usar comandos com o Opus 5.5
     ├── especificacao-tecnica-v1.md   # o que vai ser construído: escopo, modelo de dados,
     │                                 # arquitetura, regras de gamificação e decisões
-    ├── roadmap.md                    # em que ordem construir: fases, critérios de saída,
-    │                                 # marcos, estimativas e armadilhas conhecidas
+    ├── roadmap.md                    # em que ordem construir: fases, critérios de saída
+    ├── desenvolvimento.md            # como rodar, testar e evoluir o schema
+    ├── sincronizacao.md              # como a F1 implementou o protocolo da §6.6
+    ├── notificacoes.md               # lembretes locais e importação de ICS (F4)
+    ├── deploy.md                     # deploy em quatro comandos, backup e restauração
+    ├── guia-opus-5-5.md              # como pedir, revisar e usar comandos com o Opus 5.5
     └── adr/                          # decisões isoladas e datadas, com as alternativas
-        └── 0001-postgresql-em-vez-de-mongodb.md
 ```
 
-## Stack prevista
+## Stack
 
-- **Client**: React Native / Expo, SQLite local (offline-first)
-- **API**: Node.js
-- **Banco**: PostgreSQL, com Drizzle e migrações versionadas ([ADR-0001](docs/adr/0001-postgresql-em-vez-de-mongodb.md))
+- **Client**: React Native / Expo SDK 57 (development build), Expo Router, SQLite local via
+  `expo-sqlite` + Drizzle (offline-first)
+- **API**: Node.js 22, Hono, zod
+- **Banco**: PostgreSQL com Drizzle, migrações versionadas e Row-Level Security
+  ([ADR-0001](docs/adr/0001-postgresql-em-vez-de-mongodb.md), [ADR-0002](docs/adr/0002-ferramentas-e-convencoes-da-fundacao.md))
 - **Infra**: servidor doméstico, exposto via Cloudflare Tunnel
+
+## Começar
+
+```sh
+npm install
+npm run lint && npm run typecheck && npm test   # os testes sobem um PostgreSQL descartável sozinhos
+```
+
+O resto — banco de desenvolvimento, conta, app no aparelho — está em
+[`docs/desenvolvimento.md`](docs/desenvolvimento.md).
 
 ## Pilares de design
 
@@ -65,5 +93,6 @@ e a especificação divergirem, o ADR é mais recente.
 
 ## Próximos passos
 
-- Calibrar a curva de nível e a régua de esforço com uso real
-- Iniciar a implementação a partir da camada de dados (`items`, `xpEntries`, `coinEntries`)
+- Executar os critérios de saída no aparelho e no servidor, fase a fase (#14 … #89)
+- Escrever a régua de esforço com exemplos reais (#66)
+- Usar por 3–4 semanas e calibrar (F9)

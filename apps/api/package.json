@@ -1,0 +1,35 @@
+{
+  "name": "@compasso/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/main.ts",
+    "start": "tsx --env-file-if-exists=.env src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file-if-exists=.env scripts/migrar.ts",
+    "conta:criar": "tsx --env-file-if-exists=.env scripts/criar-conta.ts criar",
+    "conta:token": "tsx --env-file-if-exists=.env scripts/criar-conta.ts token",
+    "db:purgar": "tsx --env-file-if-exists=.env scripts/purgar.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "drizzle-orm": "^0.45.3",
+    "hono": "^4.13.8",
+    "ical.js": "^2.2.1",
+    "pg": "^8.23.0",
+    "sharp": "^0.35.4",
+    "tsx": "^4.23.15",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.20.4",
+    "@types/pg": "^8.23.1",
+    "better-sqlite3": "^13.0.3",
+    "drizzle-kit": "^0.31.11",
+    "embedded-postgres": "^17.10.0-beta.17"
+  }
+}

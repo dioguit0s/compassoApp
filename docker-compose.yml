@@ -1,0 +1,15 @@
+# PostgreSQL de desenvolvimento. O bootstrap dos papéis roda sozinho no primeiro `up`.
+#   docker compose up -d
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./apps/api/scripts/bootstrap-dev.sh:/docker-entrypoint-initdb.d/bootstrap.sh:ro
+      - ./apps/api/scripts/bootstrap.sql:/compasso/bootstrap.sql:ro
+volumes:
+  pgdata:

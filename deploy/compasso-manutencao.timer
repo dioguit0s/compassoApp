@@ -1,0 +1,10 @@
+# /etc/systemd/system/compasso-manutencao.timer
+[Unit]
+Description=Compasso: manutenção diária às 04:00
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

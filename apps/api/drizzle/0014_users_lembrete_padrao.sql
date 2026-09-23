@@ -1,0 +1,2 @@
+ALTER TABLE "users" ADD COLUMN "default_reminder_minutes" integer;--> statement-breakpoint
+ALTER TABLE "users" ADD CONSTRAINT "users_default_reminder_check" CHECK ("users"."default_reminder_minutes" is null or "users"."default_reminder_minutes" between 0 and 10080);

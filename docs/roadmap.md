@@ -191,6 +191,8 @@ mudam o formato do dado, e adicioná-los depois exige migração e auditoria.
 - Distinção visual entre compromisso puro e item pontuável — a regra de apresentação já existe
   mesmo antes de a gamificação existir
 - No máximo três linhas por dia na visão de mês, com contador de excedentes
+- Arrastar tarefa da faixa para a grade da semana e agendá-la (especificação §7). Acrescentado em
+  2026-09-23, depois da F8: estava na especificação mas faltava nesta lista
 
 **Critério de saída:** uma semana inteira de compromissos reais cadastrada à mão e consultável sem
 rede. A captura rápida leva menos de três segundos do toque ao item salvo — cronometrada, não
@@ -313,7 +315,7 @@ depois.
 enviada três vezes; desfazer estorna; a soma do ledger bate com o radar; e um item que entrou no
 dia corrente recusa edição de esforço tanto na UI quanto por chamada direta à API.
 
-**Duas decisões a tomar dentro desta fase**
+**Duas decisões a tomar dentro desta fase** — tomadas em 2026-09-23, ver [ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md).
 
 - **Como o congelamento é gravado.** Derivar o travamento só da data é errado: adiar um item de hoje
   para a semana que vem o destravaria, que é exatamente a trapaça que a regra impede. Precisa de
@@ -431,11 +433,11 @@ adiável. Uma questão fora deste mapa é uma questão que não precisa de respo
 | Questão aberta | Precisa de resposta até | Se ficar sem resposta |
 |---|---|---|
 | Offline-first | **resolvida** | — |
-| Fuso ao viajar | F2 | A primeira viagem mostra compromissos na hora errada |
-| Fim de semestre | F5 | A aba Hoje não sabe o que exibir num dia sem semestre ativo |
+| Fuso ao viajar | **resolvida** — hora de São Paulo sempre ([ADR-0003](adr/0003-fuso-fixo-de-sao-paulo.md)) | — |
+| Fim de semestre | **resolvida** — semestre corrente + datas ([ADR-0005](adr/0005-semestre-corrente-e-grade.md)) | — |
 | Curva de nível | F9 | Nada quebra; o nível fica sem significado |
 | Régua de esforço | F6 | A escala infla e o radar deixa de comparar com o passado |
-| Estorno de moeda | F6 | Primeiro `uncomplete` com saldo gasto deixa o saldo negativo |
+| Estorno de moeda | **resolvida** — saldo pode ficar negativo ([ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md)) | — |
 | Grade versus RRULE | F10 | Nada quebra; a duplicação se justifica enquanto aula não pontua |
 | Backup externo | F10 | O dado de outra pessoa fica com uma cópia só |
 | Autenticação real | F10 | Bloqueia a entrada dos amigos |

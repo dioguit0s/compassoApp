@@ -1,8 +1,9 @@
 # Compasso — Especificação Técnica — v1
 
-> Documento de especificação, não de arquitetura implementada. Nada aqui foi verificado contra
-> código, porque ainda não existe código. Toda seção marcada com `PROPOSTA` é sugestão sujeita a
-> revisão; `DECIDIDO` já foi acordado.
+> Documento de especificação, não de arquitetura implementada. A implementação começou (F0 e F1
+> do [roadmap](roadmap.md)); onde o código precisou decidir algo que este documento deixava em
+> aberto, a decisão está em [`adr/`](adr/) ou em [`sincronizacao.md`](sincronizacao.md). Toda
+> seção marcada com `PROPOSTA` é sugestão sujeita a revisão; `DECIDIDO` já foi acordado.
 >
 > **Nome:** Compasso. `DECIDIDO`.
 
@@ -64,7 +65,7 @@ abandono em apps de uso pessoal, e abandono é o modo de falha real aqui.
 | Área | O que entra |
 |---|---|
 | Itens | Criar, editar, concluir e excluir tarefas, eventos e compromissos |
-| Calendário | Visões de dia, semana e mês; eventos de dia inteiro e de vários dias |
+| Calendário | Visões de semana e mês (o dia corrente fica na aba Hoje); eventos de dia inteiro e de vários dias |
 | Recorrência | Diária, semanal, mensal e anual, com exceções por ocorrência |
 | Migração | Importação única de arquivo ICS exportado do Google Calendar |
 | Gamificação | XP por esforço estimado, 5 atributos fixos, nível por atributo |
@@ -104,6 +105,9 @@ resto do Compasso é infraestrutura para elas.
 - **Editável enquanto o item está no futuro. Congelado no instante em que ele entra no dia
   corrente.** Isso remove o incentivo de inflar a nota depois de descobrir que a tarefa era pior
   do que parecia.
+- `DECIDIDO` O congelamento é **gravado** em `effortLockedAt` quando o dia do item chega (em São
+  Paulo), pelo app e pela API — não derivado da data, para adiar não destravar. Trava esforço e
+  atributos. Ver [ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md).
 
 ### 4.2 Atributos `DECIDIDO`
 
@@ -160,6 +164,9 @@ abril e parou.
   sentido em uma semana.
 - **Cooldown:** cada recompensa tem um intervalo mínimo entre resgates, independente de saldo.
 - **Histórico de resgates** é permanente e visível.
+- `DECIDIDO` "Segunda-feira seguinte" nunca é hoje; subir o preço também espera; o **resgate exige
+  rede** e é validado pelo relógio do servidor
+  ([ADR-0007](adr/0007-economia-carencia-e-resgate-online.md)).
 
 ### 4.7 Ausência de punição `DECIDIDO`
 
@@ -302,7 +309,9 @@ classSlots:{ _id, userId, courseId,
 
 classExceptions: { _id, userId, slotId, date,
                    type: "cancelled" | "room_change" | "extra",
-                   room: String | null, note: String | null }
+                   room: String | null, note: String | null,
+                   startTime, endTime: String | null,   // só em extra (ADR-0005)
+                   deletedAt }
 ```
 
 **Horário é string `HH:mm`, não `Date`.** Aula das 19:00 é hora de parede: acontece às 19:00 toda
@@ -315,6 +324,11 @@ semestre sem carregar o padrão inteiro.
 
 Um `semesterId` com `active: false` mantém a grade antiga intacta para consulta, e trocar de
 semestre é criar um novo, não editar o anterior.
+
+`DECIDIDO` **Um semestre corrente por vez, e as datas limitam a projeção**
+([ADR-0005](adr/0005-semestre-corrente-e-grade.md)): criar um semestre novo o torna o corrente;
+fora de `startDate`–`endDate` a aba Hoje não mostra aulas. Feriado e recesso são exceções de
+cancelamento.
 
 ### items
 
@@ -350,7 +364,8 @@ tipo de app.
 **Invariantes garantidos pelo banco.** Estes viram `CHECK` e chave estrangeira na migração, e valem
 mesmo contra um retry com bug ou uma edição manual no `psql` — a API não é a última linha de defesa:
 
-- `kind: "task"` usa `dueAt`; `kind: "event"` usa `startAt`/`endAt`. Nunca ambos.
+- `kind: "task"` usa `dueAt`; `kind: "event"` usa `startAt`/`endAt`. Nunca ambos. Evento exige
+  `startAt` (o `dueAt` da tarefa é opcional), e `endAt`, quando presente, não é anterior a `startAt`.
 - `secondaryAttribute` nunca é igual a `primaryAttribute`.
 - `effort` nulo implica atributos nulos, e vice-versa. Item pontua ou não pontua; não existe meio
   termo.
@@ -371,6 +386,12 @@ constraint, porque todos dependem de estado anterior ou de regra de fluxo:
 **Timezone é armazenado junto com a data.** É barato agora e caro depois: a primeira viagem ou
 mudança de regra de horário quebra o calendário inteiro.
 
+`DECIDIDO` **Todo horário é hora de São Paulo** ([ADR-0003](adr/0003-fuso-fixo-de-sao-paulo.md)):
+exibição, entrada, dia civil e notificação usam `America/Sao_Paulo`, independente do fuso do
+aparelho. Todo item é gravado com `timezone = "America/Sao_Paulo"`. Evento de dia inteiro guarda
+`startAt` na meia-noite do primeiro dia e `endAt` na meia-noite do dia seguinte ao último (fim
+exclusivo).
+
 ### 5.1 Recorrência
 
 O padrão é **RRULE (RFC 5545)**, guardado como string na entidade-mãe. Formato próprio está fora de
@@ -386,6 +407,7 @@ BYDAY=MO,TU,...            e a forma ordinal BYDAY=2TU (segunda terça do mês)
 BYMONTHDAY=n
 BYMONTH=n
 UNTIL=<data>  ou  COUNT=n
+WKST=SU|MO|...             (ADR-0004: o Google exporta séries semanais com WKST)
 ```
 
 Ficam rejeitados `BYSETPOS`, `BYWEEKNO`, `BYYEARDAY` e `BYHOUR`. Ampliar o validador depois não
@@ -415,7 +437,9 @@ regra diz, não existe nada gravado.
   createdAt }
 ```
 
-Índice único em `(itemId, occurrenceDate)`. Concluir a ocorrência de terça-feira de um treino
+Índice único em `(itemId, occurrenceDate)`, que é a identidade da ocorrência também no sync; os
+campos de desvio se somam (movida e editada ao mesmo tempo) e `type` registra o último aplicado
+([ADR-0004](adr/0004-recorrencia-e-desvios-de-ocorrencia.md)). Concluir a ocorrência de terça-feira de um treino
 semanal cria uma linha aqui e gera os lançamentos de XP normalmente — a série é a regra, a
 ocorrência é o fato.
 
@@ -425,6 +449,17 @@ sem punição por quebrar.
 
 Editar a série altera **apenas ocorrências futuras**. Lançamentos de XP passados nunca são
 recalculados, porque foram fatos consumados sob a regra vigente na época.
+
+### completions
+
+```
+{ _id /* chave de idempotência, gerada no aparelho */, userId, itemId,
+  occurrenceDate: Date | null, action: "complete" | "uncomplete", at: Date, createdAt }
+```
+
+`DECIDIDO` Concluir e desfazer são **eventos** append-only. O servidor processa cada evento novo e
+gera `xpEntries` e `coinEntries`; o status do item é derivado do ledger
+([ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md)).
 
 ### xpEntries
 
@@ -456,8 +491,11 @@ chega. Sem isso a carência da seção 4.6 não existe.
 ### redemptions
 
 ```
-{ _id, rewardId, pricePaid, redeemedAt }
+{ _id /* chave de idempotência */, rewardId, rewardName, pricePaid, redeemedAt }
 ```
+
+`rewardName` guarda o nome da época, para o histórico sobreviver à purga da recompensa
+([ADR-0007](adr/0007-economia-carencia-e-resgate-online.md)).
 
 `pricePaid` é gravado no resgate e nunca recalculado — o histórico precisa refletir o preço da
 época.
@@ -518,8 +556,6 @@ PATCH  /me                           nome de exibição e preferências
 PUT    /me/avatar                    upload de imagem (multipart), substitui a anterior
 DELETE /me/avatar                    volta para avatar de iniciais
 
-GET    /items?from=&to=&status=      lista com recorrências já expandidas no intervalo
-POST   /items
 PATCH  /items/:id                    edita a série; rejeita effort se effortLockedAt != null
 POST   /items/:id/complete           transação: item + xpEntries + coinEntry
 POST   /items/:id/uncomplete         estorna os lançamentos
@@ -557,6 +593,10 @@ DELETE /slots/:id
 POST   /slots/:id/exceptions         cancelamento, troca de sala ou reposição
 GET    /agenda?from=&to=             aulas projetadas + itens + ocorrências, numa resposta
 ```
+
+Não há `GET /items` nem `POST /items` (decidido em 2026-09-23): o app cria e lê itens no SQLite
+local e os envia por `POST /sync/push`, e a leitura por intervalo, com recorrências expandidas, é
+`GET /agenda`. Uma segunda porta de escrita duplicaria validação e LWW sem cliente que a use.
 
 `GET /agenda` existe para que as telas de calendário façam **uma** requisição por intervalo e a
 projeção aconteça no servidor. Expandir RRULE, aplicar exceções de ocorrência, cruzar com o semestre
@@ -713,6 +753,12 @@ Editar um item recorrente sempre pergunta o alcance — **só esta ocorrência**
 futuras**. Nunca aplicar silenciosamente a toda a série: é o comportamento que faz alguém perder
 confiança num calendário e voltar para o antigo.
 
+**Arrastar para agendar.** Na visão de semana, segurar uma tarefa da faixa superior e soltá-la na
+grade transforma a tarefa num bloco de 1 h naquele horário (encaixe de 15 minutos): `kind` vira
+`event`, o prazo sai e entram `startAt`/`endAt`, e o esforço e os atributos ficam — continua
+pontuando (§4.8). Um aviso oferece desfazer; soltar fora da grade cancela. Só tarefa simples e
+aberta: ocorrência de série passa pelo detalhe, que pergunta o alcance.
+
 ### Hoje
 
 Duas faixas em ordem fixa. Em cima, as **aulas do dia**: horário, disciplina, sala, na cor da
@@ -806,9 +852,10 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
-| `DATABASE_URL` | sim | Conexão com o PostgreSQL |
+| `DATABASE_URL` | sim | Conexão com o PostgreSQL, com o papel da API (`compasso_app`, sujeito ao RLS) |
+| `DATABASE_ADMIN_URL` | só scripts | Conexão com o papel dono (`compasso_owner`): migrações, criação de conta, purga. A API em execução não lê |
 | `PORT` | não | Porta da API. Padrão 3000 |
-| `AUTH_TOKEN` | sim | Token estático de acesso à API na v1 |
+| `SYNC_CURSOR_WINDOW_SECONDS` | não | Janela de segurança do cursor de sync (§6.6). Padrão 60 |
 | `TZ_DEFAULT` | não | Fuso padrão dos itens. Padrão `America/Sao_Paulo` |
 | `AVATAR_DIR` | sim | Volume onde as imagens de perfil são gravadas |
 | `AVATAR_MAX_BYTES` | não | Limite de upload antes do redimensionamento. Padrão 5 MB |
@@ -817,7 +864,9 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 | `TRASH_RETENTION_DAYS` | não | Prazo da lixeira e da purga de tombstones. Padrão 30 |
 
 Token estático resolve enquanto existe uma conta: o token identifica a pessoa e a API resolve o
-`userId` a partir dele. Isso deixa de servir no dia em que os amigos entrarem, porque token
+`userId` a partir dele. Os tokens não ficam em variável de ambiente: o script de criação de conta
+grava o SHA-256 de cada um na tabela `api_tokens`, um por aparelho, e imprime o valor em claro uma
+única vez ([ADR-0002](adr/0002-ferramentas-e-convencoes-da-fundacao.md)). Isso deixa de servir no dia em que os amigos entrarem, porque token
 compartilhado por vários aparelhos não pode ser revogado individualmente. A troca é localizada — o
 middleware que hoje devolve um `userId` fixo passa a devolver o da sessão — desde que todo o resto
 do sistema já esteja escopado, que é o motivo da regra da seção 5.
@@ -827,15 +876,25 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 > **Resolvida.** *Offline-first* constava aqui como decisão não confirmada, em contradição com a
 > seção 6.2. Fica valendo a 6.2: offline-first entra na v1 desde o início. Ver
 > [`roadmap.md`](roadmap.md), seção 2.
+>
+> **Resolvida.** *Fuso ao viajar*: todo horário é hora de São Paulo. Ver
+> [ADR-0003](adr/0003-fuso-fixo-de-sao-paulo.md) e a seção 5.
+>
+> **Resolvida.** *Estorno de moeda*: o saldo pode ficar negativo; nenhum resgate até voltar a
+> zero. Ver [ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md).
+>
+> **Resolvida.** *Fim de semestre*: um semestre corrente por vez, e as datas limitam a projeção
+> (férias sem aulas). Ver [ADR-0005](adr/0005-semestre-corrente-e-grade.md).
 
 - **Tamanho da janela de segurança do cursor de sync.** A seção 6.6 decide que o pull recua alguns
   segundos para não perder escrita que fez commit fora de ordem. Falta escolher o número. Curto
   demais não cobre uma transação lenta; longo demais reprocessa à toa a cada sincronização. A
   resposta provavelmente sai de medir a duração real do `complete`, que é a transação mais longa do
   sistema — o que só dá para fazer depois da F6. Até lá, um valor conservador serve, porque
-  reprocessar é inofensivo. Esta questão nasceu com a troca para PostgreSQL: o change stream do
-  Mongo resolveria isso com um cursor ordenado por commit, e abrir mão dele foi o custo aceito no
-  [ADR-0001](adr/0001-postgresql-em-vez-de-mongodb.md).
+  reprocessar é inofensivo. Valor provisório desde a F1: **60 segundos**
+  (`SYNC_CURSOR_WINDOW_SECONDS`, ver [`sincronizacao.md`](sincronizacao.md)). Esta questão nasceu
+  com a troca para PostgreSQL: o change stream do Mongo resolveria isso com um cursor ordenado por
+  commit, e abrir mão dele foi o custo aceito no [ADR-0001](adr/0001-postgresql-em-vez-de-mongodb.md).
 - **Recorrência da grade acadêmica versus RRULE.** Agora que a v1 tem expansão de RRULE, `classSlots`
   passou a ser um segundo mecanismo de repetição no mesmo sistema. A duplicação se justifica por
   enquanto — a grade carrega sala e disciplina, e aula não pontua — mas se ela começar a divergir em
@@ -843,9 +902,6 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 - **Backup ao abrir para amigos.** A rotina atual (dump diário local, sem cópia externa) é adequada
   a um app de um usuário. Quando as contas de amigos entrarem, o dado deixa de ser só do autor e a
   cópia fora da máquina volta à mesa.
-- **Fuso ao viajar.** Compromisso marcado às 14:00 em São Paulo deve aparecer às 14:00 locais ou às
-  14:00 de São Paulo quando o aparelho está em outro fuso? As duas respostas são defensáveis e
-  dependem do tipo de evento; a RFC não decide por você.
 - **Curva de nível.** Os números da seção 4.4 são chute. Só se calibram com um mês de uso real.
 - **Régua de esforço.** Os exemplos de referência precisam ser escritos pelo autor, com tarefas da
   vida dele. Sem isso a escala não ancora.
@@ -856,11 +912,6 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 - **XP por presença em aula.** Tentador e provavelmente errado: exigiria transformar cada aula numa
   ocorrência completável, que é exatamente o que a seção 5 evita. Se for muito desejado depois, o
   caminho barato é um check-in diário único que credita XP fixo em Mente, sem materializar nada.
-- **Fim de semestre.** Nada hoje marca automaticamente um semestre como encerrado quando `endDate`
-  passa. Decidir se a virada é manual ou automática, e o que a tela de Hoje mostra num dia sem
-  semestre ativo.
-- **Estorno de moeda.** Desfazer a conclusão de um item cuja moeda já foi gasta em recompensa deixa
-  o saldo negativo. Comportamento não definido.
 - **Modelo de autenticação real.** Quando as contas de amigos entrarem: senha própria, link mágico
   por e-mail ou login social. Cada opção arrasta infraestrutura diferente (envio de e-mail,
   credenciais de OAuth) e nenhuma é necessária antes disso.
