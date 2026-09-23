@@ -15,12 +15,13 @@ import { chamarApi, lerConexao } from './servidor';
 export const repositorio = new RepositorioLocal(db);
 
 const transporte: Transporte = {
-  async push(itens) {
+  async push(lote) {
     const conexao = await lerConexao();
     if (!conexao) throw new Error('sem conexão configurada');
+    // O corpo é o lote inteiro (esquemaPush): { semestres, disciplinas, …, itens, ocorrencias }.
     return chamarApi<RespostaPush>(conexao, '/sync/push', {
       method: 'POST',
-      body: JSON.stringify({ itens }),
+      body: JSON.stringify(lote),
     });
   },
   async pull(cursor) {
