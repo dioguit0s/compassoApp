@@ -350,7 +350,8 @@ tipo de app.
 **Invariantes garantidos pelo banco.** Estes viram `CHECK` e chave estrangeira na migração, e valem
 mesmo contra um retry com bug ou uma edição manual no `psql` — a API não é a última linha de defesa:
 
-- `kind: "task"` usa `dueAt`; `kind: "event"` usa `startAt`/`endAt`. Nunca ambos.
+- `kind: "task"` usa `dueAt`; `kind: "event"` usa `startAt`/`endAt`. Nunca ambos. Evento exige
+  `startAt` (o `dueAt` da tarefa é opcional), e `endAt`, quando presente, não é anterior a `startAt`.
 - `secondaryAttribute` nunca é igual a `primaryAttribute`.
 - `effort` nulo implica atributos nulos, e vice-versa. Item pontua ou não pontua; não existe meio
   termo.

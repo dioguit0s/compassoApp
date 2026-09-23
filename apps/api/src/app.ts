@@ -4,6 +4,7 @@ import { autenticacao, type VariaveisAutenticadas } from './auth';
 import type { Config } from './config';
 import type { Banco } from './db/banco';
 import type { Usuario } from './db/repositorios';
+import { rotasDeSync } from './sync';
 
 export function serializarUsuario(u: Usuario) {
   return {
@@ -17,7 +18,7 @@ export function serializarUsuario(u: Usuario) {
   };
 }
 
-export function criarApp(banco: Banco, _config: Config) {
+export function criarApp(banco: Banco, config: Config) {
   const app = new Hono();
 
   app.onError((erro, c) => {
@@ -37,6 +38,8 @@ export function criarApp(banco: Banco, _config: Config) {
     if (!usuario) return c.json({ erro: 'conta não encontrada' }, 404);
     return c.json(serializarUsuario(usuario));
   });
+
+  autenticada.route('/sync', rotasDeSync(config));
 
   app.route('/', autenticada);
   return app;
