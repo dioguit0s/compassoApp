@@ -1,6 +1,7 @@
 import { Tabs, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTema } from '../../src/tema';
+import { IconeCalendario, IconeHoje, IconePerfil, IconeRecompensas } from '../../src/ui/IconesAbas';
 
 export default function Abas() {
   const tema = useTema();
@@ -15,10 +16,16 @@ export default function Abas() {
           tabBarStyle: { backgroundColor: tema.superficie },
         }}
       >
-        <Tabs.Screen name="index" options={{ title: 'Hoje' }} />
-        <Tabs.Screen name="calendario" options={{ title: 'Calendário' }} />
-        <Tabs.Screen name="recompensas" options={{ title: 'Recompensas' }} />
-        <Tabs.Screen name="perfil" options={{ title: 'Perfil' }} />
+        <Tabs.Screen name="index" options={{ title: 'Hoje', tabBarIcon: IconeHoje }} />
+        <Tabs.Screen
+          name="calendario"
+          options={{ title: 'Calendário', tabBarIcon: IconeCalendario }}
+        />
+        <Tabs.Screen
+          name="recompensas"
+          options={{ title: 'Recompensas', tabBarIcon: IconeRecompensas }}
+        />
+        <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: IconePerfil }} />
       </Tabs>
       {/* Captura rápida: acessível de qualquer aba, a um toque (especificação §7). */}
       <Pressable
