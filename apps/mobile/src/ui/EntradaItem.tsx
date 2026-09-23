@@ -1,6 +1,14 @@
 import { horaDe, type EntradaAgenda } from '@compasso/core';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { repositorio } from '../sync';
 import { useTema, type Tema } from '../tema';
 
@@ -119,11 +127,15 @@ export function EntradaItem({
           hitSlop={10}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: item.status === 'done' }}
-          onPress={() =>
-            item.status === 'done'
-              ? repositorio.reabrirOcorrencia(item.itemId, item.ocorrencia!)
-              : repositorio.concluirOcorrencia(item.itemId, item.ocorrencia!)
-          }
+          onPress={() => {
+            try {
+              if (item.status === 'done')
+                repositorio.reabrirOcorrencia(item.itemId, item.ocorrencia!);
+              else repositorio.concluirOcorrencia(item.itemId, item.ocorrencia!);
+            } catch (e) {
+              Alert.alert('Não foi possível', (e as Error).message);
+            }
+          }}
           style={[estilos.caixaMarcar, e.caixa]}
         >
           <Text style={e.texto}>{item.status === 'done' ? '✓' : ''}</Text>
