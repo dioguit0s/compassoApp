@@ -11,16 +11,28 @@ export interface PartesNoFuso {
   minuto: number;
 }
 
+const formatadores = new Map<string, Intl.DateTimeFormat>();
+
+/** Construir um Intl.DateTimeFormat é caro; a expansão de recorrência chama isto milhares de vezes. */
+function formatador(fuso: string): Intl.DateTimeFormat {
+  let f = formatadores.get(fuso);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {
+      timeZone: fuso,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
+    formatadores.set(fuso, f);
+  }
+  return f;
+}
+
 export function partesNoFuso(instante: Date, fuso: string): PartesNoFuso {
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: fuso,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  });
+  const fmt = formatador(fuso);
   const p: Record<string, string> = {};
   for (const parte of fmt.formatToParts(instante)) p[parte.type] = parte.value;
   return {

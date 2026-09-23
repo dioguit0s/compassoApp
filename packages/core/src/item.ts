@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ATRIBUTOS, ESFORCOS } from './atributos';
+import { validarRRule } from './rrule';
 
 /**
  * Item no formato de transporte (JSON da sincronização). Datas como ISO 8601 UTC ou null.
@@ -61,6 +62,9 @@ export function violacoesDeInvariante(item: {
   startAt: unknown;
   endAt: unknown;
   timezone: string;
+  rrule?: string | null;
+  status?: 'open' | 'done';
+  completedAt?: unknown;
 }): string[] {
   const v: string[] = [];
   const presente = (x: unknown) => x !== null && x !== undefined;
@@ -88,6 +92,17 @@ export function violacoesDeInvariante(item: {
     v.push('atributo secundário igual ao principal');
   }
   if (!item.timezone) v.push('fuso horário ausente');
+  if (item.rrule) {
+    const r = validarRRule(item.rrule, item.timezone || undefined);
+    if (!r.valida) v.push(`recorrência inválida: ${r.motivo}`);
+    if (!presente(item.kind === 'task' ? item.dueAt : item.startAt)) {
+      v.push('série exige data de início');
+    }
+    // Quem carrega estado numa série é a ocorrência (especificação §5).
+    if (item.status === 'done' || presente(item.completedAt)) {
+      v.push('série não usa status nem data de conclusão');
+    }
+  }
   return v;
 }
 

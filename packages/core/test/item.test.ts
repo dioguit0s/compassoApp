@@ -76,3 +76,20 @@ describe('invariantes de item', () => {
     expect(r).not.toHaveProperty('userId');
   });
 });
+
+describe('invariantes de série', () => {
+  it('série válida', () => {
+    expect(violacoesDeInvariante(eventoValido({ rrule: 'FREQ=WEEKLY;BYDAY=TU' }))).toEqual([]);
+  });
+  it('rrule fora do subconjunto é recusada com motivo', () => {
+    expect(violacoesDeInvariante(eventoValido({ rrule: 'FREQ=DAILY;BYSETPOS=1' }))).toEqual([
+      'recorrência inválida: BYSETPOS não é suportado',
+    ]);
+  });
+  it('série não usa status nem completedAt', () => {
+    const v = violacoesDeInvariante(
+      eventoValido({ rrule: 'FREQ=DAILY', status: 'done', completedAt: new Date().toISOString() }),
+    );
+    expect(v).toContain('série não usa status nem data de conclusão');
+  });
+});
