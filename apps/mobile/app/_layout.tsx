@@ -13,12 +13,14 @@ import { ProvedorDeAvisos } from '../src/ui/Aviso';
 import { observarMudancas, reagendar, registrarTarefaDeBackground } from '../src/notificacoes';
 import { atualizarPerfil } from '../src/perfil';
 import { sincronizarAgora } from '../src/sync';
+import { useTema } from '../src/tema';
 
 export default function Raiz() {
   const { success, error } = useMigrations(db, migracoes);
   const router = useRouter();
   const resposta = Notifications.useLastNotificationResponse();
   const hoje = useHoje();
+  const tema = useTema();
 
   // Congelamento preguiçoso (ADR-0006): na abertura e na virada do dia, os itens cujo dia chegou
   // ganham effortLockedAt — offline, e sincroniza como qualquer campo.
@@ -72,7 +74,15 @@ export default function Raiz() {
     <ProvedorDeDisciplinas>
       <ProvedorDeAvisos>
         <StatusBar style="auto" />
-        <Stack>
+        <Stack
+          screenOptions={{
+            // Sem isso as telas empilhadas (detalhe, configurações…) ficavam com cabeçalho branco
+            // no tema escuro (visto no emulador).
+            headerStyle: { backgroundColor: tema.fundo },
+            headerTintColor: tema.texto,
+            contentStyle: { backgroundColor: tema.fundo },
+          }}
+        >
           <Stack.Screen name="(abas)" options={{ headerShown: false }} />
           <Stack.Screen name="diagnostico" options={{ title: 'Diagnóstico' }} />
           <Stack.Screen

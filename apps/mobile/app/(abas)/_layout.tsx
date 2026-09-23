@@ -11,6 +11,8 @@ export default function Abas() {
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: tema.destaque,
+          // Sem isso o cinza padrão some no fundo escuro (visto no emulador, tema escuro).
+          tabBarInactiveTintColor: tema.sutil,
           headerStyle: { backgroundColor: tema.fundo },
           headerTintColor: tema.texto,
           tabBarStyle: { backgroundColor: tema.superficie },

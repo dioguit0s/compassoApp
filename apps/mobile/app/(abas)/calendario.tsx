@@ -39,7 +39,13 @@ export default function Calendario() {
     <View style={[estilos.tela, { backgroundColor: tema.fundo }]}>
       <View style={estilos.barra}>
         <Botao rotulo="‹" dica="período anterior" aoTocar={() => andar(-1)} />
-        <Text style={[estilos.titulo, { color: tema.texto }]} numberOfLines={1}>
+        {/* Com fonte grande do sistema o intervalo da semana era cortado ("20/09 – 2…"). */}
+        <Text
+          style={[estilos.titulo, { color: tema.texto }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
+        >
           {titulo}
         </Text>
         <Botao rotulo="›" dica="próximo período" aoTocar={() => andar(1)} />
