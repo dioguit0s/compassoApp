@@ -556,8 +556,6 @@ PATCH  /me                           nome de exibição e preferências
 PUT    /me/avatar                    upload de imagem (multipart), substitui a anterior
 DELETE /me/avatar                    volta para avatar de iniciais
 
-GET    /items?from=&to=&status=      lista com recorrências já expandidas no intervalo
-POST   /items
 PATCH  /items/:id                    edita a série; rejeita effort se effortLockedAt != null
 POST   /items/:id/complete           transação: item + xpEntries + coinEntry
 POST   /items/:id/uncomplete         estorna os lançamentos
@@ -595,6 +593,10 @@ DELETE /slots/:id
 POST   /slots/:id/exceptions         cancelamento, troca de sala ou reposição
 GET    /agenda?from=&to=             aulas projetadas + itens + ocorrências, numa resposta
 ```
+
+Não há `GET /items` nem `POST /items` (decidido em 2026-09-23): o app cria e lê itens no SQLite
+local e os envia por `POST /sync/push`, e a leitura por intervalo, com recorrências expandidas, é
+`GET /agenda`. Uma segunda porta de escrita duplicaria validação e LWW sem cliente que a use.
 
 `GET /agenda` existe para que as telas de calendário façam **uma** requisição por intervalo e a
 projeção aconteça no servidor. Expandir RRULE, aplicar exceções de ocorrência, cruzar com o semestre
@@ -750,6 +752,12 @@ você não podem parecer a mesma coisa.
 Editar um item recorrente sempre pergunta o alcance — **só esta ocorrência** ou **esta e as
 futuras**. Nunca aplicar silenciosamente a toda a série: é o comportamento que faz alguém perder
 confiança num calendário e voltar para o antigo.
+
+**Arrastar para agendar.** Na visão de semana, segurar uma tarefa da faixa superior e soltá-la na
+grade transforma a tarefa num bloco de 1 h naquele horário (encaixe de 15 minutos): `kind` vira
+`event`, o prazo sai e entram `startAt`/`endAt`, e o esforço e os atributos ficam — continua
+pontuando (§4.8). Um aviso oferece desfazer; soltar fora da grade cancela. Só tarefa simples e
+aberta: ocorrência de série passa pelo detalhe, que pergunta o alcance.
 
 ### Hoje
 

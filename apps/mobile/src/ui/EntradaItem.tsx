@@ -78,10 +78,15 @@ export function EntradaItem({
   item,
   variante,
   style,
+  aoSegurar,
+  aoSoltar,
 }: {
   item: EntradaAgenda;
   variante: 'linha' | 'bloco' | 'mini';
   style?: StyleProp<ViewStyle>;
+  /** Só `mini`: segurar começa a arrastar (tarefa para a grade da semana). */
+  aoSegurar?: (pageX: number, pageY: number) => void;
+  aoSoltar?: () => void;
 }) {
   const tema = useTema();
   const router = useRouter();
@@ -102,7 +107,16 @@ export function EntradaItem({
 
   if (variante === 'mini') {
     return (
-      <Pressable onPress={abrir} style={[estilos.mini, e.caixa, style]}>
+      <Pressable
+        onPress={abrir}
+        onLongPress={
+          aoSegurar ? (ev) => aoSegurar(ev.nativeEvent.pageX, ev.nativeEvent.pageY) : undefined
+        }
+        onPressOut={aoSoltar}
+        delayLongPress={300}
+        accessibilityHint={aoSegurar ? 'Segure e arraste para um horário para agendar' : undefined}
+        style={[estilos.mini, e.caixa, style]}
+      >
         <Text numberOfLines={1} style={[estilos.textoMini, e.texto]}>
           {selo ? (
             <Text style={{ color: disciplina!.color, fontWeight: '700' }}>{selo} </Text>

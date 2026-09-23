@@ -1,5 +1,12 @@
 /** F6 — gamificação: congelamento (#69), ledger (#70), conclusão (#71), estorno (#72), adiar (#73), radar (#74). */
-import { diaDe, instanteDeParede, novoId, somarDias, type MedidaDoAtributo } from '@compasso/core';
+import {
+  agendarTarefa,
+  diaDe,
+  instanteDeParede,
+  novoId,
+  somarDias,
+  type MedidaDoAtributo,
+} from '@compasso/core';
 import { describe, expect, inject, it } from 'vitest';
 import { comToken } from './ajuda';
 import { novoEvento, usarClientes, type Cliente } from './clientes';
@@ -257,6 +264,31 @@ describe('congelamento do esforço (#69)', () => {
     const { a } = await doisAparelhos('Adiar compromisso');
     const e = a.repo.criar(novoEvento('dentista'));
     expect(() => a.repo.adiar(e.id)).toThrow(/compromisso/);
+  });
+});
+
+describe('arrastar tarefa para a grade (especificação §3, §7)', () => {
+  it('tarefa congelada vira evento no horário escolhido; esforço e trava ficam; o servidor aceita', async () => {
+    const { a, b } = await doisAparelhos('Agendar');
+    const t = a.repo.criar(tarefa('estudar', emDias(0, 23)));
+    expect(t.effortLockedAt).not.toBeNull();
+    const agendado = a.repo.editar(t.id, agendarTarefa(somarDias(hoje(), 1), 15 * 60));
+    expect(agendado).toMatchObject({
+      kind: 'event',
+      dueAt: null,
+      startAt: emDias(1, 15),
+      endAt: emDias(1, 16),
+      effort: 5,
+      primaryAttribute: 'mente',
+      effortLockedAt: t.effortLockedAt,
+    });
+    await sincronizar(a, b);
+    expect(b.repo.obter(t.id)).toMatchObject({
+      kind: 'event',
+      dueAt: null,
+      startAt: emDias(1, 15),
+      effort: 5,
+    });
   });
 });
 

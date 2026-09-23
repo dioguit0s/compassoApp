@@ -191,6 +191,8 @@ mudam o formato do dado, e adicioná-los depois exige migração e auditoria.
 - Distinção visual entre compromisso puro e item pontuável — a regra de apresentação já existe
   mesmo antes de a gamificação existir
 - No máximo três linhas por dia na visão de mês, com contador de excedentes
+- Arrastar tarefa da faixa para a grade da semana e agendá-la (especificação §7). Acrescentado em
+  2026-09-23, depois da F8: estava na especificação mas faltava nesta lista
 
 **Critério de saída:** uma semana inteira de compromissos reais cadastrada à mão e consultável sem
 rede. A captura rápida leva menos de três segundos do toque ao item salvo — cronometrada, não

@@ -1,4 +1,5 @@
 export * from './agenda';
+export * from './agendamento';
 export * from './atributos';
 export * from './avatar';
 export * from './calendario';
