@@ -405,7 +405,8 @@ export function criarRepositorios(tx: Tx, userId: string) {
       if (atual.effort === null)
         throw new ErroDeOcorrencia(409, 'compromisso sem esforço não é adiado');
       if (atual.rrule) throw new ErroDeOcorrencia(409, 'série: mova a ocorrência em vez de adiar');
-      const inicio = (atual.kind === 'task' ? atual.dueAt : atual.startAt)!;
+      const inicio = atual.kind === 'task' ? atual.dueAt : atual.startAt;
+      if (!inicio) throw new ErroDeOcorrencia(409, 'sem data: não há o que adiar');
       const delta = para.getTime() - inicio.getTime();
       const mover = (d: Date | null) => (d ? new Date(d.getTime() + delta) : null);
       const agora = await relogio();
@@ -699,7 +700,18 @@ export function criarRepositorios(tx: Tx, userId: string) {
       })
       .onConflictDoUpdate({
         target: [itemOccurrences.itemId, itemOccurrences.occurrenceDate],
-        set: { status, completedAt, deletedAt: null },
+        // Um tombstone ressuscitado volta limpo: o desvio excluído (cancelado, movido) não vale mais.
+        set: {
+          type: 'completed',
+          status,
+          completedAt,
+          startAt: null,
+          endAt: null,
+          titleOverride: null,
+          notesOverride: null,
+          deletedAt: null,
+          updatedAt: agora,
+        },
       });
   }
 
@@ -750,16 +762,24 @@ export function criarRepositorios(tx: Tx, userId: string) {
         }
         // earnedAt: o momento do toque no aparelho, mas nunca no futuro do servidor.
         const at = new Date(Math.min(Date.parse(ev.at), agora.getTime()));
-        await tx.insert(completions).values({
-          id: ev.id,
-          userId,
-          itemId: ev.itemId,
-          occurrenceDate: ev.occurrenceDate,
-          action: ev.action,
-          at,
-          efeito: efeito.tipo === 'nada' ? `nada: ${efeito.motivo}` : efeito.tipo,
-          createdAt: agora,
-        });
+        const gravado = await tx
+          .insert(completions)
+          .values({
+            id: ev.id,
+            userId,
+            itemId: ev.itemId,
+            occurrenceDate: ev.occurrenceDate,
+            action: ev.action,
+            at,
+            efeito: efeito.tipo === 'nada' ? `nada: ${efeito.motivo}` : efeito.tipo,
+            createdAt: agora,
+          })
+          .onConflictDoNothing()
+          .returning({ id: completions.id });
+        if (gravado.length === 0) {
+          ignorados.push(ev.id); // id já usado por outra conta: ignorado, como na grade
+          continue;
+        }
         if (efeito.tipo !== 'nada') {
           await tx.insert(xpEntries).values(
             efeito.xp.map((x) => ({
@@ -838,7 +858,13 @@ export function criarRepositorios(tx: Tx, userId: string) {
         pricePaid: estado.preco,
         redeemedAt: agora,
       };
-      await tx.insert(redemptions).values(resgate);
+      const gravado = await tx
+        .insert(redemptions)
+        .values(resgate)
+        .onConflictDoNothing()
+        .returning({ id: redemptions.id });
+      // Chave já usada por outra conta (colisão de UUID ou tentativa): recusa sem 500.
+      if (gravado.length === 0) throw new ErroDeOcorrencia(409, 'Idempotency-Key já usada');
       await tx.insert(coinEntries).values({
         id: novoId(),
         userId,

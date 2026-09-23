@@ -28,6 +28,15 @@ import {
 import ICAL from 'ical.js';
 
 export const JANELA_EXPANSAO = { anosParaTras: 1, anosParaFrente: 2 };
+/**
+ * Tetos da expansão de regras exóticas: por série (passos do iterador e ocorrências geradas) e
+ * por arquivo. Sem eles, um `FREQ=MINUTELY` de poucos bytes gera 100 mil itens e trava a API.
+ */
+export const LIMITES_EXPANSAO = {
+  passosPorSerie: 20_000,
+  ocorrenciasPorSerie: 1_000,
+  itensPorArquivo: 5_000,
+};
 
 export interface ItemImportado {
   sourceUid: string;
@@ -189,18 +198,24 @@ function expandirExotica(e: Evento, agora: Date): { dia: Dia; inicio: Date; fim:
   ate.setUTCFullYear(ate.getUTCFullYear() + JANELA_EXPANSAO.anosParaFrente);
   const duracao = e.fim ? e.fim.getTime() - e.inicio.getTime() : 0;
 
+  // A hora de parede da regra é a do DTSTART: TZID, UTC ("Z") ou, flutuante, São Paulo.
+  const fusoDaRegra = e.inicioBruto.zone?.tzid === 'UTC' ? 'UTC' : e.timezone;
   const flutuante = e.inicioBruto.clone();
   flutuante.zone = ICAL.Timezone.localTimezone;
   const it = ICAL.Recur.fromString(e.rrule!).iterator(flutuante);
   const saida: { dia: Dia; inicio: Date; fim: Date | null }[] = [];
   const excluidos = new Set([...e.exdates.map((d) => d.getTime())]);
   const diasExcluidos = new Set(e.exdatesDias);
-  for (let t = it.next(), n = 0; t && n < 100_000; t = it.next(), n++) {
+  for (
+    let t = it.next(), n = 0;
+    t && n < LIMITES_EXPANSAO.passosPorSerie && saida.length < LIMITES_EXPANSAO.ocorrenciasPorSerie;
+    t = it.next(), n++
+  ) {
     const dia = diaDoTempo(t);
     const inicio = e.allDay
       ? limitesDiaInteiro(dia, dia).startAt
       : new Date(
-          instanteDeParede(t.year, t.month, t.day, t.hour, t.minute, e.timezone).getTime() +
+          instanteDeParede(t.year, t.month, t.day, t.hour, t.minute, fusoDaRegra).getTime() +
             t.second * 1000,
         );
     if (inicio >= ate) break;
@@ -257,7 +272,7 @@ export function planejarImportacao(texto: string, agora: Date = new Date()): Pla
   }
 
   /** Séries expandidas: UID → itens isolados por dia, para as exceções acharem o seu. */
-  const expandidas = new Map<string, Map<Dia, ItemImportado>>();
+  const expandidas = new Map<string, { allDay: boolean; porDia: Map<string, ItemImportado> }>();
 
   for (const e of mestres.values()) {
     if (e.cancelado) {
@@ -301,7 +316,8 @@ export function planejarImportacao(texto: string, agora: Date = new Date()): Pla
       continue;
     }
     // Fora do subconjunto: itens isolados na janela, com aviso.
-    const porDia = new Map<Dia, ItemImportado>();
+    // Chave pelo instante exato (dia, se dia inteiro): uma regra horária tem várias no mesmo dia.
+    const porDia = new Map<string, ItemImportado>();
     for (const o of expandirExotica(e, agora)) {
       const item: ItemImportado = {
         ...base,
@@ -310,10 +326,10 @@ export function planejarImportacao(texto: string, agora: Date = new Date()): Pla
         endAt: o.fim,
         rrule: null,
       };
-      porDia.set(o.dia, item);
+      porDia.set(e.allDay ? o.dia : String(o.inicio.getTime()), item);
       plano.itens.push(item);
     }
-    expandidas.set(e.uid, porDia);
+    expandidas.set(e.uid, { allDay: e.allDay, porDia });
     plano.expandidos.push({
       titulo: e.titulo,
       regra: e.rrule,
@@ -327,10 +343,13 @@ export function planejarImportacao(texto: string, agora: Date = new Date()): Pla
     const mestre = mestres.get(x.uid);
     const expandida = expandidas.get(x.uid);
     if (expandida) {
-      const alvo = expandida.get(rec.dia);
-      if (!alvo) continue; // fora da janela de expansão
+      const chave = expandida.allDay ? rec.dia : String(rec.instante.getTime());
+      const alvo = expandida.porDia.get(chave);
+      if (!alvo) continue; // fora da janela de expansão (ou já cancelada)
       if (x.cancelado) {
-        plano.itens.splice(plano.itens.indexOf(alvo), 1);
+        expandida.porDia.delete(chave);
+        const i = plano.itens.indexOf(alvo);
+        if (i >= 0) plano.itens.splice(i, 1);
       } else {
         Object.assign(alvo, {
           title: x.titulo,
@@ -378,5 +397,14 @@ export function planejarImportacao(texto: string, agora: Date = new Date()): Pla
   const unicos = new Map<string, DesvioImportado>();
   for (const d of plano.desvios) unicos.set(`${d.sourceUidDaSerie}@${d.occurrenceDate}`, d);
   plano.desvios = [...unicos.values()];
+  // O mesmo sourceUid duas vezes (exceção órfã repetida): fica o último, como nos desvios.
+  const itensUnicos = new Map<string, ItemImportado>();
+  for (const i of plano.itens) itensUnicos.set(i.sourceUid, i);
+  plano.itens = [...itensUnicos.values()];
+  if (plano.itens.length > LIMITES_EXPANSAO.itensPorArquivo) {
+    throw new Error(
+      `arquivo gera ${plano.itens.length} itens; o limite por importação é ${LIMITES_EXPANSAO.itensPorArquivo}`,
+    );
+  }
   return plano;
 }

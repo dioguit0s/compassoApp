@@ -25,7 +25,7 @@ de São Paulo (ADR-0003). Commits quando fizer sentido.
 - [x] F6 — gamificação (ADR-0006)
 - [x] F7 — economia (ADR-0007)
 - [x] F8 — perfil, foto, configurações, lixeira, histórico, estados
-- [ ] revisão do diff F2–F8 em três fatias (core, API, app) — em andamento
+- [x] revisão do diff F2–F8 em três fatias (core, API, app); 18 achados corrigidos com teste
 
 ### Decisões do usuário
 - #26 fuso: sempre São Paulo → ADR-0003
@@ -43,4 +43,6 @@ de São Paulo (ADR-0003). Commits quando fizer sentido.
   `expo export` (bundle Hermes) e `expo config --type prebuild`
 - `Intl` com `timeZone` e zod v4 no Hermes do aparelho real
 - Notificações, tarefa de background, seletor de data/foto: nada disparou de verdade
+- Foto HEIC do iPhone no `PUT /me/avatar`: o sharp pré-compilado talvez não decodifique (sem arquivo para testar)
+- Dois `PUT /me/avatar` simultâneos podem deixar um arquivo órfão no disco (só leitura de código)
 - Se o alarme exato foi negado no Android: o app não consegue saber (expo-notifications não expõe)

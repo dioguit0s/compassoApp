@@ -31,7 +31,9 @@ export function rotasDeSync(config: Config) {
       // O status volta a ser o do ledger, mesmo que um aparelho desatualizado o tenha
       // sobrescrito pelo LWW (ADR-0006).
       await r.status.derivarDosEnviados(
-        d.itens.filter((i) => i.effort !== null && !i.rrule).map((i) => i.id),
+        // Todos os itens simples enviados: o esforço que vale é o do servidor (pode estar
+        // congelado mesmo que o aparelho mande null), e `derivarStatus` ignora quem não tem.
+        d.itens.filter((i) => !i.rrule).map((i) => i.id),
         d.ocorrencias,
       );
       return {

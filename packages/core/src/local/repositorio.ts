@@ -337,6 +337,8 @@ export class RepositorioLocal implements ArmazemLocal {
       throw new ErroDeValidacao(['compromisso sem esforço não é adiado, é remarcado']);
     if (atual.rrule)
       throw new ErroDeValidacao(['série: mova a ocorrência em vez de adiar a série']);
+    if (!(atual.kind === 'task' ? atual.dueAt : atual.startAt))
+      throw new ErroDeValidacao(['sem data: não há o que adiar']);
     const mover = (d: Date | null) => {
       if (!d) return null;
       const p = partesNoFuso(d, atual.timezone);

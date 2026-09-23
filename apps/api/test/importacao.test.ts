@@ -228,4 +228,71 @@ describe('regras fora do subconjunto (#52)', () => {
     expect(fech.at(-1)!.startAt < new Date('2028-09-23T12:00:00Z')).toBe(true);
     expect(fech.length).toBe(24);
   });
+
+  const cal = (...eventos: string[]) =>
+    ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//t//t//PT', ...eventos, 'END:VCALENDAR'].join(
+      '\r\n',
+    );
+  const ev = (...linhas: string[]) => ['BEGIN:VEVENT', ...linhas, 'END:VEVENT'].join('\r\n');
+
+  it('exceções de uma regra horária acertam a ocorrência exata, sem apagar outros itens', () => {
+    const plano = planejarImportacao(
+      cal(
+        ev(
+          'UID:serie',
+          'DTSTART:20260921T120000Z',
+          'DTEND:20260921T123000Z',
+          'SUMMARY:ronda',
+          'RRULE:FREQ=HOURLY;INTERVAL=4;COUNT=3',
+        ),
+        ev(
+          'UID:serie',
+          'RECURRENCE-ID:20260921T120000Z',
+          'DTSTART:20260921T120000Z',
+          'SUMMARY:ronda',
+          'STATUS:CANCELLED',
+        ),
+        ev(
+          'UID:serie',
+          'RECURRENCE-ID:20260921T160000Z',
+          'DTSTART:20260921T160000Z',
+          'SUMMARY:ronda',
+          'STATUS:CANCELLED',
+        ),
+        ev(
+          'UID:serie',
+          'RECURRENCE-ID:20260921T160000Z',
+          'DTSTART:20260921T160000Z',
+          'SUMMARY:ronda',
+          'STATUS:CANCELLED',
+        ),
+        ev(
+          'UID:dentista',
+          'DTSTART:20260925T130000Z',
+          'DTEND:20260925T140000Z',
+          'SUMMARY:dentista',
+        ),
+      ),
+      new Date('2026-09-20T12:00:00Z'),
+    );
+    expect(plano.itens.map((i) => i.title).sort()).toEqual(['dentista', 'ronda']);
+    expect(plano.itens.find((i) => i.title === 'ronda')!.startAt).toEqual(
+      new Date('2026-09-21T20:00:00Z'),
+    );
+  });
+
+  it('exceção órfã repetida vira um item só; regra que explode tem teto', () => {
+    const orfa = ev(
+      'UID:orfa',
+      'RECURRENCE-ID:20260921T120000Z',
+      'DTSTART:20260921T130000Z',
+      'SUMMARY:solta',
+    );
+    expect(planejarImportacao(cal(orfa, orfa)).itens).toHaveLength(1);
+    const minutos = planejarImportacao(
+      cal(ev('UID:m', 'DTSTART:20260921T120000Z', 'SUMMARY:m', 'RRULE:FREQ=MINUTELY')),
+      new Date('2026-09-21T12:00:00Z'),
+    );
+    expect(minutos.itens.length).toBeLessThanOrEqual(1000);
+  });
 });

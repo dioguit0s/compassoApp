@@ -291,3 +291,95 @@ describe('GET /stats/attributes (#74)', () => {
     );
   });
 });
+
+describe('achados da revisão da F8', () => {
+  it('concluir uma data cujo desvio foi excluído não ressuscita o cancelamento', async () => {
+    const { a, token } = await doisAparelhos('Tombstone');
+    const s = a.repo.criar({
+      ...tarefa('treino', emDias(-3, 7)),
+      kind: 'event' as const,
+      dueAt: null,
+      startAt: emDias(-3, 7),
+      endAt: emDias(-3, 8),
+      rrule: 'FREQ=DAILY',
+    });
+    await sincronizar(a);
+    const dia = somarDias(hoje(), -1);
+    expect((await api(token, 'POST', `/items/${s.id}/occurrences/${dia}/cancel`)).status).toBe(200);
+    await ctx.dono.query(
+      `update item_occurrences set deleted_at = now() where item_id = $1 and occurrence_date = $2`,
+      [s.id, dia],
+    );
+    const r = await api(token, 'POST', `/items/${s.id}/occurrences/${dia}/complete`);
+    expect(r.corpo.efeito).toBe('creditar');
+    const linha = await ctx.dono.query(
+      `select type, status, deleted_at from item_occurrences where item_id = $1 and occurrence_date = $2`,
+      [s.id, dia],
+    );
+    expect(linha.rows[0]).toEqual({ type: 'completed', status: 'done', deleted_at: null });
+  });
+
+  it('aparelho desatualizado com esforço null não reabre item concluído e congelado', async () => {
+    const { a, token } = await doisAparelhos('Esforço null');
+    const e = a.repo.criar({
+      ...tarefa('prova', emDias(0, 8)),
+      kind: 'event' as const,
+      dueAt: null,
+      startAt: emDias(0, 8),
+      endAt: emDias(0, 9),
+    });
+    await sincronizar(a);
+    await api(token, 'POST', `/items/${e.id}/complete`);
+    const pull = await api(token, 'GET', '/sync/pull');
+    const wire = (pull.corpo.itens as { id: string }[]).find((i) => i.id === e.id)!;
+    await api(token, 'POST', '/sync/push', {
+      itens: [
+        {
+          ...wire,
+          effort: null,
+          primaryAttribute: null,
+          secondaryAttribute: null,
+          status: 'open',
+          completedAt: null,
+          updatedAt: new Date(Date.now() + 60_000).toISOString(),
+        },
+      ],
+    });
+    const r = await ctx.dono.query(`select effort, status from items where id = $1`, [e.id]);
+    expect(r.rows[0]).toEqual({ effort: 5, status: 'done' });
+  });
+
+  it('adiar item sem data responde 409, não 500', async () => {
+    const { a, token } = await doisAparelhos('Adiar sem data');
+    const t = a.repo.criar({ ...tarefa('algum dia', emDias(1)), dueAt: null });
+    await sincronizar(a);
+    expect((await api(token, 'POST', `/items/${t.id}/postpone`)).status).toBe(409);
+  });
+
+  it('id de conclusão já usado por outra conta é ignorado, sem derrubar o push', async () => {
+    const x = await doisAparelhos('Conta X');
+    const y = await doisAparelhos('Conta Y');
+    const tx = x.a.repo.criar(tarefa('x', emDias(2)));
+    const ty = y.a.repo.criar(tarefa('y', emDias(2)));
+    await sincronizar(x.a, y.a);
+    const id = novoId();
+    const agora = new Date().toISOString();
+    const evento = (itemId: string) => ({
+      conclusoes: [
+        {
+          id,
+          itemId,
+          occurrenceDate: null,
+          action: 'complete',
+          at: agora,
+          createdAt: agora,
+          updatedAt: agora,
+        },
+      ],
+    });
+    expect((await api(x.token, 'POST', '/sync/push', evento(tx.id))).status).toBe(200);
+    const r = await api(y.token, 'POST', '/sync/push', evento(ty.id));
+    expect(r.status).toBe(200);
+    expect((r.corpo.conclusoes as { ignorados: string[] }).ignorados).toEqual([id]);
+  });
+});
