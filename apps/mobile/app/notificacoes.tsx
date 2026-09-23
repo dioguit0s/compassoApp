@@ -1,4 +1,4 @@
-import { ORCAMENTO_NOTIFICACOES } from '@compasso/core';
+import { instanteDoDisparo, ORCAMENTO_NOTIFICACOES } from '@compasso/core';
 import type { NotificationRequest } from 'expo-notifications';
 import { useCallback, useEffect, useState } from 'react';
 import { Button, FlatList, StyleSheet, Text, View } from 'react-native';
@@ -31,7 +31,7 @@ export default function Notificacoes() {
         data={lista}
         keyExtractor={(n) => n.identifier}
         renderItem={({ item }) => {
-          const ms = Number(item.identifier.split('@').at(-1));
+          const ms = instanteDoDisparo(item.identifier);
           return (
             <View style={[estilos.linha, { borderColor: tema.borda }]}>
               <Text style={{ color: tema.texto }}>{item.content.title}</Text>

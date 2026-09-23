@@ -41,6 +41,18 @@ function resumo(texto: string): string {
 /** Prefixo dos identificadores do Compasso no agendador do sistema. */
 export const PREFIXO_DISPARO = 'compasso:';
 
+/**
+ * Instante (ms) de um id de disparo: `compasso:<item>@<ocorrência>@<instante>@<resumo>`. É o
+ * penúltimo segmento — o último é o resumo do texto. Id fora do formato → null.
+ */
+export function instanteDoDisparo(id: string): number | null {
+  if (!id.startsWith(PREFIXO_DISPARO)) return null;
+  const partes = id.split('@');
+  if (partes.length !== 4) return null;
+  const ms = Number(partes[2]);
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
+}
+
 export function selecionarDisparos(
   entradas: EntradaAgenda[],
   agora: Date,

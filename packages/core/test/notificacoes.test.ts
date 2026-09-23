@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   instanteDeParede,
+  instanteDoDisparo,
   planejarReagendamento,
   projetarAgenda,
   selecionarDisparos,
@@ -108,6 +109,17 @@ describe('selecionarDisparos (#48)', () => {
     expect(a!.id.startsWith(`compasso:x@2026-10-01@${sp(10, 1, 7, 45).getTime()}@`)).toBe(true);
     const renomeado = e.map((x) => ({ ...x, title: 'Outro título' }));
     expect(selecionarDisparos(renomeado, agora)[0]!.id).not.toBe(a!.id);
+  });
+});
+
+describe('instanteDoDisparo', () => {
+  it('lê o instante do id gerado, não o resumo do texto no fim', () => {
+    // A tela "Lembretes agendados" lia o último segmento (o resumo) e mostrava "?".
+    const d = selecionarDisparos(projetarAgenda([item({})], [], agora, ate), agora);
+    expect(d).toHaveLength(1);
+    expect(instanteDoDisparo(d[0]!.id)).toBe(d[0]!.instante.getTime());
+    expect(instanteDoDisparo('outro-app:1')).toBeNull();
+    expect(instanteDoDisparo('compasso:x@unico@abc@r')).toBeNull();
   });
 });
 

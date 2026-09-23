@@ -1,5 +1,6 @@
 import {
   HORIZONTE_NOTIFICACOES_DIAS,
+  instanteDoDisparo,
   planejarReagendamento,
   selecionarDisparos,
 } from '@compasso/core';
@@ -175,9 +176,9 @@ export async function registrarTarefaDeBackground(): Promise<void> {
   }
 }
 
-/** Notificações pendentes do Compasso, em ordem de disparo (o id termina no instante em ms). */
+/** Notificações pendentes do Compasso, em ordem de disparo. */
 export async function pendentes() {
-  const instante = (id: string) => Number(id.split('@').at(-1)) || 0;
+  const instante = (id: string) => instanteDoDisparo(id) ?? 0;
   return (await Notifications.getAllScheduledNotificationsAsync())
     .filter((n) => n.identifier.startsWith('compasso:'))
     .sort((a, b) => instante(a.identifier) - instante(b.identifier));
