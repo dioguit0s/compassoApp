@@ -8,7 +8,29 @@ mova o registro para o PR/commit correspondente.
 
 ---
 
-## Tarefa atual
+## Tarefa atual — validação no emulador (2026-09-23)
+
+**Objetivo:** percorrer o roteiro do handoff (`e7f0c8f`) no emulador Android (AVD Pixel_7),
+fase por fase: passou / falhou (causa + correção ou issue) / fora de alcance (motivo).
+
+### Roteiro
+- [x] Linha de base `npm run verificar` (falhava no Windows por CRLF → `.gitattributes` eol=lf)
+- [ ] Preparação: Docker + banco + conta + API + development build no emulador
+- [ ] 0. Hermes: Intl/timeZone, zod v4, UUIDv7
+- [ ] F0/F1 conexão e sync
+- [ ] F2 calendário
+- [ ] F3 recorrência
+- [ ] F4 notificações e ICS
+- [ ] F5 grade
+- [ ] F6 gamificação
+- [ ] F7 economia
+- [ ] F8 perfil e acabamento
+- [ ] iOS — fora de alcance (Windows, sem Xcode)
+
+### Resultados
+(preenchido durante a validação)
+
+## Tarefa anterior — roadmap F0–F8
 
 **Objetivo:** seguir o roadmap além da F1 (autorizado pelo usuário em 2026-09-23), com fuso fixo
 de São Paulo (ADR-0003). Commits quando fizer sentido.
