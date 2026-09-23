@@ -33,7 +33,9 @@ apps/api         API Node (Hono + Drizzle + node-postgres)
   scripts/       bootstrap dos papéis, migração, criação de conta, purga, backup
   src/db/        ÚNICO lugar que fala com o banco: schema, repositórios, admin
 apps/mobile      app Expo (development build), SQLite local
-packages/core    lógica pura, sem Node nem React Native: IDs, validação, sync, (F3) RRULE, (F6) XP
+  drizzle/       migrações do SQLite, aplicadas na abertura do app
+packages/core    lógica pura, sem Node nem React Native: IDs, datas, validação, sync, (F3) RRULE, (F6) XP
+  src/local/     schema do SQLite do aparelho
 ```
 
 ## Banco
@@ -72,6 +74,55 @@ Toda tabela nova do servidor segue estes passos, na mesma migração ou em migra
       `server_updated_at` com o trigger `carimbar_servidor` (relógio do servidor, para o cursor)
 - [ ] acesso só pelo repositório escopado em `src/db/repositorios.ts`
 - [ ] `npm test -w @compasso/api` — o teste `rls.test.ts` falha se a tabela ficar sem RLS ou sem política
+
+## App
+
+O app roda em **development build**, nunca no Expo Go (alarme exato do Android 12+ e tarefas de
+background não existem no Expo Go — roadmap §6).
+
+### Gerar e instalar um build
+
+Com Android Studio (SDK + um aparelho em modo depurador USB) ou Xcode:
+
+```sh
+cd apps/mobile
+npx expo run:android --device     # compila o projeto nativo e instala no aparelho
+npx expo run:ios --device
+npm start                         # servidor do Metro para o development build (recarga de código)
+```
+
+Sem máquina com SDK nativo, o EAS Build compila na nuvem: `npx eas build --profile development`
+(exige conta Expo e um `eas.json`, que ainda não existe no repositório).
+
+Um build novo **não** apaga o SQLite: as migrações locais (`apps/mobile/drizzle/`) rodam na
+abertura e são aditivas.
+
+### Primeira abertura
+
+A aba Perfil pede a URL da API (a do túnel, ou `http://<ip-da-máquina>:3000` em desenvolvimento) e
+o token impresso por `conta:criar`. Os dois vão para o `expo-secure-store`. A partir daí, cada
+abertura tenta `GET /me`, grava no SQLite e a tela lê sempre do SQLite — sem rede, mostra o que já
+estava gravado.
+
+### `packages/core` no Metro
+
+O app importa `@compasso/core` e `@compasso/core/local` pelo nome do pacote, igual à API. Desde o
+SDK 52 o Expo detecta os workspaces do npm e configura o Metro sozinho; `metro.config.js` só
+acrescenta a extensão `.sql` das migrações. Duas regras evitam o problema clássico de React
+duplicado:
+
+- `overrides` no `package.json` da raiz fixa `react`, `react-native` e `react-native-worklets` nas
+  versões do SDK — sem isso, dependências com `peerDependencies: react: *` puxam outra versão;
+- não configurar `watchFolders`/`nodeModulesPaths` à mão.
+
+Verificação sem aparelho: `npm run export:android -w @compasso/mobile` empacota o bundle Hermes
+inteiro, incluindo o core.
+
+### Diagnóstico
+
+Perfil → "Diagnóstico de fuso e IDs" formata o mesmo instante em UTC, São Paulo, Tóquio e Nova York
+(nos dois lados da mudança de horário de verão) e compara com o valor esperado, e gera três
+UUIDv7 com a aleatoriedade do `expo-crypto`. É temporária: sai quando a F2 tiver telas com data.
 
 ## Testes
 

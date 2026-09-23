@@ -28,4 +28,10 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
     },
   },
+  {
+    // Configs do Expo/Metro/Babel são CommonJS por exigência das ferramentas.
+    files: ['apps/mobile/*.config.js'],
+    languageOptions: { sourceType: 'commonjs' },
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
 );

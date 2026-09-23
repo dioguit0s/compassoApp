@@ -29,6 +29,12 @@ encontra ao abrir o repositório. Ficam registradas juntas aqui.
 | Papéis do banco | **`compasso_owner`** (dono: migrações, scripts, purga, backup) e **`compasso_app`** (API) | Um papel só | Dono de tabela ignora RLS; a API precisa de um papel que não seja dono nem superusuário |
 | RLS | **`ENABLE`**, não `FORCE` | `FORCE ROW LEVEL SECURITY` | O papel da API nunca é dono, então `ENABLE` já o sujeita às políticas; `FORCE` bloquearia também os scripts do dono (criação de conta, purga), que rodam fora de requisição |
 | Resolução do token | **Função `SECURITY DEFINER` `resolver_token(hash)`** | Dar `SELECT` em `api_tokens` à API | O middleware precisa do `userId` antes de existir `app.user_id`; a função expõe só essa consulta, e a tabela continua invisível para a API |
+| App | **Expo SDK 57 com development build** e **Expo Router** (abas por arquivo) | Expo Go; React Navigation direto | Expo Go não tem alarme exato do Android 12+ (roadmap §6); o Router é a navegação padrão do SDK |
+| Configuração do Metro | **Automática do Expo para monorepo** + `sourceExts` com `sql` | `watchFolders`/`nodeModulesPaths` à mão | Desde o SDK 52 o Expo detecta workspaces; configuração manual sobrescreve a automática. React duplicado é evitado com `overrides` na raiz |
+| URL e token no app | **`expo-secure-store`**, digitados na primeira abertura | `EXPO_PUBLIC_*` | Variável `EXPO_PUBLIC_*` é embutida em texto puro no bundle |
+| Schema do SQLite | **Em `packages/core/src/local`**, migrações em `apps/mobile/drizzle` | Schema dentro do app | O motor de sync e o repositório local rodam também nos testes em Node, sobre o mesmo schema |
+| Datas no SQLite | **Inteiro, epoch ms UTC**, em toda coluna de data | Texto ISO 8601 | Um formato só; a comparação do LWW é numérica |
+| Datas e fusos | **`Intl.DateTimeFormat` nativo do Hermes** para formatação com fuso; `date-fns` v4 + `@date-fns/tz` quando a F2 precisar de aritmética de calendário | Luxon, Day.js, Temporal polyfill | `@date-fns/tz` é construído sobre o mesmo `Intl`, sem base de fusos embutida. Se o diagnóstico no aparelho falhar, o plano B é `@formatjs/intl-datetimeformat` com os dados de fuso |
 | Exclusão física | **A API não tem `DELETE` em nenhuma tabela** | Confiar no repositório | A purga de tombstones roda com o papel dono, fora da API |
 
 ## Consequências
