@@ -373,6 +373,12 @@ constraint, porque todos dependem de estado anterior ou de regra de fluxo:
 **Timezone é armazenado junto com a data.** É barato agora e caro depois: a primeira viagem ou
 mudança de regra de horário quebra o calendário inteiro.
 
+`DECIDIDO` **Todo horário é hora de São Paulo** ([ADR-0003](adr/0003-fuso-fixo-de-sao-paulo.md)):
+exibição, entrada, dia civil e notificação usam `America/Sao_Paulo`, independente do fuso do
+aparelho. Todo item é gravado com `timezone = "America/Sao_Paulo"`. Evento de dia inteiro guarda
+`startAt` na meia-noite do primeiro dia e `endAt` na meia-noite do dia seguinte ao último (fim
+exclusivo).
+
 ### 5.1 Recorrência
 
 O padrão é **RRULE (RFC 5545)**, guardado como string na entidade-mãe. Formato próprio está fora de
@@ -832,6 +838,9 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 > **Resolvida.** *Offline-first* constava aqui como decisão não confirmada, em contradição com a
 > seção 6.2. Fica valendo a 6.2: offline-first entra na v1 desde o início. Ver
 > [`roadmap.md`](roadmap.md), seção 2.
+>
+> **Resolvida.** *Fuso ao viajar*: todo horário é hora de São Paulo. Ver
+> [ADR-0003](adr/0003-fuso-fixo-de-sao-paulo.md) e a seção 5.
 
 - **Tamanho da janela de segurança do cursor de sync.** A seção 6.6 decide que o pull recua alguns
   segundos para não perder escrita que fez commit fora de ordem. Falta escolher o número. Curto
@@ -849,9 +858,6 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 - **Backup ao abrir para amigos.** A rotina atual (dump diário local, sem cópia externa) é adequada
   a um app de um usuário. Quando as contas de amigos entrarem, o dado deixa de ser só do autor e a
   cópia fora da máquina volta à mesa.
-- **Fuso ao viajar.** Compromisso marcado às 14:00 em São Paulo deve aparecer às 14:00 locais ou às
-  14:00 de São Paulo quando o aparelho está em outro fuso? As duas respostas são defensáveis e
-  dependem do tipo de evento; a RFC não decide por você.
 - **Curva de nível.** Os números da seção 4.4 são chute. Só se calibram com um mês de uso real.
 - **Régua de esforço.** Os exemplos de referência precisam ser escritos pelo autor, com tarefas da
   vida dele. Sem isso a escala não ancora.

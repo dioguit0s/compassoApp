@@ -376,3 +376,36 @@ describe('repositório local (CRUD offline)', () => {
     expect(a.repo.obter(item.id)!.effort).toBeNull();
   });
 });
+
+describe('consulta local por intervalo', () => {
+  it('mesma regra que itemNoIntervalo do core', async () => {
+    const { itemNoIntervalo, instanteDeParede, intervaloDosDias, limitesDiaInteiro } =
+      await import('@compasso/core');
+    const { a } = await doisAparelhos('Intervalo');
+    const sp = (d: number, h: number) => instanteDeParede(2026, 9, d, h, 0);
+    const mk = (titulo: string, startAt: Date, endAt: Date | null, allDay = false) =>
+      a.repo.criar({ ...novoEvento(titulo), startAt, endAt, allDay });
+    mk('três dias desde ontem', sp(22, 10), sp(24, 18));
+    mk('termina à meia-noite de ontem', sp(22, 22), sp(23, 0));
+    mk('pontual hoje', sp(23, 9), null);
+    mk('pontual ontem', sp(22, 9), null);
+    mk('amanhã', sp(24, 9), sp(24, 10));
+    const di = limitesDiaInteiro('2026-09-23', '2026-09-23');
+    mk('dia inteiro hoje', di.startAt, di.endAt, true);
+    const excluido = mk('excluído', sp(23, 12), null);
+    a.repo.excluir(excluido.id);
+
+    const { de, ate } = intervaloDosDias('2026-09-23', '2026-09-23');
+    const viaSql = a.repo
+      .listarNoIntervalo(de, ate)
+      .map((i) => i.title)
+      .sort();
+    const viaCore = a.repo
+      .listar()
+      .filter((i) => itemNoIntervalo(i, de, ate))
+      .map((i) => i.title)
+      .sort();
+    expect(viaSql).toEqual(['dia inteiro hoje', 'pontual hoje', 'três dias desde ontem']);
+    expect(viaSql).toEqual(viaCore);
+  });
+});

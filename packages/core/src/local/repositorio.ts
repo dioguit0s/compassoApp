@@ -1,4 +1,17 @@
-import { and, asc, eq, inArray, isNotNull, isNull, lt, notInArray } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  notInArray,
+  or,
+} from 'drizzle-orm';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { novoId } from '../id';
 import { violacoesDeInvariante, type ItemWire } from '../item';
@@ -161,6 +174,32 @@ export class RepositorioLocal implements ArmazemLocal {
       .where(isNull(items.deletedAt))
       .orderBy(asc(items.startAt), asc(items.dueAt), asc(items.id))
       .all();
+  }
+
+  /**
+   * Itens simples (sem recorrência) que caem em `[de, ate)` — a mesma regra de
+   * `itemNoIntervalo` do core, em SQL. Devolve a consulta sem executar, para a tela poder
+   * observá-la com `useLiveQuery`; `listarNoIntervalo` executa.
+   */
+  consultaNoIntervalo(de: Date, ate: Date) {
+    const tarefa = and(eq(items.kind, 'task'), gte(items.dueAt, de), lt(items.dueAt, ate));
+    const evento = and(
+      eq(items.kind, 'event'),
+      lt(items.startAt, ate),
+      or(
+        and(isNotNull(items.endAt), gt(items.endAt, items.startAt), gt(items.endAt, de)),
+        and(or(isNull(items.endAt), lte(items.endAt, items.startAt)), gte(items.startAt, de)),
+      ),
+    );
+    return this.db
+      .select()
+      .from(items)
+      .where(and(isNull(items.deletedAt), isNull(items.rrule), or(tarefa, evento)))
+      .orderBy(asc(items.startAt), asc(items.dueAt));
+  }
+
+  listarNoIntervalo(de: Date, ate: Date): ItemLocal[] {
+    return this.consultaNoIntervalo(de, ate).all();
   }
 
   // ---- lado local da sincronização ---------------------------------------------------------

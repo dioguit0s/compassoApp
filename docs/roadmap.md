@@ -431,7 +431,7 @@ adiável. Uma questão fora deste mapa é uma questão que não precisa de respo
 | Questão aberta | Precisa de resposta até | Se ficar sem resposta |
 |---|---|---|
 | Offline-first | **resolvida** | — |
-| Fuso ao viajar | F2 | A primeira viagem mostra compromissos na hora errada |
+| Fuso ao viajar | **resolvida** — hora de São Paulo sempre ([ADR-0003](adr/0003-fuso-fixo-de-sao-paulo.md)) | — |
 | Fim de semestre | F5 | A aba Hoje não sabe o que exibir num dia sem semestre ativo |
 | Curva de nível | F9 | Nada quebra; o nível fica sem significado |
 | Régua de esforço | F6 | A escala infla e o radar deixa de comparar com o passado |
