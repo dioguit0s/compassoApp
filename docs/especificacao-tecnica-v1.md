@@ -105,6 +105,9 @@ resto do Compasso é infraestrutura para elas.
 - **Editável enquanto o item está no futuro. Congelado no instante em que ele entra no dia
   corrente.** Isso remove o incentivo de inflar a nota depois de descobrir que a tarefa era pior
   do que parecia.
+- `DECIDIDO` O congelamento é **gravado** em `effortLockedAt` quando o dia do item chega (em São
+  Paulo), pelo app e pela API — não derivado da data, para adiar não destravar. Trava esforço e
+  atributos. Ver [ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md).
 
 ### 4.2 Atributos `DECIDIDO`
 
@@ -443,6 +446,17 @@ sem punição por quebrar.
 
 Editar a série altera **apenas ocorrências futuras**. Lançamentos de XP passados nunca são
 recalculados, porque foram fatos consumados sob a regra vigente na época.
+
+### completions
+
+```
+{ _id /* chave de idempotência, gerada no aparelho */, userId, itemId,
+  occurrenceDate: Date | null, action: "complete" | "uncomplete", at: Date, createdAt }
+```
+
+`DECIDIDO` Concluir e desfazer são **eventos** append-only. O servidor processa cada evento novo e
+gera `xpEntries` e `coinEntries`; o status do item é derivado do ledger
+([ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md)).
 
 ### xpEntries
 
@@ -852,6 +866,9 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 > **Resolvida.** *Fuso ao viajar*: todo horário é hora de São Paulo. Ver
 > [ADR-0003](adr/0003-fuso-fixo-de-sao-paulo.md) e a seção 5.
 >
+> **Resolvida.** *Estorno de moeda*: o saldo pode ficar negativo; nenhum resgate até voltar a
+> zero. Ver [ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md).
+>
 > **Resolvida.** *Fim de semestre*: um semestre corrente por vez, e as datas limitam a projeção
 > (férias sem aulas). Ver [ADR-0005](adr/0005-semestre-corrente-e-grade.md).
 
@@ -881,8 +898,6 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 - **XP por presença em aula.** Tentador e provavelmente errado: exigiria transformar cada aula numa
   ocorrência completável, que é exatamente o que a seção 5 evita. Se for muito desejado depois, o
   caminho barato é um check-in diário único que credita XP fixo em Mente, sem materializar nada.
-- **Estorno de moeda.** Desfazer a conclusão de um item cuja moeda já foi gasta em recompensa deixa
-  o saldo negativo. Comportamento não definido.
 - **Modelo de autenticação real.** Quando as contas de amigos entrarem: senha própria, link mágico
   por e-mail ou login social. Cada opção arrasta infraestrutura diferente (envio de e-mail,
   credenciais de OAuth) e nenhuma é necessária antes disso.

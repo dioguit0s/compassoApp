@@ -9,6 +9,9 @@ import { Text, View } from 'react-native';
 import migracoes from '../drizzle/migrations';
 import { db } from '../src/db';
 import { ProvedorDeDisciplinas } from '../src/disciplinas';
+import { useHoje } from '../src/hooks';
+import { repositorio } from '../src/sync';
+import { ProvedorDeAvisos } from '../src/ui/Aviso';
 import { observarMudancas, reagendar, registrarTarefaDeBackground } from '../src/notificacoes';
 import { atualizarPerfil } from '../src/perfil';
 import { sincronizarAgora } from '../src/sync';
@@ -22,6 +25,13 @@ export default function Raiz() {
   const { success, error } = useMigrations(db, migracoes);
   const router = useRouter();
   const resposta = Notifications.useLastNotificationResponse();
+  const hoje = useHoje();
+
+  // Congelamento preguiçoso (ADR-0006): na abertura e na virada do dia, os itens cujo dia chegou
+  // ganham effortLockedAt — offline, e sincroniza como qualquer campo.
+  useEffect(() => {
+    if (success) repositorio.congelarEsforcosDoDia();
+  }, [success, hoje]);
 
   useEffect(() => {
     if (!success) return;
@@ -61,18 +71,23 @@ export default function Raiz() {
 
   return (
     <ProvedorDeDisciplinas>
-      <StatusBar style="auto" />
-      <Stack>
-        <Stack.Screen name="(abas)" options={{ headerShown: false }} />
-        <Stack.Screen name="diagnostico" options={{ title: 'Diagnóstico' }} />
-        <Stack.Screen name="captura" options={{ title: 'Captura rápida', presentation: 'modal' }} />
-        <Stack.Screen name="item/[id]" options={{ title: 'Item', presentation: 'modal' }} />
-        <Stack.Screen name="notificacoes" options={{ title: 'Lembretes agendados' }} />
-        <Stack.Screen name="importar" options={{ title: 'Importar calendário' }} />
-        <Stack.Screen name="semestre" options={{ title: 'Semestre' }} />
-        <Stack.Screen name="disciplina" options={{ title: 'Disciplina' }} />
-        <Stack.Screen name="aula" options={{ title: 'Aula', presentation: 'modal' }} />
-      </Stack>
+      <ProvedorDeAvisos>
+        <StatusBar style="auto" />
+        <Stack>
+          <Stack.Screen name="(abas)" options={{ headerShown: false }} />
+          <Stack.Screen name="diagnostico" options={{ title: 'Diagnóstico' }} />
+          <Stack.Screen
+            name="captura"
+            options={{ title: 'Captura rápida', presentation: 'modal' }}
+          />
+          <Stack.Screen name="item/[id]" options={{ title: 'Item', presentation: 'modal' }} />
+          <Stack.Screen name="notificacoes" options={{ title: 'Lembretes agendados' }} />
+          <Stack.Screen name="importar" options={{ title: 'Importar calendário' }} />
+          <Stack.Screen name="semestre" options={{ title: 'Semestre' }} />
+          <Stack.Screen name="disciplina" options={{ title: 'Disciplina' }} />
+          <Stack.Screen name="aula" options={{ title: 'Aula', presentation: 'modal' }} />
+        </Stack>
+      </ProvedorDeAvisos>
     </ProvedorDeDisciplinas>
   );
 }

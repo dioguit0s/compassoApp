@@ -10,6 +10,12 @@ import {
   type HorarioWire,
   type SemestreWire,
 } from './grade';
+import {
+  esquemaConclusao,
+  type ConclusaoWire,
+  type LancamentoWire,
+  type MoedaWire,
+} from './ledger';
 import { esquemaOcorrencia, type OcorrenciaWire } from './ocorrencia';
 import { validarRRule } from './rrule';
 
@@ -132,6 +138,7 @@ export const TABELAS_SYNC = [
   'excecoes',
   'itens',
   'ocorrencias',
+  'conclusoes',
 ] as const;
 export type TabelaSync = (typeof TABELAS_SYNC)[number];
 
@@ -142,6 +149,7 @@ export const ESQUEMAS_SYNC = {
   excecoes: esquemaExcecao,
   itens: esquemaItem,
   ocorrencias: esquemaOcorrencia,
+  conclusoes: esquemaConclusao,
 } as const;
 
 export interface LinhasSync {
@@ -151,10 +159,20 @@ export interface LinhasSync {
   excecoes: ExcecaoWire[];
   itens: ItemWire[];
   ocorrencias: OcorrenciaWire[];
+  /** Eventos de conclusão (append-only, só inserção). */
+  conclusoes: ConclusaoWire[];
 }
 
 export function linhasVazias(): LinhasSync {
-  return { semestres: [], disciplinas: [], horarios: [], excecoes: [], itens: [], ocorrencias: [] };
+  return {
+    semestres: [],
+    disciplinas: [],
+    horarios: [],
+    excecoes: [],
+    itens: [],
+    ocorrencias: [],
+    conclusoes: [],
+  };
 }
 
 const lista = <T extends z.ZodType>(e: T) => z.array(e).max(1000).default([]);
@@ -165,6 +183,7 @@ export const esquemaPush = z.object({
   excecoes: lista(esquemaExcecao),
   itens: lista(esquemaItem),
   ocorrencias: lista(esquemaOcorrencia),
+  conclusoes: lista(esquemaConclusao),
 });
 export type RequisicaoPush = z.input<typeof esquemaPush>;
 
@@ -179,6 +198,9 @@ export interface ResultadoDaTabela {
 export type RespostaPush = Record<TabelaSync, ResultadoDaTabela>;
 
 export interface RespostaPull extends LinhasSync {
+  /** Ledger gerado pelo servidor (append-only). O aparelho nunca envia lançamentos. */
+  lancamentos: LancamentoWire[];
+  moedas: MoedaWire[];
   /** Relógio do servidor no início da consulta. Opaco para o client. */
   cursor: string;
   /** Prazo da lixeira e da purga de tombstones, em dias. */

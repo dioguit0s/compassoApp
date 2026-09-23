@@ -18,14 +18,31 @@ export function rotasDeSync(config: Config) {
     }
     // Uma transação, cada tabela depois das que ela referencia (ordem de TABELAS_SYNC).
     const d = corpo.data;
-    const resposta: RespostaPush = await c.var.transacao(async (r) => ({
-      semestres: await r.grade.aplicarPush('semestres', d.semestres),
-      disciplinas: await r.grade.aplicarPush('disciplinas', d.disciplinas),
-      horarios: await r.grade.aplicarPush('horarios', d.horarios),
-      excecoes: await r.grade.aplicarPush('excecoes', d.excecoes),
-      itens: await r.itens.aplicarPush(d.itens),
-      ocorrencias: await r.ocorrencias.aplicarPush(d.ocorrencias),
-    }));
+    const resposta: RespostaPush = await c.var.transacao(async (r) => {
+      const semestres = await r.grade.aplicarPush('semestres', d.semestres);
+      const disciplinas = await r.grade.aplicarPush('disciplinas', d.disciplinas);
+      const horarios = await r.grade.aplicarPush('horarios', d.horarios);
+      const excecoes = await r.grade.aplicarPush('excecoes', d.excecoes);
+      const itens = await r.itens.aplicarPush(d.itens);
+      const ocorrencias = await r.ocorrencias.aplicarPush(d.ocorrencias);
+      // Depois de itens e desvios: o evento de conclusão enxerga o item já atualizado.
+      const { aplicados, ignorados } = await r.conclusoes.aplicarPush(d.conclusoes);
+      // O status volta a ser o do ledger, mesmo que um aparelho desatualizado o tenha
+      // sobrescrito pelo LWW (ADR-0006).
+      await r.status.derivarDosEnviados(
+        d.itens.filter((i) => i.effort !== null && !i.rrule).map((i) => i.id),
+        d.ocorrencias,
+      );
+      return {
+        semestres,
+        disciplinas,
+        horarios,
+        excecoes,
+        itens,
+        ocorrencias,
+        conclusoes: { aplicados, ignorados },
+      };
+    });
     return c.json(resposta);
   });
 

@@ -382,3 +382,91 @@ export const classExceptions = pgTable(
     politica('class_exceptions_dono', t.userId),
   ],
 );
+
+// ---- gamificação (F6/F7): eventos de conclusão e ledger (ADR-0006) ---------------------------
+// Append-only: a API tem só SELECT e INSERT nestas tabelas (migração 0011) — não existe caminho
+// de UPDATE ou DELETE. Sem FK para items: o ledger sobrevive à purga do item (especificação §5).
+
+export const completions = pgTable(
+  'completions',
+  {
+    /** Gerado no aparelho no toque: é a chave de idempotência da conclusão. */
+    id: uuid().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    itemId: uuid().notNull(),
+    occurrenceDate: date({ mode: 'string' }),
+    action: text({ enum: ['complete', 'uncomplete'] }).notNull(),
+    at: timestamp(tz).notNull(),
+    /** Resultado do processamento no servidor: `creditar`, `estornar` ou o motivo do no-op. */
+    efeito: text().notNull(),
+    createdAt: timestamp(tz).notNull(),
+    serverUpdatedAt: timestamp(tz)
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (t) => [
+    index('completions_user_id_server_updated_at_idx').on(t.userId, t.serverUpdatedAt),
+    index('completions_alvo_idx').on(t.userId, t.itemId, t.occurrenceDate),
+    check('completions_action_check', sql`${t.action} in ('complete', 'uncomplete')`),
+    politica('completions_dono', t.userId),
+  ],
+);
+
+export const xpEntries = pgTable(
+  'xp_entries',
+  {
+    id: uuid().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    itemId: uuid().notNull(),
+    occurrenceDate: date({ mode: 'string' }),
+    completionId: uuid()
+      .notNull()
+      .references(() => completions.id),
+    attribute: text({ enum: ATRIBUTOS }).notNull(),
+    /** Décimos inteiros; negativo só em estorno. */
+    points: integer().notNull(),
+    earnedAt: timestamp(tz).notNull(),
+    serverUpdatedAt: timestamp(tz)
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (t) => [
+    // Janela de 30 dias do radar (especificação §5).
+    index('xp_entries_user_id_attribute_earned_at_idx').on(t.userId, t.attribute, t.earnedAt),
+    index('xp_entries_alvo_idx').on(t.userId, t.itemId, t.occurrenceDate),
+    index('xp_entries_user_id_server_updated_at_idx').on(t.userId, t.serverUpdatedAt),
+    check('xp_entries_attribute_check', sql`${t.attribute} in (${listaAtributos})`),
+    check('xp_entries_points_check', sql`${t.points} <> 0`),
+    politica('xp_entries_dono', t.userId),
+  ],
+);
+
+export const coinEntries = pgTable(
+  'coin_entries',
+  {
+    id: uuid().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    /** + ganho, − resgate ou estorno. O saldo é a soma, sem campo materializado (§5). */
+    amount: integer().notNull(),
+    source: text({ enum: ['task', 'redemption'] }).notNull(),
+    /** Conclusão (source = task) ou resgate (source = redemption) que gerou o lançamento. */
+    refId: uuid().notNull(),
+    createdAt: timestamp(tz).notNull(),
+    serverUpdatedAt: timestamp(tz)
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (t) => [
+    index('coin_entries_user_id_server_updated_at_idx').on(t.userId, t.serverUpdatedAt),
+    index('coin_entries_ref_idx').on(t.userId, t.refId),
+    check('coin_entries_source_check', sql`${t.source} in ('task', 'redemption')`),
+    check('coin_entries_amount_check', sql`${t.amount} <> 0`),
+    politica('coin_entries_dono', t.userId),
+  ],
+);

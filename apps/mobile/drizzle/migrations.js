@@ -6,6 +6,7 @@ import m0001 from './0001_items_e_metadados.sql';
 import m0002 from './0002_ocorrencias.sql';
 import m0003 from './0003_items_source_uid.sql';
 import m0004 from './0004_grade_academica.sql';
+import m0005 from './0005_conclusoes_e_ledger.sql';
 
   export default {
     journal,
@@ -14,7 +15,8 @@ import m0004 from './0004_grade_academica.sql';
 m0001,
 m0002,
 m0003,
-m0004
+m0004,
+m0005
     }
   }
   

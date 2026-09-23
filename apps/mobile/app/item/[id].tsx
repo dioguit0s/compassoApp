@@ -28,6 +28,10 @@ import { CampoDataHora } from '../../src/ui/CampoDataHora';
 import { EditorRecorrencia } from '../../src/ui/EditorRecorrencia';
 import { useGrade } from '../../src/hooks';
 import { Chip } from '../../src/ui/Campos';
+import { SeletorEsforco, type Pontuacao } from '../../src/ui/SeletorEsforco';
+import { useAviso } from '../../src/ui/Aviso';
+import { descreverEfeito } from '../../src/conclusao';
+import type { Esforco } from '@compasso/core';
 
 const LEMBRETES: { rotulo: string; minutos: number | null }[] = [
   { rotulo: 'Nenhum', minutos: null },
@@ -103,12 +107,20 @@ function Formulario({
   const [lembrete, setLembrete] = useState<number | null>(item.reminderMinutesBefore);
   const [rrule, setRrule] = useState<string | null>(item.rrule);
   const [disciplina, setDisciplina] = useState<string | null>(item.courseId);
+  const [pontuacao, setPontuacao] = useState<Pontuacao>({
+    effort: item.effort as Esforco | null,
+    primaryAttribute: item.primaryAttribute,
+    secondaryAttribute: item.secondaryAttribute,
+  });
+  const [tipo, setTipo] = useState<'task' | 'event'>(item.kind);
+  const congelado = item.effortLockedAt !== null;
+  const aviso = useAviso();
   const grade = useGrade();
   const ativo = grade.semestres.find((s) => s.active);
   const disciplinas = grade.disciplinas.filter((c) => c.semesterId === ativo?.id);
   const [erros, setErros] = useState<string[]>([]);
-  const ehTarefa = item.kind === 'task';
-  const concluivel = ocorrencia !== null && item.effort !== null;
+  const ehTarefa = tipo === 'task';
+  const concluivel = item.effort !== null;
 
   // Dia inteiro guarda fim exclusivo; na tela, mostra o último dia (inclusive).
   const primeiroDia: Dia = diaDe(inicio);
@@ -139,8 +151,12 @@ function Formulario({
   const mudancasDoItem = (): Partial<DadosItem> => ({
     title: titulo.trim(),
     notes: notas.trim() ? notas : null,
+    kind: tipo,
     allDay: ehTarefa ? false : diaInteiro,
-    ...(ehTarefa ? { dueAt: inicio } : { startAt: inicio, endAt: fim }),
+    ...(ehTarefa
+      ? { dueAt: inicio, startAt: null, endAt: null }
+      : { startAt: inicio, endAt: fim, dueAt: null }),
+    ...(congelado ? {} : pontuacao),
     reminderMinutesBefore: lembrete,
     courseId: disciplina,
     ...(rrule !== item.rrule ? { rrule } : {}),
@@ -236,30 +252,57 @@ function Formulario({
       {concluivel ? (
         <Pressable
           onPress={() =>
-            tentar(() =>
-              vivo?.status === 'done'
-                ? repositorio.reabrirOcorrencia(item.id, ocorrencia!)
-                : repositorio.concluirOcorrencia(item.id, ocorrencia!),
-            )
+            tentar(() => {
+              const feito = ocorrencia ? vivo?.status === 'done' : item.status === 'done';
+              const efeito = feito
+                ? repositorio.desfazerConclusao(item.id, ocorrencia)
+                : repositorio.concluir(item.id, ocorrencia);
+              if (efeito.tipo !== 'nada') aviso({ texto: descreverEfeito(efeito) });
+            })
           }
           style={[estilos.botao, { borderColor: tema.pontuavel }]}
         >
           <Text style={{ color: tema.pontuavel, fontWeight: '600' }}>
-            {vivo?.status === 'done' ? 'Desfazer conclusão' : 'Concluir esta ocorrência'}
+            {(ocorrencia ? vivo?.status : item.status) === 'done'
+              ? 'Desfazer conclusão'
+              : ocorrencia
+                ? 'Concluir esta ocorrência'
+                : 'Concluir'}
           </Text>
         </Pressable>
       ) : null}
+      {concluivel && !ocorrencia && !item.rrule && item.status !== 'done' ? (
+        <Pressable
+          onPress={() => tentar(() => repositorio.adiar(item.id, 1))}
+          style={[estilos.botao, { borderColor: tema.borda }]}
+        >
+          <Text style={{ color: tema.texto }}>Adiar para amanhã</Text>
+        </Pressable>
+      ) : null}
+      {item.postponeCount > 0 ? (
+        <Text style={{ color: tema.sutil }}>
+          Adiada {item.postponeCount} {item.postponeCount === 1 ? 'vez' : 'vezes'}.
+        </Text>
+      ) : null}
 
-      <View style={estilos.linha}>
-        <Text style={{ color: tema.sutil }}>Tipo</Text>
-        <Text style={{ color: tema.texto }}>
-          {ehTarefa ? 'Tarefa (pontua)' : item.effort ? 'Evento que pontua' : 'Compromisso'}
-        </Text>
-      </View>
-      {!ehTarefa && item.effort === null ? (
-        <Text style={[estilos.dica, { color: tema.sutil }]}>
-          Tarefas e esforço entram com a gamificação. Por enquanto, todo item é compromisso.
-        </Text>
+      <Text style={{ color: tema.sutil }}>Esforço</Text>
+      <SeletorEsforco
+        valor={pontuacao}
+        congelado={congelado}
+        aoMudar={(p) => {
+          setPontuacao(p);
+          if (p.effort === null) setTipo('event'); // tarefa exige esforço
+        }}
+      />
+      {pontuacao.effort !== null && !ocorrencia ? (
+        <View style={estilos.chips}>
+          <Chip
+            rotulo="Evento (horário)"
+            ativo={tipo === 'event'}
+            aoTocar={() => setTipo('event')}
+          />
+          <Chip rotulo="Tarefa (prazo)" ativo={tipo === 'task'} aoTocar={() => setTipo('task')} />
+        </View>
       ) : null}
 
       {ehTarefa ? (

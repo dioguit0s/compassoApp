@@ -1,10 +1,19 @@
 import {
   aulasDoDia,
+  deveCongelar,
+  efeitoDaConclusao,
+  FUSO_PADRAO,
+  medidasDoRadar,
+  type ConclusaoWire,
+  type EfeitoDaConclusao,
+  type LancamentoWire,
+  type MoedaWire,
   diaDe,
   somarDias,
   type Aula,
   type LinhasSync,
   ESQUEMAS_SYNC,
+  esquemaItem,
   ehOcorrencia,
   fimDaSerie,
   novoId,
@@ -17,6 +26,7 @@ import {
 } from '@compasso/core';
 import {
   and,
+  desc,
   eq,
   getTableColumns,
   gt,
@@ -34,11 +44,14 @@ import type { Tx } from './banco';
 import {
   classExceptions,
   classSlots,
+  coinEntries,
+  completions,
   courses,
   itemOccurrences,
   items,
   semesters,
   users,
+  xpEntries,
 } from './schema';
 
 export type Usuario = typeof users.$inferSelect;
@@ -113,6 +126,8 @@ function wireParaLinha(w: ItemWire, userId: string) {
   // Desnormalizado, então o servidor recalcula em vez de confiar no client.
   const serie = serieDaLinha(linha);
   linha.recurrenceEndsAt = serie ? fimDaSerie(serie) : null;
+  // Congelamento preguiçoso também no servidor (ADR-0006): o dia chegou, o esforço trava.
+  if (deveCongelar(linha, diaDe(new Date(), FUSO_PADRAO))) linha.effortLockedAt = new Date();
   return linha;
 }
 
@@ -148,7 +163,25 @@ function colunasDoConflito(tabela: any, fixas: string[]) {
       .map((k) => [k, sql.raw(`excluded."${snake(k)}"`)]),
   );
 }
-const conflitoItens = colunasDoConflito(items, ['id']);
+/**
+ * Esforço congelado não muda mais, nem a distribuição entre atributos (§4.1): no conflito, se a
+ * linha do servidor já tem `effort_locked_at`, esses campos ficam os do servidor, e o
+ * congelamento nunca é desfeito. `status`/`completed_at` são derivados do ledger depois
+ * (ADR-0006), então o valor do client aqui é só provisório.
+ */
+const conflitoItens = {
+  ...colunasDoConflito(items, ['id']),
+  effort: sql.raw(
+    `case when "items"."effort_locked_at" is not null then "items"."effort" else excluded."effort" end`,
+  ),
+  primaryAttribute: sql.raw(
+    `case when "items"."effort_locked_at" is not null then "items"."primary_attribute" else excluded."primary_attribute" end`,
+  ),
+  secondaryAttribute: sql.raw(
+    `case when "items"."effort_locked_at" is not null then "items"."secondary_attribute" else excluded."secondary_attribute" end`,
+  ),
+  effortLockedAt: sql.raw(`coalesce("items"."effort_locked_at", excluded."effort_locked_at")`),
+};
 const conflitoOcorrencias = colunasDoConflito(itemOccurrences, ['id', 'itemId', 'occurrenceDate']);
 
 /** A regra de `itemNoIntervalo` do core, em SQL. */
@@ -192,6 +225,46 @@ function wireParaGrade(w: Record<string, unknown>, userId: string): Record<strin
   const l: Record<string, unknown> = { ...w, userId };
   for (const c of CARIMBOS) l[c] = w[c] ? new Date(w[c] as string) : null;
   return l;
+}
+
+function somaPorAtributoNaoZero(xp: { attribute: string; points: number }[]): boolean {
+  const m = new Map<string, number>();
+  for (const x of xp) m.set(x.attribute, (m.get(x.attribute) ?? 0) + x.points);
+  return [...m.values()].some((v) => v !== 0);
+}
+
+function conclusaoParaWire(c: typeof completions.$inferSelect): ConclusaoWire {
+  return {
+    id: c.id,
+    itemId: c.itemId,
+    occurrenceDate: c.occurrenceDate,
+    action: c.action,
+    at: c.at.toISOString(),
+    createdAt: c.createdAt.toISOString(),
+    updatedAt: c.createdAt.toISOString(),
+  };
+}
+
+function lancamentoParaWire(l: typeof xpEntries.$inferSelect): LancamentoWire {
+  return {
+    id: l.id,
+    itemId: l.itemId,
+    occurrenceDate: l.occurrenceDate,
+    completionId: l.completionId,
+    attribute: l.attribute,
+    points: l.points,
+    earnedAt: l.earnedAt.toISOString(),
+  };
+}
+
+function moedaParaWire(m: typeof coinEntries.$inferSelect): MoedaWire {
+  return {
+    id: m.id,
+    amount: m.amount,
+    source: m.source,
+    refId: m.refId,
+    createdAt: m.createdAt.toISOString(),
+  };
 }
 
 export class ErroDeGrade extends Error {
@@ -253,6 +326,60 @@ export function criarRepositorios(tx: Tx, userId: string) {
         .from(items)
         .where(and(doUsuario, eq(items.id, id), isNull(items.deletedAt)));
       return l ?? null;
+    },
+
+    /**
+     * `PATCH /items/:id` (§6.3): edição direta pela API, com a mesma validação do sync. Recusa
+     * mudar esforço ou atributos de item congelado — a mesma regra que a UI aplica (§11).
+     */
+    async editar(id: string, mudancas: Partial<ItemWire>): Promise<ItemWire> {
+      const atual = await itensRepo.obterLinha(id);
+      if (!atual) throw new ErroDeOcorrencia(404, 'item não encontrado');
+      const w = itemParaWire(atual);
+      if (atual.effortLockedAt) {
+        for (const k of ['effort', 'primaryAttribute', 'secondaryAttribute'] as const) {
+          if (k in mudancas && mudancas[k] !== w[k]) {
+            throw new ErroDeOcorrencia(409, 'esforço congelado: o item já entrou no dia');
+          }
+        }
+      }
+      const agora = await relogio();
+      const novo: ItemWire = { ...w, ...mudancas, id, updatedAt: agora.toISOString() };
+      const r = esquemaItem.safeParse(novo);
+      if (!r.success)
+        throw new ErroDeOcorrencia(422, r.error.issues.map((i) => i.message).join('; '));
+      await tx
+        .update(items)
+        .set(wireParaLinha(r.data, userId))
+        .where(and(doUsuario, eq(items.id, id)));
+      return itemParaWire((await itensRepo.obterLinha(id))!);
+    },
+
+    /**
+     * Adiar (§4.7): move a data e soma 1 ao contador numa instrução só — `postpone_count + 1` no
+     * banco, não um valor calculado no client. Só pontuável e simples conta adiamento.
+     */
+    async adiar(id: string, para: Date): Promise<ItemWire> {
+      const atual = await itensRepo.obterLinha(id);
+      if (!atual) throw new ErroDeOcorrencia(404, 'item não encontrado');
+      if (atual.effort === null)
+        throw new ErroDeOcorrencia(409, 'compromisso sem esforço não é adiado');
+      if (atual.rrule) throw new ErroDeOcorrencia(409, 'série: mova a ocorrência em vez de adiar');
+      const inicio = (atual.kind === 'task' ? atual.dueAt : atual.startAt)!;
+      const delta = para.getTime() - inicio.getTime();
+      const mover = (d: Date | null) => (d ? new Date(d.getTime() + delta) : null);
+      const agora = await relogio();
+      await tx
+        .update(items)
+        .set({
+          dueAt: mover(atual.dueAt),
+          startAt: mover(atual.startAt),
+          endAt: mover(atual.endAt),
+          postponeCount: sql`${items.postponeCount} + 1`,
+          updatedAt: agora,
+        })
+        .where(and(doUsuario, eq(items.id, id)));
+      return itemParaWire((await itensRepo.obterLinha(id))!);
     },
 
     /**
@@ -359,7 +486,7 @@ export function criarRepositorios(tx: Tx, userId: string) {
     async registrar(
       itemId: string,
       dataOc: string,
-      operacao: 'complete' | 'cancel' | 'alterar',
+      operacao: 'cancel' | 'alterar',
       mudanca: MudancaDeOcorrencia = {},
     ): Promise<OcorrenciaWire> {
       const item = await itensRepo.obterLinha(itemId);
@@ -368,9 +495,6 @@ export function criarRepositorios(tx: Tx, userId: string) {
       if (!serie) throw new ErroDeOcorrencia(409, 'o item não é uma série');
       if (!ehOcorrencia(serie, dataOc)) {
         throw new ErroDeOcorrencia(422, `${dataOc} não é uma ocorrência desta série`);
-      }
-      if (operacao === 'complete' && item.effort === null) {
-        throw new ErroDeOcorrencia(409, 'compromisso sem esforço não é concluível');
       }
       const [atual] = await tx
         .select()
@@ -383,20 +507,17 @@ export function criarRepositorios(tx: Tx, userId: string) {
           ),
         );
       const vivo = atual && !atual.deletedAt ? atual : null;
-      if (operacao === 'complete' && vivo?.status === 'done') return ocorrenciaParaWire(vivo);
 
       // O driver do Drizzle devolve timestamptz de SQL cru como texto.
       const { rows } = await tx.execute<{ agora: string }>(sql`select now() as agora`);
       const agora = new Date(rows[0]!.agora);
       const campos =
-        operacao === 'complete'
-          ? { type: 'completed' as const, status: 'done' as const, completedAt: agora }
-          : operacao === 'cancel'
-            ? { type: 'cancelled' as const }
-            : {
-                type: mudanca.startAt !== undefined ? ('moved' as const) : ('edited' as const),
-                ...mudanca,
-              };
+        operacao === 'cancel'
+          ? { type: 'cancelled' as const }
+          : {
+              type: mudanca.startAt !== undefined ? ('moved' as const) : ('edited' as const),
+              ...mudanca,
+            };
       const linha = {
         id: atual?.id ?? novoId(),
         userId,
@@ -423,6 +544,256 @@ export function criarRepositorios(tx: Tx, userId: string) {
         })
         .returning();
       return ocorrenciaParaWire(gravada!);
+    },
+  };
+
+  /** Soma líquida do ledger de um alvo (item simples ou ocorrência). */
+  const doAlvo = (t: typeof xpEntries | typeof completions, itemId: string, occ: string | null) =>
+    and(
+      eq(t.userId, userId),
+      eq(t.itemId, itemId),
+      occ === null ? isNull(t.occurrenceDate) : eq(t.occurrenceDate, occ),
+    );
+
+  async function estadoDoAlvo(itemId: string, occ: string | null) {
+    const xp = await tx
+      .select({
+        attribute: xpEntries.attribute,
+        points: xpEntries.points,
+        completionId: xpEntries.completionId,
+      })
+      .from(xpEntries)
+      .where(doAlvo(xpEntries, itemId, occ));
+    const ids = [...new Set(xp.map((x) => x.completionId))];
+    const moedas = ids.length
+      ? await tx
+          .select({ amount: coinEntries.amount })
+          .from(coinEntries)
+          .where(
+            and(
+              eq(coinEntries.userId, userId),
+              eq(coinEntries.source, 'task'),
+              inArray(coinEntries.refId, ids),
+            ),
+          )
+      : [];
+    return {
+      xp: xp.map(({ attribute, points }) => ({ attribute, points })),
+      moedas: moedas.reduce((n, m) => n + m.amount, 0),
+    };
+  }
+
+  /**
+   * Status derivado do ledger (ADR-0006): concluído é quem tem XP líquido creditado. Corrige o
+   * `status` que um aparelho desatualizado tenha sobrescrito por LWW, sem mexer em `updated_at`
+   * (mexer faria o relógio do servidor vencer edições legítimas do aparelho).
+   */
+  async function derivarStatus(itemId: string, occ: string | null): Promise<void> {
+    const [item] = await tx
+      .select()
+      .from(items)
+      .where(and(doUsuario, eq(items.id, itemId)));
+    if (!item || item.effort === null) return;
+    const { xp } = await estadoDoAlvo(itemId, occ);
+    const creditado =
+      xp.reduce((n, x) => n + Math.abs(x.points), 0) > 0 && somaPorAtributoNaoZero(xp);
+    const [ultima] = await tx
+      .select({ at: completions.at })
+      .from(completions)
+      .where(and(doAlvo(completions, itemId, occ), eq(completions.action, 'complete')))
+      .orderBy(desc(completions.at))
+      .limit(1);
+    const status = creditado ? ('done' as const) : ('open' as const);
+    const completedAt = creditado ? (ultima?.at ?? new Date()) : null;
+    if (occ === null) {
+      if (item.rrule) return;
+      if (
+        item.status !== status ||
+        (item.completedAt?.getTime() ?? null) !== (completedAt?.getTime() ?? null)
+      ) {
+        await tx
+          .update(items)
+          .set({ status, completedAt })
+          .where(and(doUsuario, eq(items.id, itemId)));
+      }
+      return;
+    }
+    const [desvio] = await tx
+      .select()
+      .from(itemOccurrences)
+      .where(
+        and(
+          ocDoUsuario,
+          eq(itemOccurrences.itemId, itemId),
+          eq(itemOccurrences.occurrenceDate, occ),
+        ),
+      );
+    if (desvio && !desvio.deletedAt) {
+      if (desvio.status !== status) {
+        await tx
+          .update(itemOccurrences)
+          .set({ status, completedAt })
+          .where(eq(itemOccurrences.id, desvio.id));
+      }
+      return;
+    }
+    if (!creditado) return;
+    const agora = await relogio();
+    await tx
+      .insert(itemOccurrences)
+      .values({
+        id: desvio?.id ?? novoId(),
+        userId,
+        itemId,
+        occurrenceDate: occ,
+        type: 'completed',
+        status,
+        completedAt,
+        startAt: null,
+        endAt: null,
+        titleOverride: null,
+        notesOverride: null,
+        deletedAt: null,
+        createdAt: agora,
+        updatedAt: agora,
+      })
+      .onConflictDoUpdate({
+        target: [itemOccurrences.itemId, itemOccurrences.occurrenceDate],
+        set: { status, completedAt, deletedAt: null },
+      });
+  }
+
+  const conclusoesRepo = {
+    /**
+     * Eventos de conclusão (append-only). Cada evento NOVO passa pela máquina de estados do core
+     * e gera o ledger; repetido (mesmo id, retry) não faz nada. A trava por conta serializa
+     * requisições simultâneas: dois eventos diferentes para o mesmo alvo não creditam duas vezes.
+     */
+    async aplicarPush(
+      recebidos: ConclusaoWire[],
+    ): Promise<ResultadoDaTabela & { efeitos: Map<string, EfeitoDaConclusao> }> {
+      const efeitos = new Map<string, EfeitoDaConclusao>();
+      if (recebidos.length === 0) return { aplicados: [], ignorados: [], efeitos };
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
+      const agora = await relogio();
+      const aplicados: string[] = [];
+      const ignorados: string[] = [];
+      const alvos = new Map<string, [string, string | null]>();
+      for (const ev of [...recebidos].sort(
+        (a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id),
+      )) {
+        const [existe] = await tx
+          .select({ id: completions.id })
+          .from(completions)
+          .where(and(eq(completions.userId, userId), eq(completions.id, ev.id)));
+        if (existe) {
+          ignorados.push(ev.id); // já processado: é o retry, idempotente
+          continue;
+        }
+        const [item] = await tx
+          .select()
+          .from(items)
+          .where(and(doUsuario, eq(items.id, ev.itemId), isNull(items.deletedAt)));
+        let efeito: EfeitoDaConclusao;
+        const serie = item ? serieDaLinha(item) : null;
+        if (
+          item &&
+          ev.occurrenceDate !== null &&
+          (!serie || !ehOcorrencia(serie, ev.occurrenceDate))
+        ) {
+          efeito = { tipo: 'nada', motivo: 'data não é ocorrência da série' };
+        } else if (item && ev.occurrenceDate === null && item.rrule) {
+          efeito = { tipo: 'nada', motivo: 'série: conclua a ocorrência' };
+        } else {
+          const { xp, moedas } = await estadoDoAlvo(ev.itemId, ev.occurrenceDate);
+          efeito = efeitoDaConclusao(ev.action, item ?? null, xp, moedas);
+        }
+        // earnedAt: o momento do toque no aparelho, mas nunca no futuro do servidor.
+        const at = new Date(Math.min(Date.parse(ev.at), agora.getTime()));
+        await tx.insert(completions).values({
+          id: ev.id,
+          userId,
+          itemId: ev.itemId,
+          occurrenceDate: ev.occurrenceDate,
+          action: ev.action,
+          at,
+          efeito: efeito.tipo === 'nada' ? `nada: ${efeito.motivo}` : efeito.tipo,
+          createdAt: agora,
+        });
+        if (efeito.tipo !== 'nada') {
+          await tx.insert(xpEntries).values(
+            efeito.xp.map((x) => ({
+              id: novoId(),
+              userId,
+              itemId: ev.itemId,
+              occurrenceDate: ev.occurrenceDate,
+              completionId: ev.id,
+              attribute: x.attribute,
+              points: x.points,
+              earnedAt: at,
+            })),
+          );
+          if (efeito.moedas !== 0) {
+            await tx.insert(coinEntries).values({
+              id: novoId(),
+              userId,
+              amount: efeito.moedas,
+              source: 'task',
+              refId: ev.id,
+              createdAt: at,
+            });
+          }
+        }
+        efeitos.set(ev.id, efeito);
+        aplicados.push(ev.id);
+        alvos.set(`${ev.itemId}@${ev.occurrenceDate}`, [ev.itemId, ev.occurrenceDate]);
+      }
+      for (const [itemId, occ] of alvos.values()) await derivarStatus(itemId, occ);
+      return { aplicados, ignorados, efeitos };
+    },
+
+    async lancamentosDaConclusao(id: string): Promise<LancamentoWire[]> {
+      const l = await tx
+        .select()
+        .from(xpEntries)
+        .where(and(eq(xpEntries.userId, userId), eq(xpEntries.completionId, id)));
+      return l.map(lancamentoParaWire);
+    },
+  };
+
+  const status = {
+    /** Depois de um push de itens/desvios: o status volta a ser o do ledger. */
+    async derivarDosEnviados(
+      itensIds: string[],
+      desvios: { itemId: string; occurrenceDate: string }[],
+    ) {
+      for (const id of itensIds) await derivarStatus(id, null);
+      for (const d of desvios) await derivarStatus(d.itemId, d.occurrenceDate);
+    },
+  };
+
+  const estatisticas = {
+    /** Radar (§4.5): acumulado e janela de 30 dias por atributo, com o nível do core. */
+    async atributos() {
+      const agora = await relogio();
+      const l = await tx
+        .select({
+          attribute: xpEntries.attribute,
+          points: xpEntries.points,
+          earnedAt: xpEntries.earnedAt,
+        })
+        .from(xpEntries)
+        .where(eq(xpEntries.userId, userId));
+      return medidasDoRadar(l, agora);
+    },
+
+    /** Saldo derivado da soma dos lançamentos (§4.6): sem campo materializado. */
+    async saldo(): Promise<number> {
+      const [r] = await tx
+        .select({ total: sql<string>`coalesce(sum(${coinEntries.amount}), 0)` })
+        .from(coinEntries)
+        .where(eq(coinEntries.userId, userId));
+      return Number(r?.total ?? 0);
     },
   };
 
@@ -775,6 +1146,9 @@ export function criarRepositorios(tx: Tx, userId: string) {
     ocorrencias: ocorrenciasRepo,
     importacao: importacaoRepo,
     grade: gradeRepo,
+    conclusoes: conclusoesRepo,
+    estatisticas,
+    status,
 
     sync: {
       /**
@@ -811,7 +1185,20 @@ export function criarRepositorios(tx: Tx, userId: string) {
         for (const t of TABELAS_DA_GRADE) {
           (saida[t] as unknown) = await gradeRepo.alteradosDesde(t, desde);
         }
-        return { ...saida, cursor: agora!.cursor };
+        const doUser = <T extends typeof completions | typeof xpEntries | typeof coinEntries>(
+          t: T,
+        ) =>
+          desde ? and(eq(t.userId, userId), gt(t.serverUpdatedAt, desde)) : eq(t.userId, userId);
+        saida.conclusoes = (await tx.select().from(completions).where(doUser(completions))).map(
+          conclusaoParaWire,
+        );
+        const lancamentos = (await tx.select().from(xpEntries).where(doUser(xpEntries))).map(
+          lancamentoParaWire,
+        );
+        const moedas = (await tx.select().from(coinEntries).where(doUser(coinEntries))).map(
+          moedaParaWire,
+        );
+        return { ...saida, lancamentos, moedas, cursor: agora!.cursor };
       },
     },
 

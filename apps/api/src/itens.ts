@@ -1,10 +1,11 @@
-import { entradaParaJson } from '@compasso/core';
-import { Hono } from 'hono';
+import { entradaParaJson, novoId } from '@compasso/core';
+import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import type { VariaveisAutenticadas } from './auth';
 import { ErroDeOcorrencia, type MudancaDeOcorrencia } from './db/repositorios';
 
 const dataOc = z.iso.date();
+const uuid = z.uuid();
 const instante = z.iso.datetime({ offset: true });
 
 const esquemaAlteracao = z
@@ -30,11 +31,105 @@ export function rotasDeItens() {
 
   const validarData = (valor: string) => dataOc.safeParse(valor).success;
 
-  rotas.post('/items/:id/occurrences/:date/complete', async (c) => {
-    const { id, date } = c.req.param();
-    if (!validarData(date)) return c.json({ erro: 'data inválida' }, 400);
-    return c.json(await c.var.transacao((r) => r.ocorrencias.registrar(id, date, 'complete')));
+  /**
+   * Concluir/desfazer (§6.3, §6.4): viram um evento de conclusão, o mesmo caminho do sync. A
+   * chave de idempotência é o header `Idempotency-Key` (UUID); sem ele, cada chamada é um evento
+   * novo — mas ainda assim concluir o concluído não credita de novo (ADR-0006).
+   */
+  const conclusao =
+    (acao: 'complete' | 'uncomplete') =>
+    async (c: Context<{ Variables: VariaveisAutenticadas }>) => {
+      const { id, date } = c.req.param() as { id: string; date?: string };
+      if (date !== undefined && !validarData(date)) return c.json({ erro: 'data inválida' }, 400);
+      const chave = c.req.header('idempotency-key') ?? novoId();
+      if (!uuid.safeParse(chave).success)
+        return c.json({ erro: 'Idempotency-Key precisa ser um UUID' }, 400);
+      const agora = new Date().toISOString();
+      const resultado = await c.var.transacao(async (r) => {
+        const item = await r.itens.obterLinha(id);
+        if (!item) throw new ErroDeOcorrencia(404, 'item não encontrado');
+        if (acao === 'complete' && item.effort === null) {
+          throw new ErroDeOcorrencia(409, 'compromisso sem esforço não é concluível');
+        }
+        const { efeitos } = await r.conclusoes.aplicarPush([
+          {
+            id: chave,
+            itemId: id,
+            occurrenceDate: date ?? null,
+            action: acao,
+            at: agora,
+            createdAt: agora,
+            updatedAt: agora,
+          },
+        ]);
+        const efeito = efeitos.get(chave);
+        return {
+          conclusao: chave,
+          efeito: efeito
+            ? efeito.tipo === 'nada'
+              ? `nada: ${efeito.motivo}`
+              : efeito.tipo
+            : 'repetido',
+          lancamentos: await r.conclusoes.lancamentosDaConclusao(chave),
+        };
+      });
+      if (
+        resultado.efeito.startsWith('nada: data não é') ||
+        resultado.efeito.startsWith('nada: série')
+      ) {
+        return c.json({ erro: resultado.efeito.slice(6) }, 422);
+      }
+      return c.json(resultado);
+    };
+  rotas.post('/items/:id/complete', conclusao('complete'));
+  rotas.post('/items/:id/uncomplete', conclusao('uncomplete'));
+  rotas.post('/items/:id/occurrences/:date/complete', conclusao('complete'));
+  rotas.post('/items/:id/occurrences/:date/uncomplete', conclusao('uncomplete'));
+
+  rotas.patch('/items/:id', async (c) => {
+    const corpo = await c.req.json().catch(() => null);
+    if (!corpo || typeof corpo !== 'object') return c.json({ erro: 'payload inválido' }, 400);
+    const permitidos = [
+      'title',
+      'notes',
+      'kind',
+      'effort',
+      'primaryAttribute',
+      'secondaryAttribute',
+      'dueAt',
+      'startAt',
+      'endAt',
+      'allDay',
+      'rrule',
+      'reminderMinutesBefore',
+      'courseId',
+    ];
+    const m = Object.fromEntries(Object.entries(corpo).filter(([k]) => permitidos.includes(k)));
+    return c.json(await c.var.transacao((r) => r.itens.editar(c.req.param('id'), m)));
   });
+
+  rotas.post('/items/:id/postpone', async (c) => {
+    const corpo = (await c.req.json().catch(() => ({}))) as { para?: string };
+    let para: Date;
+    if (corpo.para !== undefined) {
+      if (!instante.safeParse(corpo.para).success) return c.json({ erro: 'para inválido' }, 400);
+      para = new Date(corpo.para);
+    } else {
+      const item = await c.var.transacao((r) => r.itens.obterLinha(c.req.param('id')));
+      if (!item) return c.json({ erro: 'item não encontrado' }, 404);
+      const inicio = (item.kind === 'task' ? item.dueAt : item.startAt) ?? new Date();
+      para = new Date(inicio.getTime() + 86_400_000); // padrão: amanhã, mesma hora
+    }
+    return c.json(await c.var.transacao((r) => r.itens.adiar(c.req.param('id'), para)));
+  });
+
+  rotas.get('/stats/attributes', async (c) =>
+    c.json({ atributos: await c.var.transacao((r) => r.estatisticas.atributos()) }),
+  );
+
+  rotas.get('/wallet', async (c) =>
+    c.json({ saldo: await c.var.transacao((r) => r.estatisticas.saldo()) }),
+  );
 
   rotas.post('/items/:id/occurrences/:date/cancel', async (c) => {
     const { id, date } = c.req.param();

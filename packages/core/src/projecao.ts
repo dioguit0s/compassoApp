@@ -15,6 +15,7 @@ export interface ItemParaProjecao extends ItemDeAgenda {
   recurrenceEndsAt: Date | null;
   reminderMinutesBefore: number | null;
   courseId: string | null;
+  postponeCount: number;
   deletedAt: Date | null;
 }
 
@@ -40,6 +41,8 @@ export interface EntradaAgenda extends ItemDeAgenda {
   reminderMinutesBefore: number | null;
   /** Disciplina ligada (prova, trabalho) — o selo na interface. */
   courseId: string | null;
+  /** Quantas vezes foi adiado — exibido sem julgamento (§4.7). */
+  postponeCount: number;
   /** Ocorrência movida ou editada em relação à regra. */
   desviada: boolean;
 }
@@ -140,6 +143,7 @@ function base(item: ItemParaProjecao) {
     notes: item.notes,
     reminderMinutesBefore: item.reminderMinutesBefore,
     courseId: item.courseId,
+    postponeCount: item.postponeCount,
   };
 }
 
@@ -162,6 +166,7 @@ export function entradaParaJson(e: EntradaAgenda) {
     desviada: e.desviada,
     reminderMinutesBefore: e.reminderMinutesBefore,
     courseId: e.courseId,
+    postponeCount: e.postponeCount,
   };
 }
 export type EntradaAgendaJson = ReturnType<typeof entradaParaJson>;

@@ -10,6 +10,8 @@ import {
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
+import { coinEntries, completions, xpEntries } from '@compasso/core/local';
+import { db } from './db';
 import { repositorio } from './sync';
 
 /**
@@ -60,4 +62,25 @@ export function useGrade() {
 export function useAulas(dias: Dia[]): Map<Dia, Aula[]> {
   const grade = useGrade();
   return useMemo(() => new Map(dias.map((d) => [d, aulasDoDia(grade, d)])), [grade, dias]);
+}
+
+/**
+ * Radar e saldo do aparelho: ledger que o servidor gerou + efeito dos eventos locais ainda não
+ * sincronizados. Recalcula quando o ledger ou os eventos mudam.
+ */
+export function useProgresso() {
+  const { data: xp } = useLiveQuery(db.select({ id: xpEntries.id }).from(xpEntries));
+  const { data: eventos } = useLiveQuery(
+    db.select({ id: completions.id, dirty: completions.dirty }).from(completions),
+  );
+  const { data: moedas } = useLiveQuery(db.select({ id: coinEntries.id }).from(coinEntries));
+  return useMemo(
+    () => ({
+      radar: repositorio.radar(),
+      saldo: repositorio.saldo(),
+      temLancamentos: xp.length > 0 || eventos.some((e) => e.dirty),
+    }),
+    // As consultas só servem de gatilho: o cálculo lê o repositório.
+    [xp, eventos, moedas],
+  );
 }

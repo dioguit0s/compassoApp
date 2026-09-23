@@ -9,7 +9,9 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { descreverEfeito } from '../conclusao';
 import { useDisciplina } from '../disciplinas';
+import { useAviso } from './Aviso';
 import { repositorio } from '../sync';
 import { useTema, type Tema } from '../tema';
 
@@ -85,6 +87,7 @@ export function EntradaItem({
   const router = useRouter();
   // Disciplina excluída: o vínculo foi anulado e o selo some sozinho.
   const disciplina = useDisciplina(item.courseId);
+  const aviso = useAviso();
   const selo = disciplina ? (disciplina.code ?? disciplina.name.slice(0, 4)) : null;
   const estado = estadoDaEntrada(item);
   const e = estiloDoEstado(estado, tema);
@@ -122,11 +125,49 @@ export function EntradaItem({
     );
   }
 
-  // Ocorrência de série pontuável: concluir direto da lista (issue #45).
-  const concluivel = item.ocorrencia !== null && item.effort !== null;
+  // Pontuável (item simples ou ocorrência de série): concluir direto da lista (#45, #71).
+  const concluivel = item.effort !== null;
+  const alternarConclusao = () => {
+    try {
+      const efeito =
+        item.status === 'done'
+          ? repositorio.desfazerConclusao(item.itemId, item.ocorrencia)
+          : repositorio.concluir(item.itemId, item.ocorrencia);
+      if (efeito.tipo === 'creditar') {
+        aviso({
+          texto: descreverEfeito(efeito),
+          acao: {
+            rotulo: 'Desfazer',
+            aoTocar: () => repositorio.desfazerConclusao(item.itemId, item.ocorrencia),
+          },
+        });
+      } else if (efeito.tipo === 'estornar') {
+        aviso({ texto: `Conclusão desfeita: ${descreverEfeito(efeito)}` });
+      }
+    } catch (e) {
+      Alert.alert('Não foi possível', (e as Error).message);
+    }
+  };
+  // Adiar (§4.7): só item pontuável e simples; o contador aparece sem julgamento.
+  const adiavel = concluivel && item.ocorrencia === null && item.status !== 'done';
+  const oferecerAdiar = () =>
+    Alert.alert(item.title, undefined, [
+      {
+        text: 'Adiar para amanhã',
+        onPress: () => {
+          try {
+            repositorio.adiar(item.itemId, 1);
+          } catch (e) {
+            Alert.alert('Não foi possível', (e as Error).message);
+          }
+        },
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
   return (
     <Pressable
       onPress={abrir}
+      onLongPress={adiavel ? oferecerAdiar : undefined}
       style={[estilos.linha, { borderColor: tema.borda, backgroundColor: tema.superficie }, style]}
       accessibilityLabel={`${item.title}, ${rotuloDeHora(item)}, ${estado.replace('-', ' ')}`}
     >
@@ -135,15 +176,7 @@ export function EntradaItem({
           hitSlop={10}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: item.status === 'done' }}
-          onPress={() => {
-            try {
-              if (item.status === 'done')
-                repositorio.reabrirOcorrencia(item.itemId, item.ocorrencia!);
-              else repositorio.concluirOcorrencia(item.itemId, item.ocorrencia!);
-            } catch (e) {
-              Alert.alert('Não foi possível', (e as Error).message);
-            }
-          }}
+          onPress={alternarConclusao}
           style={[estilos.caixaMarcar, e.caixa]}
         >
           <Text style={e.texto}>{item.status === 'done' ? '✓' : ''}</Text>
@@ -170,6 +203,9 @@ export function EntradaItem({
           {rotuloDeHora(item)}
           {item.ocorrencia ? ' · repete' : ''}
           {estado === 'nao-cumprida' ? ' · não cumprida' : ''}
+          {item.postponeCount > 0
+            ? ` · adiada ${item.postponeCount} ${item.postponeCount === 1 ? 'vez' : 'vezes'}`
+            : ''}
         </Text>
       </View>
     </Pressable>

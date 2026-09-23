@@ -13,6 +13,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { tituloDoDia } from '../src/datasUi';
 import { novoCompromisso } from '../src/novoItem';
 import { repositorio } from '../src/sync';
+import { SeletorEsforco, type Pontuacao } from '../src/ui/SeletorEsforco';
 import { useTema } from '../src/tema';
 
 const HORA_MS = 3_600_000;
@@ -29,17 +30,36 @@ export default function Captura() {
   const [inicio, setInicio] = useState(() => proximaHoraCheia(new Date()));
   const [diaInteiro, setDiaInteiro] = useState(false);
   const [erro, setErro] = useState('');
+  // Esforço é opcional aqui: sem ele, compromisso (§4.8). Com ele, pode virar tarefa (prazo).
+  const [pontuacao, setPontuacao] = useState<Pontuacao>({
+    effort: null,
+    primaryAttribute: null,
+    secondaryAttribute: null,
+  });
+  const [tarefa, setTarefa] = useState(false);
 
   const salvar = () => {
     const t = titulo.trim();
     if (!t) return;
     try {
-      if (diaInteiro) {
+      if (tarefa && pontuacao.effort !== null) {
+        // Tarefa: prazo em vez de bloco de tempo; exige esforço (§4.8).
+        repositorio.criar({
+          ...novoCompromisso(t, inicio, null),
+          ...pontuacao,
+          kind: 'task',
+          startAt: null,
+          dueAt: inicio,
+        });
+      } else if (diaInteiro) {
         const dia: Dia = diaDe(inicio);
         const { startAt, endAt } = limitesDiaInteiro(dia, dia);
-        repositorio.criar({ ...novoCompromisso(t, startAt, endAt), allDay: true });
+        repositorio.criar({ ...novoCompromisso(t, startAt, endAt), ...pontuacao, allDay: true });
       } else {
-        repositorio.criar(novoCompromisso(t, inicio, new Date(inicio.getTime() + HORA_MS)));
+        repositorio.criar({
+          ...novoCompromisso(t, inicio, new Date(inicio.getTime() + HORA_MS)),
+          ...pontuacao,
+        });
       }
       router.back();
     } catch (e) {
@@ -80,6 +100,13 @@ export default function Captura() {
         <Chip rotulo="+1h" aoTocar={() => mover(HORA_MS)} desativado={diaInteiro} />
         <Chip rotulo="Dia inteiro" ativo={diaInteiro} aoTocar={() => setDiaInteiro((v) => !v)} />
       </View>
+      <SeletorEsforco valor={pontuacao} aoMudar={setPontuacao} compacto />
+      {pontuacao.effort !== null ? (
+        <View style={estilos.chips}>
+          <Chip rotulo="Evento (horário)" ativo={!tarefa} aoTocar={() => setTarefa(false)} />
+          <Chip rotulo="Tarefa (prazo)" ativo={tarefa} aoTocar={() => setTarefa(true)} />
+        </View>
+      ) : null}
       {erro ? <Text style={{ color: tema.perigo }}>{erro}</Text> : null}
       <Pressable
         onPress={salvar}

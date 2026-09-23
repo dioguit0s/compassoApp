@@ -15,6 +15,8 @@ import {
   type EstadoPermissao,
 } from '../../src/notificacoes';
 import { sincronizarAgora } from '../../src/sync';
+import { useProgresso } from '../../src/hooks';
+import { FaixasDeNivel, Radar } from '../../src/ui/Radar';
 
 export default function Perfil() {
   // A tela lê do SQLite, nunca da resposta da API.
@@ -28,6 +30,7 @@ export default function Perfil() {
   const [estado, setEstado] = useState('');
 
   const [permissao, setPermissao] = useState<EstadoPermissao | null>(null);
+  const progresso = useProgresso();
 
   useEffect(() => {
     void lerConexao().then((c) => setTemConexao(c !== null));
@@ -59,6 +62,22 @@ export default function Perfil() {
       ) : (
         <Text style={estilos.detalhe}>Nenhum perfil gravado neste aparelho ainda.</Text>
       )}
+
+      {/* Progresso (§7): radar com as duas medidas e as faixas de nível por atributo. */}
+      <View style={estilos.bloco}>
+        <Text style={estilos.subtitulo}>Progresso</Text>
+        {progresso.temLancamentos ? (
+          <>
+            <Radar medidas={progresso.radar} />
+            <FaixasDeNivel medidas={progresso.radar} />
+          </>
+        ) : (
+          <Text style={estilos.detalhe}>
+            Nenhum ponto ainda. Dê esforço a uma tarefa e conclua — o radar começa a mostrar onde o
+            seu esforço está indo.
+          </Text>
+        )}
+      </View>
 
       {temConexao === false ? (
         <FormularioConexao

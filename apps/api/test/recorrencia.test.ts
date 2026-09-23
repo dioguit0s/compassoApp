@@ -184,7 +184,7 @@ describe('rotas de ocorrência (#40)', () => {
     );
   });
 
-  it('concluir é idempotente: repetir não cria linha nem muda a data de conclusão', async () => {
+  it('concluir é idempotente: repetir não cria linha nem credita de novo', async () => {
     const { a, token } = await doisAparelhos('Concluir 2x');
     const s = a.repo.criar(
       serie('treino', 'FREQ=WEEKLY;BYDAY=TU', sp(9, 1, 19), HORA, {
@@ -195,13 +195,18 @@ describe('rotas de ocorrência (#40)', () => {
     await sincronizar(a);
     const r1 = await rota(token, 'POST', `/items/${s.id}/occurrences/2026-09-08/complete`);
     const r2 = await rota(token, 'POST', `/items/${s.id}/occurrences/2026-09-08/complete`);
-    expect(r1.status).toBe(200);
-    expect(r2.corpo).toEqual(r1.corpo);
+    expect(r1.corpo).toMatchObject({ efeito: 'creditar' });
+    expect(r2.corpo).toMatchObject({ efeito: 'nada: já concluído', lancamentos: [] });
     const n = await ctx.dono.query(
       'select count(*)::int as n from item_occurrences where item_id = $1',
       [s.id],
     );
     expect(n.rows[0].n).toBe(1);
+    const xp = await ctx.dono.query(
+      'select sum(points)::int as t from xp_entries where item_id = $1',
+      [s.id],
+    );
+    expect(xp.rows[0].t).toBe(30);
   });
 
   it('PATCH move e edita só aquele dia', async () => {

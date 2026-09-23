@@ -189,3 +189,55 @@ export type SemestreLocal = typeof semesters.$inferSelect;
 export type DisciplinaLocal = typeof courses.$inferSelect;
 export type HorarioLocal = typeof classSlots.$inferSelect;
 export type ExcecaoLocal = typeof classExceptions.$inferSelect;
+
+// ---- gamificação (F6/F7): eventos de conclusão e ledger ------------------------------------
+// O ledger (xp_entries, coin_entries) é gerado pelo servidor e só chega pelo pull; o aparelho
+// nunca escreve nele. `completions` é escrito aqui (o toque) e enviado pelo push. Nenhuma das
+// três tem deletedAt: append-only (especificação §5, ADR-0006).
+
+export const completions = sqliteTable(
+  'completions',
+  {
+    id: text().primaryKey(),
+    itemId: text().notNull(),
+    occurrenceDate: text(),
+    action: text({ enum: ['complete', 'uncomplete'] }).notNull(),
+    at: data().notNull(),
+    createdAt: data().notNull(),
+    updatedAt: data().notNull(),
+    dirty: integer({ mode: 'boolean' }).notNull().default(false),
+  },
+  (t) => [
+    index('completions_item_idx').on(t.itemId, t.occurrenceDate),
+    index('completions_dirty_idx').on(t.dirty),
+  ],
+);
+
+export const xpEntries = sqliteTable(
+  'xp_entries',
+  {
+    id: text().primaryKey(),
+    itemId: text().notNull(),
+    occurrenceDate: text(),
+    completionId: text().notNull(),
+    attribute: text({ enum: ATRIBUTOS }).notNull(),
+    points: integer().notNull(),
+    earnedAt: data().notNull(),
+  },
+  (t) => [
+    index('xp_entries_attribute_earned_at_idx').on(t.attribute, t.earnedAt),
+    index('xp_entries_item_idx').on(t.itemId, t.occurrenceDate),
+  ],
+);
+
+export const coinEntries = sqliteTable('coin_entries', {
+  id: text().primaryKey(),
+  amount: integer().notNull(),
+  source: text({ enum: ['task', 'redemption'] }).notNull(),
+  refId: text().notNull(),
+  createdAt: data().notNull(),
+});
+
+export type ConclusaoLocal = typeof completions.$inferSelect;
+export type LancamentoLocal = typeof xpEntries.$inferSelect;
+export type MoedaLocal = typeof coinEntries.$inferSelect;

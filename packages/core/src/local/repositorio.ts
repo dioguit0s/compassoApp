@@ -13,9 +13,26 @@ import {
   or,
 } from 'drizzle-orm';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
-import { inicioDoDia, type Dia } from '../calendario';
+import {
+  diaDe,
+  FUSO_PADRAO,
+  inicioDoDia,
+  instanteDeParede,
+  somarDias,
+  type Dia,
+} from '../calendario';
+import { partesNoFuso } from '../datas';
+import { deveCongelar, medidasDoRadar, type LancamentoDeXp } from '../gamificacao';
 import { aulasDoDia, type GradeParaProjecao } from '../grade';
 import { novoId } from '../id';
+import {
+  alvoDaConclusao,
+  efeitoDaConclusao,
+  type ConclusaoWire,
+  type EfeitoDaConclusao,
+  type LancamentoWire,
+  type MoedaWire,
+} from '../ledger';
 import {
   ESQUEMAS_SYNC,
   linhasVazias,
@@ -35,11 +52,15 @@ import {
   type Serie,
 } from '../rrule';
 import type { ArmazemLocal, Confirmacoes, Linhas, MetadadosSync } from '../sync/motor';
+import type { RespostaPull } from '../item';
 import type * as schema from './schema';
 import {
   classExceptions,
   classSlots,
+  coinEntries,
+  completions,
   courses,
+  xpEntries,
   itemOccurrences,
   items,
   metadados,
@@ -219,6 +240,15 @@ export class RepositorioLocal implements ArmazemLocal {
 
   // ---- itens ---------------------------------------------------------------------------------
 
+  private hoje(): Dia {
+    return diaDe(new Date(this.agora()), FUSO_PADRAO);
+  }
+
+  /** Grava `effortLockedAt` se o dia do item já chegou (ADR-0006, gravação preguiçosa). */
+  private congelarSeChegou(item: ItemLocal): void {
+    if (deveCongelar(item, this.hoje())) item.effortLockedAt = new Date(this.agora());
+  }
+
   criar(dados: DadosItem): ItemLocal {
     const t = this.carimbo();
     const item: ItemLocal = {
@@ -232,6 +262,8 @@ export class RepositorioLocal implements ArmazemLocal {
       deletedAt: null,
       dirty: true,
     };
+    // Item criado já para hoje nasce com o esforço congelado.
+    this.congelarSeChegou(item);
     this.validar(item);
     this.db.insert(items).values(item).run();
     return item;
@@ -240,17 +272,78 @@ export class RepositorioLocal implements ArmazemLocal {
   editar(id: string, mudancas: Partial<DadosItem>): ItemLocal {
     const atual = this.obter(id);
     if (!atual) throw new ErroDeValidacao(['item não encontrado']);
+    // Esforço congelado: nem o esforço nem a distribuição entre atributos mudam mais (§4.1).
+    if (atual.effortLockedAt) {
+      const mexeu = (['effort', 'primaryAttribute', 'secondaryAttribute'] as const).some(
+        (k) => k in mudancas && mudancas[k] !== atual[k],
+      );
+      if (mexeu) {
+        throw new ErroDeValidacao([
+          'esforço congelado: o item já entrou no dia e o esforço não muda mais',
+        ]);
+      }
+    }
     const novo: ItemLocal = {
       ...atual,
       ...mudancas,
       id,
+      effortLockedAt: atual.effortLockedAt,
       updatedAt: this.carimbo(atual.updatedAt),
       dirty: true,
     };
     novo.recurrenceEndsAt = calcularFimDaSerie(novo);
+    this.congelarSeChegou(novo);
     this.validar(novo);
     this.db.update(items).set(novo).where(eq(items.id, id)).run();
     return novo;
+  }
+
+  /**
+   * Grava o congelamento dos itens cujo dia chegou. Chamado na abertura do app e na virada do
+   * dia — funciona offline, e o `effortLockedAt` sincroniza como qualquer campo.
+   */
+  congelarEsforcosDoDia(): number {
+    const candidatos = this.db
+      .select()
+      .from(items)
+      .where(and(isNull(items.deletedAt), isNotNull(items.effort), isNull(items.effortLockedAt)))
+      .all()
+      .filter((i) => deveCongelar(i, this.hoje()));
+    for (const i of candidatos) {
+      const t = this.carimbo(i.updatedAt);
+      this.db
+        .update(items)
+        .set({ effortLockedAt: new Date(this.agora()), updatedAt: t, dirty: true })
+        .where(eq(items.id, i.id))
+        .run();
+    }
+    return candidatos.length;
+  }
+
+  /**
+   * Adiar (§4.7): move a data em `dias` dias (mesma hora de parede em São Paulo) e soma 1 ao
+   * contador, exibido sem julgamento. Só item pontuável e simples conta adiamento; o
+   * congelamento do esforço continua — adiar não destrava.
+   */
+  adiar(id: string, dias = 1): ItemLocal {
+    const atual = this.obter(id);
+    if (!atual) throw new ErroDeValidacao(['item não encontrado']);
+    if (atual.effort === null)
+      throw new ErroDeValidacao(['compromisso sem esforço não é adiado, é remarcado']);
+    if (atual.rrule)
+      throw new ErroDeValidacao(['série: mova a ocorrência em vez de adiar a série']);
+    const mover = (d: Date | null) => {
+      if (!d) return null;
+      const p = partesNoFuso(d, atual.timezone);
+      const alvo = somarDias(diaDe(d, atual.timezone), dias).split('-').map(Number);
+      return instanteDeParede(alvo[0]!, alvo[1]!, alvo[2]!, p.hora, p.minuto, atual.timezone);
+    };
+    return this.editar(id, {
+      dueAt: mover(atual.dueAt),
+      startAt: mover(atual.startAt),
+      endAt: mover(atual.endAt),
+      postponeCount: atual.postponeCount + 1,
+    });
   }
 
   /** Exclusão lógica: a linha fica, com `deletedAt`, até a purga depois da retenção. */
@@ -399,21 +492,219 @@ export class RepositorioLocal implements ArmazemLocal {
     return linha;
   }
 
-  /** Concluir só se aplica a item pontuável: compromisso puro não é concluível (§4.8). */
-  concluirOcorrencia(itemId: string, dataOc: Dia): OcorrenciaLocal {
-    const { item } = this.serieValidada(itemId, dataOc);
-    if (item.effort === null)
-      throw new ErroDeValidacao(['compromisso sem esforço não é concluível']);
-    const atual = this.obterDesvio(itemId, dataOc);
-    if (atual && !atual.deletedAt && atual.status === 'done') return atual; // idempotente
-    return this.desviar(itemId, dataOc, 'completed', {
-      status: 'done',
-      completedAt: new Date(this.agora()),
-    });
+  // ---- conclusão (F6, ADR-0006) ----------------------------------------------------------------
+
+  /** XP e moedas já no ledger do alvo, mais o efeito dos eventos locais ainda não confirmados. */
+  private estadoDoAlvo(
+    itemId: string,
+    dataOc: Dia | null,
+  ): { xp: LancamentoDeXp[]; moedas: number } {
+    const doAlvo = and(
+      eq(xpEntries.itemId, itemId),
+      dataOc === null ? isNull(xpEntries.occurrenceDate) : eq(xpEntries.occurrenceDate, dataOc),
+    );
+    const xp: LancamentoDeXp[] = this.db
+      .select({ attribute: xpEntries.attribute, points: xpEntries.points })
+      .from(xpEntries)
+      .where(doAlvo)
+      .all();
+    const creditosIds = new Set(
+      this.db
+        .select({ c: xpEntries.completionId })
+        .from(xpEntries)
+        .where(doAlvo)
+        .all()
+        .map((l) => l.c),
+    );
+    const moedas = this.db
+      .select({ amount: coinEntries.amount, refId: coinEntries.refId })
+      .from(coinEntries)
+      .all()
+      .filter((m) => creditosIds.has(m.refId))
+      .reduce((n, m) => n + m.amount, 0);
+    let saldo = moedas;
+    for (const ev of this.eventosPendentes(itemId, dataOc)) {
+      const item = this.obter(itemId);
+      const ef = efeitoDaConclusao(ev.action, item, xp, saldo);
+      if (ef.tipo !== 'nada') {
+        xp.push(...ef.xp);
+        saldo += ef.moedas;
+      }
+    }
+    return { xp, moedas: saldo };
   }
 
-  reabrirOcorrencia(itemId: string, dataOc: Dia): OcorrenciaLocal {
-    return this.desviar(itemId, dataOc, 'edited', { status: 'open', completedAt: null });
+  private eventosPendentes(itemId: string, dataOc: Dia | null) {
+    return this.db
+      .select()
+      .from(completions)
+      .where(
+        and(
+          eq(completions.dirty, true),
+          eq(completions.itemId, itemId),
+          dataOc === null
+            ? isNull(completions.occurrenceDate)
+            : eq(completions.occurrenceDate, dataOc),
+        ),
+      )
+      .orderBy(asc(completions.at))
+      .all();
+  }
+
+  private registrarConclusao(
+    itemId: string,
+    dataOc: Dia | null,
+    acao: 'complete' | 'uncomplete',
+  ): EfeitoDaConclusao {
+    const item = this.obter(itemId);
+    if (!item) throw new ErroDeValidacao(['item não encontrado']);
+    if (dataOc !== null) this.serieValidada(itemId, dataOc);
+    else if (item.rrule) throw new ErroDeValidacao(['numa série, conclua a ocorrência do dia']);
+    const { xp, moedas } = this.estadoDoAlvo(itemId, dataOc);
+    const efeito = efeitoDaConclusao(acao, item, xp, moedas);
+    if (efeito.tipo === 'nada') {
+      if (efeito.motivo === 'compromisso sem esforço não é concluível') {
+        throw new ErroDeValidacao([efeito.motivo]);
+      }
+      return efeito; // idempotente: concluir o concluído não gera evento
+    }
+    const agora = new Date(this.agora());
+    this.db.transaction(() => {
+      this.db
+        .insert(completions)
+        .values({
+          id: novoId(),
+          itemId,
+          occurrenceDate: dataOc,
+          action: acao,
+          at: agora,
+          createdAt: agora,
+          updatedAt: agora,
+          dirty: true,
+        })
+        .run();
+      const feito = acao === 'complete';
+      if (dataOc === null) {
+        this.editar(itemId, { status: feito ? 'done' : 'open', completedAt: feito ? agora : null });
+      } else {
+        this.desviar(itemId, dataOc, feito ? 'completed' : 'edited', {
+          status: feito ? 'done' : 'open',
+          completedAt: feito ? agora : null,
+        });
+      }
+    });
+    return efeito;
+  }
+
+  /**
+   * Concluir (§6.4): grava o evento (a chave de idempotência é o id dele) e o estado, na hora,
+   * offline. Devolve o efeito — o XP e as moedas a mostrar — calculado pela mesma função que o
+   * servidor usa para gerar o ledger. Concluir o que já está concluído é no-op.
+   */
+  concluir(itemId: string, dataOc: Dia | null = null): EfeitoDaConclusao {
+    return this.registrarConclusao(itemId, dataOc, 'complete');
+  }
+
+  /** Desfazer a conclusão: estorno exato do que foi creditado (§4.3). Idempotente. */
+  desfazerConclusao(itemId: string, dataOc: Dia | null = null): EfeitoDaConclusao {
+    return this.registrarConclusao(itemId, dataOc, 'uncomplete');
+  }
+
+  concluirOcorrencia(itemId: string, dataOc: Dia): EfeitoDaConclusao {
+    return this.concluir(itemId, dataOc);
+  }
+
+  reabrirOcorrencia(itemId: string, dataOc: Dia): EfeitoDaConclusao {
+    return this.desfazerConclusao(itemId, dataOc);
+  }
+
+  /**
+   * Ledger visto por este aparelho: o que o servidor gerou, mais o efeito dos eventos locais
+   * ainda não sincronizados (provisório, calculado pela mesma máquina de estados).
+   */
+  lancamentosLocais(): {
+    attribute: LancamentoDeXp['attribute'];
+    points: number;
+    earnedAt: Date;
+  }[] {
+    const base = this.db
+      .select({
+        attribute: xpEntries.attribute,
+        points: xpEntries.points,
+        earnedAt: xpEntries.earnedAt,
+      })
+      .from(xpEntries)
+      .all();
+    const alvos = new Map<string, { itemId: string; occ: string | null }>();
+    for (const e of this.db.select().from(completions).where(eq(completions.dirty, true)).all()) {
+      alvos.set(alvoDaConclusao({ itemId: e.itemId, occurrenceDate: e.occurrenceDate }), {
+        itemId: e.itemId,
+        occ: e.occurrenceDate,
+      });
+    }
+    const provisorios: typeof base = [];
+    for (const { itemId, occ } of alvos.values()) {
+      const confirmados = this.db
+        .select({ attribute: xpEntries.attribute, points: xpEntries.points })
+        .from(xpEntries)
+        .where(
+          and(
+            eq(xpEntries.itemId, itemId),
+            occ === null ? isNull(xpEntries.occurrenceDate) : eq(xpEntries.occurrenceDate, occ),
+          ),
+        )
+        .all();
+      const { xp } = this.estadoDoAlvo(itemId, occ);
+      // O que o estado tem além do confirmado é provisório.
+      const extra = xp.slice(confirmados.length);
+      const at = new Date(this.agora());
+      for (const x of extra) provisorios.push({ ...x, earnedAt: at });
+    }
+    return [...base, ...provisorios];
+  }
+
+  radar(agora: Date = new Date(this.agora())) {
+    return medidasDoRadar(this.lancamentosLocais(), agora);
+  }
+
+  /** Saldo derivado: soma das moedas do ledger + efeito dos eventos pendentes (§4.6). */
+  saldo(): number {
+    const base = this.db.select({ amount: coinEntries.amount }).from(coinEntries).all();
+    let total = base.reduce((n, m) => n + m.amount, 0);
+    const alvos = new Map<string, { itemId: string; occ: string | null }>();
+    for (const e of this.db.select().from(completions).where(eq(completions.dirty, true)).all()) {
+      alvos.set(alvoDaConclusao({ itemId: e.itemId, occurrenceDate: e.occurrenceDate }), {
+        itemId: e.itemId,
+        occ: e.occurrenceDate,
+      });
+    }
+    for (const { itemId, occ } of alvos.values()) {
+      const antes = this.estadoSemPendentes(itemId, occ);
+      total += this.estadoDoAlvo(itemId, occ).moedas - antes;
+    }
+    return total;
+  }
+
+  private estadoSemPendentes(itemId: string, occ: string | null): number {
+    const ids = new Set(
+      this.db
+        .select({ c: xpEntries.completionId })
+        .from(xpEntries)
+        .where(
+          and(
+            eq(xpEntries.itemId, itemId),
+            occ === null ? isNull(xpEntries.occurrenceDate) : eq(xpEntries.occurrenceDate, occ),
+          ),
+        )
+        .all()
+        .map((l) => l.c),
+    );
+    return this.db
+      .select({ amount: coinEntries.amount, refId: coinEntries.refId })
+      .from(coinEntries)
+      .all()
+      .filter((m) => ids.has(m.refId))
+      .reduce((n, m) => n + m.amount, 0);
   }
 
   cancelarOcorrencia(itemId: string, dataOc: Dia): OcorrenciaLocal {
@@ -767,6 +1058,12 @@ export class RepositorioLocal implements ArmazemLocal {
       .where(eq(itemOccurrences.dirty, true))
       .all()
       .map(ocorrenciaParaWire);
+    saida.conclusoes = this.db
+      .select()
+      .from(completions)
+      .where(eq(completions.dirty, true))
+      .all()
+      .map((c) => conclusaoParaWire(c));
     for (const tabela of TABELAS_DA_GRADE) {
       const t = TABELAS_GRADE[tabela];
       (saida[tabela] as unknown[]) = this.db
@@ -785,7 +1082,11 @@ export class RepositorioLocal implements ArmazemLocal {
    */
   confirmar(enviados: Confirmacoes): void {
     this.db.transaction(() => {
+      for (const e of enviados.conclusoes) {
+        this.db.update(completions).set({ dirty: false }).where(eq(completions.id, e.id)).run();
+      }
       for (const tabela of TABELAS_SYNC) {
+        if (tabela === 'conclusoes') continue;
         const t = tabelaLocal(tabela);
         for (const e of enviados[tabela]) {
           this.db
@@ -803,7 +1104,7 @@ export class RepositorioLocal implements ArmazemLocal {
    * nova; linha limpa aceita igual ou mais nova (o empate é o próprio eco). Desvios de ocorrência
    * casam pela identidade `(itemId, occurrenceDate)`, não pelo `id` (ADR-0004).
    */
-  aplicar(recebidos: Linhas): number {
+  aplicar(recebidos: Linhas & Partial<Pick<RespostaPull, 'lancamentos' | 'moedas'>>): number {
     let aplicados = 0;
     const vence = (local: { updatedAt: Date; dirty: boolean } | undefined, remoto: string) => {
       if (!local) return true;
@@ -813,7 +1114,7 @@ export class RepositorioLocal implements ArmazemLocal {
     };
     this.db.transaction(() => {
       const porId = (
-        tabela: Exclude<TabelaSync, 'ocorrencias'>,
+        tabela: Exclude<TabelaSync, 'ocorrencias' | 'conclusoes'>,
         linhas: { id: string; updatedAt: string }[],
       ) => {
         const t = tabelaLocal(tabela);
@@ -837,6 +1138,31 @@ export class RepositorioLocal implements ArmazemLocal {
         }
       };
       for (const tabela of TABELAS_DA_GRADE) porId(tabela, recebidos[tabela]);
+      // Append-only: só inserção, idempotente por id. Evento local que volta do servidor fica limpo.
+      for (const c of recebidos.conclusoes ?? []) {
+        const linha = { ...wireParaConclusao(c), dirty: false };
+        this.db
+          .insert(completions)
+          .values(linha)
+          .onConflictDoUpdate({ target: completions.id, set: { dirty: false } })
+          .run();
+      }
+      for (const l of recebidos.lancamentos ?? []) {
+        this.db
+          .insert(xpEntries)
+          .values({ ...l, earnedAt: new Date(l.earnedAt) })
+          .onConflictDoNothing()
+          .run();
+        aplicados++;
+      }
+      for (const m of recebidos.moedas ?? []) {
+        this.db
+          .insert(coinEntries)
+          .values({ ...m, createdAt: new Date(m.createdAt) })
+          .onConflictDoNothing()
+          .run();
+        aplicados++;
+      }
       porId('itens', recebidos.itens);
       for (const w of recebidos.ocorrencias) {
         const local = this.db
@@ -876,6 +1202,7 @@ export class RepositorioLocal implements ArmazemLocal {
   reconciliar(noServidor: Record<TabelaSync, string[]>): number {
     let n = 0;
     for (const tabela of TABELAS_SYNC) {
+      if (tabela === 'conclusoes') continue; // append-only: nunca some do servidor
       const t = tabelaLocal(tabela);
       n += mudancas(
         this.db
@@ -891,6 +1218,7 @@ export class RepositorioLocal implements ArmazemLocal {
   purgar(limite: Date): number {
     let n = 0;
     for (const tabela of TABELAS_SYNC) {
+      if (tabela === 'conclusoes') continue; // append-only, sem tombstone
       const t = tabelaLocal(tabela);
       n += mudancas(
         this.db
@@ -937,11 +1265,34 @@ const TABELAS_GRADE = {
   excecoes: classExceptions,
 } as const;
 
-function tabelaLocal(tabela: TabelaSync) {
+function tabelaLocal(tabela: Exclude<TabelaSync, 'conclusoes'>) {
   if (tabela === 'itens') return items;
   if (tabela === 'ocorrencias') return itemOccurrences;
   return TABELAS_GRADE[tabela];
 }
+
+function conclusaoParaWire(c: typeof completions.$inferSelect): ConclusaoWire {
+  return {
+    id: c.id,
+    itemId: c.itemId,
+    occurrenceDate: c.occurrenceDate,
+    action: c.action,
+    at: c.at.toISOString(),
+    createdAt: c.createdAt.toISOString(),
+    updatedAt: c.updatedAt.toISOString(),
+  };
+}
+
+function wireParaConclusao(c: ConclusaoWire) {
+  return {
+    ...c,
+    at: new Date(c.at),
+    createdAt: new Date(c.createdAt),
+    updatedAt: new Date(c.updatedAt),
+  };
+}
+
+export type { LancamentoWire, MoedaWire };
 
 const CARIMBOS = ['deletedAt', 'createdAt', 'updatedAt'] as const;
 

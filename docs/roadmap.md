@@ -313,7 +313,7 @@ depois.
 enviada três vezes; desfazer estorna; a soma do ledger bate com o radar; e um item que entrou no
 dia corrente recusa edição de esforço tanto na UI quanto por chamada direta à API.
 
-**Duas decisões a tomar dentro desta fase**
+**Duas decisões a tomar dentro desta fase** — tomadas em 2026-09-23, ver [ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md).
 
 - **Como o congelamento é gravado.** Derivar o travamento só da data é errado: adiar um item de hoje
   para a semana que vem o destravaria, que é exatamente a trapaça que a regra impede. Precisa de
@@ -435,7 +435,7 @@ adiável. Uma questão fora deste mapa é uma questão que não precisa de respo
 | Fim de semestre | **resolvida** — semestre corrente + datas ([ADR-0005](adr/0005-semestre-corrente-e-grade.md)) | — |
 | Curva de nível | F9 | Nada quebra; o nível fica sem significado |
 | Régua de esforço | F6 | A escala infla e o radar deixa de comparar com o passado |
-| Estorno de moeda | F6 | Primeiro `uncomplete` com saldo gasto deixa o saldo negativo |
+| Estorno de moeda | **resolvida** — saldo pode ficar negativo ([ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md)) | — |
 | Grade versus RRULE | F10 | Nada quebra; a duplicação se justifica enquanto aula não pontua |
 | Backup externo | F10 | O dado de outra pessoa fica com uma cópia só |
 | Autenticação real | F10 | Bloqueia a entrada dos amigos |

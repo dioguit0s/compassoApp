@@ -26,6 +26,7 @@ function item(extra: Partial<ItemParaProjecao>): ItemParaProjecao {
     recurrenceEndsAt: null,
     reminderMinutesBefore: 15,
     courseId: null,
+    postponeCount: 0,
     deletedAt: null,
     ...extra,
   };
