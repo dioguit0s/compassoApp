@@ -39,12 +39,6 @@ export class Banco {
     return r.rows[0]?.user_id ?? null;
   }
 
-  /** Relógio do banco. Usado para o cursor de sync — nunca `Date.now()` da API. */
-  async agora(): Promise<Date> {
-    const r = await this.db.execute<{ agora: Date }>(sql`select now() as agora`);
-    return r.rows[0]!.agora;
-  }
-
   async fechar(): Promise<void> {
     await this.pool.end();
   }
