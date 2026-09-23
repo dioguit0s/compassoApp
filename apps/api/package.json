@@ -7,7 +7,11 @@
     "dev": "tsx watch --env-file-if-exists=.env src/main.ts",
     "start": "tsx --env-file-if-exists=.env src/main.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file-if-exists=.env scripts/migrar.ts",
+    "conta:criar": "tsx --env-file-if-exists=.env scripts/criar-conta.ts criar",
+    "conta:token": "tsx --env-file-if-exists=.env scripts/criar-conta.ts token"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

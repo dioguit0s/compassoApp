@@ -806,9 +806,10 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
-| `DATABASE_URL` | sim | Conexão com o PostgreSQL |
+| `DATABASE_URL` | sim | Conexão com o PostgreSQL, com o papel da API (`compasso_app`, sujeito ao RLS) |
+| `DATABASE_ADMIN_URL` | só scripts | Conexão com o papel dono (`compasso_owner`): migrações, criação de conta, purga. A API em execução não lê |
 | `PORT` | não | Porta da API. Padrão 3000 |
-| `AUTH_TOKEN` | sim | Token estático de acesso à API na v1 |
+| `SYNC_CURSOR_WINDOW_SECONDS` | não | Janela de segurança do cursor de sync (§6.6). Padrão 60 |
 | `TZ_DEFAULT` | não | Fuso padrão dos itens. Padrão `America/Sao_Paulo` |
 | `AVATAR_DIR` | sim | Volume onde as imagens de perfil são gravadas |
 | `AVATAR_MAX_BYTES` | não | Limite de upload antes do redimensionamento. Padrão 5 MB |
@@ -817,7 +818,9 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 | `TRASH_RETENTION_DAYS` | não | Prazo da lixeira e da purga de tombstones. Padrão 30 |
 
 Token estático resolve enquanto existe uma conta: o token identifica a pessoa e a API resolve o
-`userId` a partir dele. Isso deixa de servir no dia em que os amigos entrarem, porque token
+`userId` a partir dele. Os tokens não ficam em variável de ambiente: o script de criação de conta
+grava o SHA-256 de cada um na tabela `api_tokens`, um por aparelho, e imprime o valor em claro uma
+única vez ([ADR-0002](adr/0002-ferramentas-e-convencoes-da-fundacao.md)). Isso deixa de servir no dia em que os amigos entrarem, porque token
 compartilhado por vários aparelhos não pode ser revogado individualmente. A troca é localizada — o
 middleware que hoje devolve um `userId` fixo passa a devolver o da sessão — desde que todo o resto
 do sistema já esteja escopado, que é o motivo da regra da seção 5.
