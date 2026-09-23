@@ -33,7 +33,7 @@ fase por fase: passou / falhou (causa + correção ou issue) / fora de alcance (
 Ambiente: Windows 10, AVD Pixel_7 (Android 17, x86_64, Google APIs/Play), fuso do aparelho GMT.
 O AVD vem com 2 GB de RAM: ANRs do sistema inteiro; rodando com `-memory 4096 -cores 6` fica usável.
 
-**Preparação** — passou, com 3 correções:
+**Preparação** — passou, com 2 correções de código e 1 de ambiente (JDK):
 - `npm run verificar` falhava no Windows (CRLF) → `.gitattributes` com `eol=lf` (`726f563`)
 - build Android falhava: reanimated 4.7.0 × worklets 0.10.1 → reanimated 4.5.1 fixado (`5e76387`)
 - CMake/prefab falha com JDK 25 (aviso do JEP 472 no stderr; o JBR do Android Studio também é 25)
@@ -43,7 +43,7 @@ O AVD vem com 2 GB de RAM: ANRs do sistema inteiro; rodando com `-memory 4096 -c
 **0. Hermes** — passou: 5/5 linhas de fuso (inclui Nova York nos dois lados do DST), 3 UUIDv7
 distintos e crescentes.
 
-**F0/F1** — passou depois de 2 correções:
+**F0/F1** — passou depois de 3 correções:
 - ícones das abas eram retângulos vazios (sem `tabBarIcon`) → SVG (`a9924f6`)
 - **todo push do app dava 400**: mandava `{ itens: lote }` em vez do lote → corrigido (`ef03d46`)
 - URL digitada errada era aceita e não havia como corrigir → validação (`54a4fac`)
@@ -71,7 +71,7 @@ em 07/10 vira UNTIL + série nova, 23/09 intacto ✓; série congelada: seletor 
 mudar esforço não oferece "Só esta" e explica ✓; conclusão em 13/10 recusa "esta e as futuras"
 de 06/10 ✓. Correção: o erro aparecia no fim do formulário, invisível → topo (`2d8cf72`).
 
-**F4** — passou depois de 3 correções:
+**F4** — passou depois de 4 correções:
 - permissão pedida e concedida ✓; lembrete com app em 2º plano, modo avião, tela apagada:
   disparou 17:55:00.068Z ✓; app removido dos recentes: 18:00:03.5Z ✓ com o título renomeado ✓
 - reiniciar: alarme volta ~2 min depois do boot, mesmo instante ✓
