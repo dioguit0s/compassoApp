@@ -1,6 +1,6 @@
-import { diaDe, FUSO_PADRAO, type Dia } from '@compasso/core';
+import { diaDe, FUSO_PADRAO, projetarAgenda, type Dia, type EntradaAgenda } from '@compasso/core';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
 import { repositorio } from './sync';
 
@@ -22,11 +22,15 @@ export function useHoje(): Dia {
   return hoje;
 }
 
-/** Itens em `[de, ate)`, lidos do SQLite e re-renderizados quando a tabela muda. */
-export function useItensNoIntervalo(de: Date, ate: Date) {
-  const { data } = useLiveQuery(repositorio.consultaNoIntervalo(de, ate), [
+/**
+ * Agenda de `[de, ate)` projetada do SQLite com a MESMA função da API (`projetarAgenda`): itens
+ * simples, séries expandidas e desvios de ocorrência. Re-renderiza quando as tabelas mudam.
+ */
+export function useAgenda(de: Date, ate: Date): EntradaAgenda[] {
+  const { data: itens } = useLiveQuery(repositorio.consultaItensDaAgenda(de, ate), [
     de.getTime(),
     ate.getTime(),
   ]);
-  return data;
+  const { data: desvios } = useLiveQuery(repositorio.consultaDesvios());
+  return useMemo(() => projetarAgenda(itens, desvios, de, ate), [itens, desvios, de, ate]);
 }

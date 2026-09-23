@@ -12,7 +12,7 @@ import {
 } from '@compasso/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { useItensNoIntervalo } from '../hooks';
+import { useAgenda } from '../hooks';
 import { useTema } from '../tema';
 import { EntradaItem } from '../ui/EntradaItem';
 
@@ -25,7 +25,7 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
   const { width } = useWindowDimensions();
   const dias = useMemo(() => diasDaSemana(referencia), [referencia]);
   const { de, ate } = useMemo(() => intervaloDosDias(dias[0]!, dias[6]!), [dias]);
-  const itens = useItensNoIntervalo(de, ate);
+  const itens = useAgenda(de, ate);
   const porDia = useMemo(() => agruparPorDia(itens, dias), [itens, dias]);
   const larguraDia = (width - MARGEM) / 7;
   const rolagem = useRef<ScrollView>(null);

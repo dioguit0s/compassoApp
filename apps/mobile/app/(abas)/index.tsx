@@ -2,7 +2,7 @@ import { agruparPorDia, intervaloDosDias } from '@compasso/core';
 import { useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { tituloDoDia } from '../../src/datasUi';
-import { useHoje, useItensNoIntervalo } from '../../src/hooks';
+import { useHoje, useAgenda } from '../../src/hooks';
 import { sincronizarAgora } from '../../src/sync';
 import { useTema } from '../../src/tema';
 import { EntradaItem } from '../../src/ui/EntradaItem';
@@ -15,7 +15,7 @@ export default function Hoje() {
   const tema = useTema();
   const hoje = useHoje();
   const { de, ate } = useMemo(() => intervaloDosDias(hoje, hoje), [hoje]);
-  const itens = useItensNoIntervalo(de, ate);
+  const itens = useAgenda(de, ate);
   const doDia = useMemo(() => agruparPorDia(itens, [hoje]).get(hoje) ?? [], [itens, hoje]);
   const [atualizando, setAtualizando] = useState(false);
 

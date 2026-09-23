@@ -3,10 +3,11 @@ import {
   FUSO_PADRAO,
   inicioDoDia,
   limitesDiaInteiro,
+  ocorrencias,
   somarDias,
   type Dia,
 } from '@compasso/core';
-import { ErroDeValidacao, type ItemLocal } from '@compasso/core/local';
+import { ErroDeValidacao, serieDoItem, type DadosItem, type ItemLocal } from '@compasso/core/local';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -19,10 +20,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { fusoDoAparelhoDifere } from '../../src/datasUi';
+import { fusoDoAparelhoDifere, tituloDoDia } from '../../src/datasUi';
 import { repositorio } from '../../src/sync';
 import { useTema } from '../../src/tema';
 import { CampoDataHora } from '../../src/ui/CampoDataHora';
+import { EditorRecorrencia } from '../../src/ui/EditorRecorrencia';
 
 const LEMBRETES: { rotulo: string; minutos: number | null }[] = [
   { rotulo: 'Nenhum', minutos: null },
@@ -35,9 +37,13 @@ const LEMBRETES: { rotulo: string; minutos: number | null }[] = [
 
 const HORA_MS = 3_600_000;
 
-/** Detalhe do item (especificação §7): edição completa, notas, lembrete, exclusão. */
+/**
+ * Detalhe do item (especificação §7): edição completa, recorrência, notas, lembrete, exclusão.
+ * Aberto a partir de uma ocorrência de série (`?ocorrencia=AAAA-MM-DD`), toda edição e exclusão
+ * pergunta o alcance: só esta ou esta e as futuras (issue #44). Nunca aplica em silêncio à série.
+ */
 export default function DetalheDoItem() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ocorrencia } = useLocalSearchParams<{ id: string; ocorrencia?: string }>();
   const item = id ? repositorio.obter(id) : null;
   const router = useRouter();
   const tema = useTema();
@@ -48,19 +54,54 @@ export default function DetalheDoItem() {
       </View>
     );
   }
-  return <Formulario item={item} aoTerminar={() => router.back()} />;
+  return (
+    <Formulario
+      item={item}
+      ocorrencia={item.rrule && ocorrencia ? ocorrencia : null}
+      aoTerminar={() => router.back()}
+    />
+  );
 }
 
-function Formulario({ item, aoTerminar }: { item: ItemLocal; aoTerminar: () => void }) {
+/** Início e fim de uma ocorrência: o desvio (se movida) ou a posição original na regra. */
+function limitesDaOcorrencia(item: ItemLocal, data: Dia): { inicio: Date; fim: Date | null } {
+  const desvio = repositorio.obterDesvio(item.id, data);
+  if (desvio?.startAt && !desvio.deletedAt) return { inicio: desvio.startAt, fim: desvio.endAt };
+  const serie = serieDoItem(item)!;
+  const o = ocorrencias(serie, inicioDoDia(data), inicioDoDia(somarDias(data, 2))).find(
+    (x) => x.data === data,
+  );
+  return { inicio: o?.inicio ?? serie.inicio, fim: o?.fim ?? null };
+}
+
+function Formulario({
+  item,
+  ocorrencia,
+  aoTerminar,
+}: {
+  item: ItemLocal;
+  ocorrencia: Dia | null;
+  aoTerminar: () => void;
+}) {
   const tema = useTema();
-  const [titulo, setTitulo] = useState(item.title);
-  const [notas, setNotas] = useState(item.notes ?? '');
+  const desvio = ocorrencia ? repositorio.obterDesvio(item.id, ocorrencia) : null;
+  const vivo = desvio && !desvio.deletedAt ? desvio : null;
+  const inicial = ocorrencia
+    ? limitesDaOcorrencia(item, ocorrencia)
+    : { inicio: item.startAt ?? item.dueAt ?? new Date(), fim: item.endAt };
+  const tituloInicial = vivo?.titleOverride ?? item.title;
+  const notasIniciais = vivo?.notesOverride ?? item.notes ?? '';
+
+  const [titulo, setTitulo] = useState(tituloInicial);
+  const [notas, setNotas] = useState(notasIniciais);
   const [diaInteiro, setDiaInteiro] = useState(item.allDay);
-  const [inicio, setInicio] = useState<Date>(item.startAt ?? item.dueAt ?? new Date());
-  const [fim, setFim] = useState<Date | null>(item.endAt);
+  const [inicio, setInicio] = useState<Date>(inicial.inicio);
+  const [fim, setFim] = useState<Date | null>(inicial.fim);
   const [lembrete, setLembrete] = useState<number | null>(item.reminderMinutesBefore);
+  const [rrule, setRrule] = useState<string | null>(item.rrule);
   const [erros, setErros] = useState<string[]>([]);
   const ehTarefa = item.kind === 'task';
+  const concluivel = ocorrencia !== null && item.effort !== null;
 
   // Dia inteiro guarda fim exclusivo; na tela, mostra o último dia (inclusive).
   const primeiroDia: Dia = diaDe(inicio);
@@ -79,32 +120,78 @@ function Formulario({ item, aoTerminar }: { item: ItemLocal; aoTerminar: () => v
     }
   }
 
-  function salvar() {
+  function tentar(fn: () => void) {
     try {
-      repositorio.editar(item.id, {
-        title: titulo.trim(),
-        notes: notas.trim() ? notas : null,
-        allDay: ehTarefa ? false : diaInteiro,
-        ...(ehTarefa ? { dueAt: inicio } : { startAt: inicio, endAt: fim }),
-        reminderMinutesBefore: lembrete,
-      });
+      fn();
       aoTerminar();
     } catch (e) {
       setErros(e instanceof ErroDeValidacao ? e.motivos : [(e as Error).message]);
     }
   }
 
-  function excluir() {
-    Alert.alert('Excluir item?', 'Ele vai para a lixeira por 30 dias.', [
-      { text: 'Cancelar', style: 'cancel' },
+  const mudancasDoItem = (): Partial<DadosItem> => ({
+    title: titulo.trim(),
+    notes: notas.trim() ? notas : null,
+    allDay: ehTarefa ? false : diaInteiro,
+    ...(ehTarefa ? { dueAt: inicio } : { startAt: inicio, endAt: fim }),
+    reminderMinutesBefore: lembrete,
+    ...(rrule !== item.rrule ? { rrule } : {}),
+  });
+
+  function soEsta() {
+    const mudou = (a: Date | null, b: Date | null) =>
+      (a?.getTime() ?? null) !== (b?.getTime() ?? null);
+    tentar(() =>
+      repositorio.alterarOcorrencia(item.id, ocorrencia!, {
+        ...(mudou(inicio, inicial.inicio) || mudou(fim, inicial.fim)
+          ? { startAt: inicio, endAt: fim }
+          : {}),
+        titleOverride: titulo.trim() !== item.title ? titulo.trim() : null,
+        notesOverride: notas.trim() && notas !== (item.notes ?? '') ? notas : null,
+      }),
+    );
+  }
+
+  function salvar() {
+    if (!ocorrencia) {
+      tentar(() => repositorio.editar(item.id, mudancasDoItem()));
+      return;
+    }
+    const regraMudou = rrule !== item.rrule;
+    Alert.alert('Aplicar a alteração a…', `Ocorrência de ${tituloDoDia(ocorrencia)}`, [
+      ...(regraMudou ? [] : [{ text: 'Só esta', onPress: soEsta }]),
       {
-        text: 'Excluir',
-        style: 'destructive',
-        onPress: () => {
-          repositorio.excluir(item.id);
-          aoTerminar();
-        },
+        text: 'Esta e as futuras',
+        onPress: () =>
+          tentar(() => repositorio.alterarDaquiEmDiante(item.id, ocorrencia, mudancasDoItem())),
       },
+      { text: 'Cancelar', style: 'cancel' as const },
+    ]);
+  }
+
+  function excluir() {
+    if (!ocorrencia) {
+      Alert.alert('Excluir item?', 'Ele vai para a lixeira por 30 dias.', [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => tentar(() => repositorio.excluir(item.id)),
+        },
+      ]);
+      return;
+    }
+    Alert.alert('Excluir…', `Ocorrência de ${tituloDoDia(ocorrencia)}`, [
+      {
+        text: 'Só esta',
+        onPress: () => tentar(() => repositorio.cancelarOcorrencia(item.id, ocorrencia)),
+      },
+      {
+        text: 'Esta e as futuras',
+        style: 'destructive',
+        onPress: () => tentar(() => repositorio.encerrarSerieAntes(item.id, ocorrencia)),
+      },
+      { text: 'Cancelar', style: 'cancel' },
     ]);
   }
 
@@ -116,7 +203,7 @@ function Formulario({ item, aoTerminar }: { item: ItemLocal; aoTerminar: () => v
     >
       <Stack.Screen
         options={{
-          title: ehTarefa ? 'Tarefa' : 'Evento',
+          title: ocorrencia ? 'Ocorrência' : ehTarefa ? 'Tarefa' : 'Evento',
           headerRight: () => (
             <Pressable onPress={salvar} accessibilityLabel="Salvar">
               <Text style={{ color: tema.destaque, fontWeight: '600', fontSize: 16 }}>Salvar</Text>
@@ -124,6 +211,12 @@ function Formulario({ item, aoTerminar }: { item: ItemLocal; aoTerminar: () => v
           ),
         }}
       />
+      {ocorrencia ? (
+        <Text style={{ color: tema.sutil }}>
+          Série · ocorrência de {tituloDoDia(ocorrencia)}
+          {vivo?.startAt ? ' (movida)' : ''}
+        </Text>
+      ) : null}
       <TextInput
         style={[estilos.titulo, { color: tema.texto, borderColor: tema.borda }]}
         value={titulo}
@@ -131,6 +224,23 @@ function Formulario({ item, aoTerminar }: { item: ItemLocal; aoTerminar: () => v
         placeholder="Título"
         placeholderTextColor={tema.sutil}
       />
+
+      {concluivel ? (
+        <Pressable
+          onPress={() =>
+            tentar(() =>
+              vivo?.status === 'done'
+                ? repositorio.reabrirOcorrencia(item.id, ocorrencia!)
+                : repositorio.concluirOcorrencia(item.id, ocorrencia!),
+            )
+          }
+          style={[estilos.botao, { borderColor: tema.pontuavel }]}
+        >
+          <Text style={{ color: tema.pontuavel, fontWeight: '600' }}>
+            {vivo?.status === 'done' ? 'Desfazer conclusão' : 'Concluir esta ocorrência'}
+          </Text>
+        </Pressable>
+      ) : null}
 
       <View style={estilos.linha}>
         <Text style={{ color: tema.sutil }}>Tipo</Text>
@@ -201,6 +311,9 @@ function Formulario({ item, aoTerminar }: { item: ItemLocal; aoTerminar: () => v
         </Text>
       ) : null}
 
+      <Text style={{ color: tema.sutil }}>Repetição</Text>
+      <EditorRecorrencia rrule={rrule} inicio={inicio} aoMudar={setRrule} />
+
       <Text style={{ color: tema.sutil }}>Lembrete antes</Text>
       <View style={estilos.chips}>
         {LEMBRETES.map((l) => {
@@ -236,7 +349,7 @@ function Formulario({ item, aoTerminar }: { item: ItemLocal; aoTerminar: () => v
         </Text>
       ))}
 
-      <Pressable onPress={excluir} style={[estilos.excluir, { borderColor: tema.perigo }]}>
+      <Pressable onPress={excluir} style={[estilos.botao, { borderColor: tema.perigo }]}>
         <Text style={{ color: tema.perigo }}>Excluir</Text>
       </Pressable>
     </ScrollView>
@@ -251,5 +364,5 @@ const estilos = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   notas: { borderWidth: 1, borderRadius: 8, padding: 10, minHeight: 100, textAlignVertical: 'top' },
-  excluir: { borderWidth: 1, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 8 },
+  botao: { borderWidth: 1, borderRadius: 10, padding: 12, alignItems: 'center' },
 });

@@ -9,7 +9,7 @@ import {
 } from '@compasso/core';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useItensNoIntervalo } from '../hooks';
+import { useAgenda } from '../hooks';
 import { useTema } from '../tema';
 import { EntradaItem } from '../ui/EntradaItem';
 
@@ -31,7 +31,7 @@ export function Mes({
   const semanas = useMemo(() => semanasDoMes(referencia), [referencia]);
   const dias = useMemo(() => semanas.flat(), [semanas]);
   const { de, ate } = useMemo(() => intervaloDosDias(dias[0]!, dias.at(-1)!), [dias]);
-  const itens = useItensNoIntervalo(de, ate);
+  const itens = useAgenda(de, ate);
   const porDia = useMemo(() => agruparPorDia(itens, dias), [itens, dias]);
   const mesAtual = partesDoDia(referencia).mes;
 
