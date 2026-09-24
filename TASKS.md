@@ -8,19 +8,19 @@ mova o registro para o PR/commit correspondente.
 
 ---
 
-## Tarefa atual — redesign "Compasso em códice" (2026-09-23, branch )
+## Tarefa atual — redesign "Compasso em códice" (2026-09-23, branch `feat/redesign`)
 
 Fonte: projeto do Claude Design "Compasso - Telas RPG" (22 telas, importado pelo MCP).
 
-- [x] Fundação: tema único de pergaminho (), Cinzel + Archivo (), ,
-      ícones,  (Botao/Chip/Campo/Segmentado/Secao), cabeçalhos próprios, , diálogo
-      próprio no lugar do , aviso
+- [x] Fundação: tema único de pergaminho (`tema.ts`), Cinzel + Archivo (`expo-font`), `Texto`,
+      ícones, `Campos` (Botao/Chip/Campo/Segmentado/Secao), cabeçalhos próprios, `Folha`, diálogo
+      próprio no lugar do `Alert`, aviso
 - [x] Abas: Hoje (+ vazio), Calendário semana/mês, Recompensas, Perfil (+ sem sessão)
 - [x] Modais: captura, detalhe do item, alcance da série, aula, recompensa
 - [x] Internas: semestre, disciplina (hora com seletor), configurações, régua, lixeira, importar,
       lembretes agendados, diagnóstico, abertura
 - [x] Docs: telas-e-features.md (seção 2), desenvolvimento.md, README
-- [x] ; revisão do diff (2 correções: navegação antes das fontes, aviso sob a
+- [x] `npm run verificar`; revisão do diff (2 correções: navegação antes das fontes, aviso sob a
       barra de abas)
 - [ ] **Conferir no aparelho** — não houve verificação visual: o AVD subiu mas o adb não respondia,
       e não havia development build nem Expo Go instalados nele
