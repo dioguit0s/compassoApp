@@ -29,7 +29,7 @@ em push na main, hostname compasso.homelab-server.space.
       (4b025f6, depois de corrigir EACCES do umask); cron + backup manual; convite criado
 - [x] Runner como serviço (usuário); rota compasso.homelab-server.space → http://compasso-api:3000,
       /health 200 pelo domínio público
-- [x] APK 0.1.0 (arm64, chave própria) em apps/mobile/dist — falta instalar no celular
+- [x] APK 0.1.0 (arm64, chave própria) instalado no celular; conta criada pelo convite (usuário)
 
 ## Tarefa anterior — redesign "Compasso em códice" (2026-09-23, branch `feat/redesign`)
 
