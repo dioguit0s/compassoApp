@@ -2,10 +2,12 @@ import { corDerivadaDoNome, novoId } from '@compasso/core';
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { hashDoToken } from '../auth';
+import { gerarCodigoDeConvite, hashDoConvite } from '../convite';
+import { esquemaEmail, gerarHashDeSenha, senhaTemporaria } from '../senha';
 
 /**
  * Operações que rodam fora de uma requisição, com o papel dono (DATABASE_ADMIN_URL): criação
- * de conta e emissão de token. O dono não está sujeito ao RLS, por isso este módulo nunca é
+ * de conta, emissão de token, convites e senha temporária. O dono não está sujeito ao RLS, por isso este módulo nunca é
  * importado pela API em execução — só por scripts.
  */
 export class Admin {
@@ -44,6 +46,65 @@ export class Admin {
   /** Emite mais um token para uma conta existente (ex.: um segundo aparelho). */
   async emitirToken(userId: string, label: string): Promise<string> {
     return this.inserirToken(userId, label);
+  }
+
+  /** Convite de cadastro (F10). O código em claro só existe no retorno. */
+  async criarConvite(nota: string | null, dias = 7): Promise<{ codigo: string; venceEm: Date }> {
+    if (!Number.isInteger(dias) || dias < 1 || dias > 90) {
+      throw new Error('validade do convite: de 1 a 90 dias');
+    }
+    const codigo = gerarCodigoDeConvite();
+    const r = await this.cliente.query<{ expires_at: Date }>(
+      `insert into invites (code_hash, note, expires_at)
+       values ($1, $2, now() + make_interval(days => $3)) returning expires_at`,
+      [hashDoConvite(codigo), nota?.trim() || null, dias],
+    );
+    return { codigo, venceEm: r.rows[0]!.expires_at };
+  }
+
+  async listarConvites() {
+    const r = await this.cliente.query<{
+      note: string | null;
+      created_at: Date;
+      expires_at: Date;
+      used_at: Date | null;
+      display_name: string | null;
+    }>(
+      `select i.note, i.created_at, i.expires_at, i.used_at, u.display_name
+       from invites i left join users u on u.id = i.used_by
+       order by i.created_at desc`,
+    );
+    return r.rows;
+  }
+
+  /**
+   * Define e-mail e uma senha temporária para uma conta (F10). Serve para dar login à conta
+   * criada por script e como "esqueci a senha" (ADR-0008): o administrador roda, entrega a senha
+   * e a pessoa troca no app. Não encerra as sessões abertas.
+   */
+  async definirAcesso(userId: string, email: string): Promise<string> {
+    const validado = esquemaEmail.safeParse(email);
+    if (!validado.success) throw new Error(`e-mail inválido: ${email}`);
+    const normalizado = validado.data;
+    const senha = senhaTemporaria();
+    const r = await this.cliente.query(
+      `insert into credentials (user_id, email, password_hash)
+       select id, $2, $3 from users where id = $1
+       on conflict (user_id) do update
+         set email = excluded.email, password_hash = excluded.password_hash, updated_at = now()`,
+      [userId, normalizado, await gerarHashDeSenha(senha)],
+    );
+    if (!r.rowCount) throw new Error(`conta ${userId} não encontrada`);
+    return senha;
+  }
+
+  /** Para o script: acha a conta pelo e-mail já cadastrado. */
+  async contaPorEmail(email: string): Promise<string | null> {
+    const r = await this.cliente.query<{ user_id: string }>(
+      'select user_id from credentials where email = $1',
+      [email.trim().toLowerCase()],
+    );
+    return r.rows[0]?.user_id ?? null;
   }
 
   private async inserirToken(userId: string, label: string): Promise<string> {

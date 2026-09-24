@@ -10,7 +10,8 @@
     "ios": "expo run:ios",
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc -p tsconfig.json",
-    "export:android": "expo export --platform android --output-dir dist"
+    "export:android": "expo export --platform android --output-dir dist",
+    "apk": "node scripts/apk.mjs"
   },
   "dependencies": {
     "@compasso/core": "*",

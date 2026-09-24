@@ -39,6 +39,35 @@ export class Banco {
     return r.rows[0]?.user_id ?? null;
   }
 
+  /** Entrar (F10): acha a credencial pelo e-mail, antes de existir `app.user_id`. */
+  async credencialPorEmail(
+    email: string,
+  ): Promise<{ userId: string; passwordHash: string } | null> {
+    const r = await this.db.execute<{ user_id: string; password_hash: string }>(
+      sql`select user_id, password_hash from credencial_por_email(${email})`,
+    );
+    const linha = r.rows[0];
+    return linha ? { userId: linha.user_id, passwordHash: linha.password_hash } : null;
+  }
+
+  /** Cadastro por convite (F10): tudo ou nada, dentro de `cadastrar_conta`. */
+  async cadastrarConta(p: {
+    conviteHash: string;
+    userId: string;
+    nome: string;
+    cor: string;
+    email: string;
+    senhaHash: string;
+    tokenHash: string;
+    rotulo: string;
+  }): Promise<'ok' | 'convite' | 'email'> {
+    const r = await this.db.execute<{ resultado: 'ok' | 'convite' | 'email' }>(
+      sql`select cadastrar_conta(${p.conviteHash}, ${p.userId}, ${p.nome}, ${p.cor}, ${p.email},
+        ${p.senhaHash}, ${p.tokenHash}, ${p.rotulo}) as resultado`,
+    );
+    return r.rows[0]!.resultado;
+  }
+
   async fechar(): Promise<void> {
     await this.pool.end();
   }

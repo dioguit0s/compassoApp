@@ -391,17 +391,25 @@ três semanas de uso real são as únicas que merecem código novo.**
 
 ### F10 — Abrir para os amigos
 
-Fora da v1, listado para não ser esquecido. Nada aqui começa antes do M5 mais um mês de uso.
+Fora da v1. O plano era não começar antes do M5 mais um mês de uso; o autor validou o app no
+aparelho real e antecipou a F10 em 2026-09-23, com a F9 (calibração) ainda por fazer.
 
-- **Autenticação real.** O token estático não sobrevive a várias contas, porque não é revogável
-  individualmente. A troca é localizada — o middleware passa a resolver o `userId` da sessão — desde
-  que todo o resto já esteja escopado, que é o motivo da regra de repositório da F0.
-- **Cadastro de conta**, hoje manual por script.
-- **Backup fora da máquina.** Deixa de ser opcional: o dado passa a ser de alguém que não escolheu
-  esse nível de risco.
-- **Atributos fixos ou por conta.** Corpo, Mente, Ofício, Casa e Social foram escolhidos para uma
-  vida específica.
-- **Régua de esforço por conta**, com o custo de virar passo obrigatório de onboarding.
+- **Autenticação real.** ✅ Senha própria (scrypt), sessão por aparelho em `api_tokens`, revogável:
+  sair revoga a do aparelho, trocar a senha revoga as outras. A troca ficou localizada no
+  middleware, como previsto ([ADR-0008](adr/0008-senha-propria-convite-e-sessao-por-aparelho.md)).
+- **Cadastro de conta.** ✅ Por código de convite gerado por script (`convite:criar`), uso único.
+  Esqueci a senha: `conta:acesso` gera uma senha temporária (ADR-0008).
+- **Backup fora da máquina.** ❌ Recusado pelo autor: o dump continua só no servidor, com o risco
+  aceito ([ADR-0010](adr/0010-backup-sem-copia-externa-com-contas-de-amigos.md)).
+- **Atributos fixos ou por conta.** ✅ Fixos
+  ([ADR-0009](adr/0009-atributos-e-regua-fixos-para-todas-as-contas.md)).
+- **Régua de esforço por conta.** ✅ Fixa, a mesma para todos (ADR-0009).
+- **Distribuição.** ✅ APK de release gerado localmente (`npm run apk -w @compasso/mobile`),
+  assinado com chave própria (ADR-0008).
+
+**Critério de saída:** um amigo recebe o convite e o APK, cria a conta, usa, e as duas contas não
+se enxergam. Depende de a API estar exposta pelo túnel da Cloudflare, que fica para quando o app
+estiver mais pronto.
 
 ---
 
@@ -439,9 +447,9 @@ adiável. Uma questão fora deste mapa é uma questão que não precisa de respo
 | Régua de esforço | F6 | A escala infla e o radar deixa de comparar com o passado |
 | Estorno de moeda | **resolvida** — saldo pode ficar negativo ([ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md)) | — |
 | Grade versus RRULE | F10 | Nada quebra; a duplicação se justifica enquanto aula não pontua |
-| Backup externo | F10 | O dado de outra pessoa fica com uma cópia só |
-| Autenticação real | F10 | Bloqueia a entrada dos amigos |
-| Atributos por conta | F10 | Bloqueia a entrada dos amigos |
+| Backup externo | **resolvida** — sem cópia externa, risco aceito ([ADR-0010](adr/0010-backup-sem-copia-externa-com-contas-de-amigos.md)) | — |
+| Autenticação real | **resolvida** — senha própria e convite ([ADR-0008](adr/0008-senha-propria-convite-e-sessao-por-aparelho.md)) | — |
+| Atributos por conta | **resolvida** — fixos, régua fixa ([ADR-0009](adr/0009-atributos-e-regua-fixos-para-todas-as-contas.md)) | — |
 | XP por presença em aula | — | Provavelmente deve continuar sem resposta |
 | Anotações de aula | — | Deliberadamente fora |
 

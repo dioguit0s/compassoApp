@@ -37,6 +37,8 @@ export function IndicadorSync() {
           : `erro ao sincronizar (${estado.mensagem}) · dados deste aparelho`
         : estado?.tipo === 'sem-conexao'
           ? 'servidor não configurado · só neste aparelho'
-          : `sincronizado ${quando}`;
+          : estado?.tipo === 'sessao-encerrada'
+            ? 'sessão encerrada · entre de novo no Perfil'
+            : `sincronizado ${quando}`;
   return <Text style={{ color: tema.sutil, fontSize: 11 }}>{texto}</Text>;
 }

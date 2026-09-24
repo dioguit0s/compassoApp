@@ -53,6 +53,7 @@ import {
   coinEntries,
   completions,
   courses,
+  credentials,
   itemOccurrences,
   items,
   redemptions,
@@ -1281,6 +1282,42 @@ export function criarRepositorios(tx: Tx, userId: string) {
   };
 
   return {
+    /** Sessões e senha da própria conta (F10, ADR-0008). */
+    acesso: {
+      // api_tokens é invisível para a API (ADR-0002): as três operações são funções
+      // SECURITY DEFINER que agem só na conta de app.user_id (migração 0016).
+      async emitirToken(tokenHash: string, rotulo: string): Promise<void> {
+        await tx.execute(sql`select emitir_token(${tokenHash}, ${rotulo})`);
+      },
+
+      async revogarToken(tokenHash: string): Promise<void> {
+        await tx.execute(sql`select revogar_tokens(${tokenHash}, false)`);
+      },
+
+      /** Trocar a senha encerra os outros aparelhos; o que pediu a troca continua conectado. */
+      async revogarOutrosTokens(tokenHashAtual: string): Promise<number> {
+        const r = await tx.execute<{ n: number }>(
+          sql`select revogar_tokens(${tokenHashAtual}, true) as n`,
+        );
+        return r.rows[0]!.n;
+      },
+
+      async hashDaSenha(): Promise<string | null> {
+        const [linha] = await tx
+          .select({ passwordHash: credentials.passwordHash })
+          .from(credentials)
+          .where(eq(credentials.userId, userId));
+        return linha?.passwordHash ?? null;
+      },
+
+      async trocarHashDaSenha(passwordHash: string): Promise<void> {
+        await tx
+          .update(credentials)
+          .set({ passwordHash, updatedAt: sql`now()` })
+          .where(eq(credentials.userId, userId));
+      },
+    },
+
     usuarios: {
       /** A tabela users é o caso em que a própria linha é o dono: filtra por `id`. */
       async atual(): Promise<Usuario | null> {

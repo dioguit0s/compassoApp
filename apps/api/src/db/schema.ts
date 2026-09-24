@@ -92,6 +92,62 @@ export const apiTokens = pgTable(
   ],
 );
 
+/**
+ * E-mail e senha da conta (F10, ADR-0008). Fora de `users` para que `GET /me` e o RLS de `users`
+ * nunca toquem no hash. A API não lê esta tabela direto na entrada: `credencial_por_email` é
+ * SECURITY DEFINER, porque antes do login não existe `app.user_id`.
+ * O e-mail é gravado já normalizado (minúsculo, sem espaços) — o CHECK impede o contrário.
+ */
+export const credentials = pgTable(
+  'credentials',
+  {
+    userId: uuid()
+      .primaryKey()
+      .references(() => users.id),
+    email: text().notNull(),
+    passwordHash: text().notNull(),
+    ...carimbos,
+  },
+  (t) => [
+    uniqueIndex('credentials_email_idx').on(t.email),
+    check('credentials_email_check', sql`${t.email} = lower(btrim(${t.email}))`),
+    pgPolicy('credentials_dono', {
+      for: 'all',
+      to: papelApp,
+      using: sql`${t.userId} = ${usuarioAtual}`,
+      withCheck: sql`${t.userId} = ${usuarioAtual}`,
+    }),
+  ],
+);
+
+/**
+ * Convites de cadastro (F10, ADR-0008). Criados pelo administrador por script; o código em claro
+ * aparece uma vez. A API não tem privilégio nenhum aqui: resgatar é `cadastrar_conta`, SECURITY
+ * DEFINER, que consome o convite e cria a conta na mesma transação.
+ */
+export const invites = pgTable(
+  'invites',
+  {
+    codeHash: text().primaryKey(),
+    note: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    usedAt: timestamp({ withTimezone: true }),
+    usedBy: uuid().references(() => users.id),
+  },
+  (t) => [
+    check('invites_used_check', sql`(${t.usedAt} is null) = (${t.usedBy} is null)`),
+    // Nega tudo ao papel da API (que nem tem GRANT aqui): a política existe para a regra "toda
+    // tabela tem RLS e política" valer sem exceção (test/rls.test.ts).
+    pgPolicy('invites_nenhum', {
+      for: 'all',
+      to: papelApp,
+      using: sql`false`,
+      withCheck: sql`false`,
+    }),
+  ],
+);
+
 const tz = { withTimezone: true } as const;
 const listaAtributos = sql.raw(ATRIBUTOS.map((a) => `'${a}'`).join(', '));
 

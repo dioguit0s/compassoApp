@@ -35,10 +35,11 @@ abandono em apps de uso pessoal, e abandono é o modo de falha real aqui.
 
 ## 2. Restrições e premissas
 
-- **Multiusuário na estrutura, conta única no uso.** A v1 roda com uma conta só, criada
-  manualmente, mas o Compasso será aberto para alguns amigos próximos depois. Por isso **toda linha
-  carrega `userId` desde o primeiro commit** e toda consulta é escopada por ele. O que fica para
-  depois é o cadastro, não o isolamento.
+- **Multiusuário na estrutura, poucas contas no uso.** A v1 rodou com uma conta só, criada
+  manualmente; desde a F10 alguns amigos próximos entram por convite, com e-mail e senha
+  ([ADR-0008](adr/0008-senha-propria-convite-e-sessao-por-aparelho.md)). Por isso **toda linha
+  carrega `userId` desde o primeiro commit** e toda consulta é escopada por ele: o cadastro veio
+  depois, o isolamento não.
 - **Sem interação entre contas.** Nada de compartilhamento, ranking, feed ou comparação de
   progresso. Contas são silos independentes que dividem infraestrutura — não uma rede social.
 - **Escala:** ordem de dezenas de itens por semana, menos de dez contas previstas. Nenhuma decisão
@@ -281,8 +282,11 @@ são excluídos, apenas compensados por lançamentos opostos.
 }
 ```
 
-Sem e-mail, sem senha e sem papel de administrador na v1: contas são criadas manualmente via script
-e autenticadas por token estático.
+Sem papel de administrador dentro do app: a administração é por script, com o papel dono do banco.
+Até a F8 as contas eram criadas só por script e autenticadas por token; desde a F10 há e-mail e
+senha numa tabela à parte (`credentials`, fora de `users` para o hash nunca aparecer em `GET /me`)
+e cadastro por código de convite (`invites`, uso único, validade padrão de 7 dias). Ver
+[ADR-0008](adr/0008-senha-propria-convite-e-sessao-por-aparelho.md).
 
 ### Grade acadêmica
 
@@ -551,6 +555,12 @@ desenvolvedor, para resolver um problema que a janela deslizante já resolve.
 ### 6.3 Endpoints
 
 ```
+POST   /auth/cadastro                público: convite + nome + e-mail + senha → token de sessão
+POST   /auth/entrar                  público: e-mail + senha → token de sessão (429 após 5 erros
+                                     em 15 min por e-mail, ou 20 por IP)
+POST   /auth/sair                    revoga o token desta sessão
+PUT    /me/senha                     senha atual + nova; revoga as sessões dos outros aparelhos
+
 GET    /me                           perfil da conta autenticada
 PATCH  /me                           nome de exibição e preferências
 PUT    /me/avatar                    upload de imagem (multipart), substitui a anterior
@@ -719,8 +729,9 @@ A única coisa que vale fazer uma vez, na mão, é **restaurar um dump em banco 
 que abre**. Um backup nunca restaurado é uma suposição, e descobrir que o comando estava errado
 custa dez minutos agora ou o semestre inteiro recadastrado depois.
 
-Isso muda quando as contas de amigos entrarem: o dado deixa de ser só seu e passa a ser de alguém
-que não escolheu esse nível de risco. Aí a cópia fora da máquina volta à mesa.
+Com as contas de amigos, o dado deixa de ser só seu e passa a ser de alguém que não escolheu esse
+nível de risco. A cópia fora da máquina voltou à mesa na F10 e foi recusada: o dump continua só no
+servidor, com esse risco aceito ([ADR-0010](adr/0010-backup-sem-copia-externa-com-contas-de-amigos.md)).
 
 ## 7. Telas da v1
 Quatro abas na navegação inferior, mais os fluxos que aparecem por cima delas.
@@ -853,7 +864,7 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 | Variável | Obrigatória | Descrição |
 |---|---|---|
 | `DATABASE_URL` | sim | Conexão com o PostgreSQL, com o papel da API (`compasso_app`, sujeito ao RLS) |
-| `DATABASE_ADMIN_URL` | só scripts | Conexão com o papel dono (`compasso_owner`): migrações, criação de conta, purga. A API em execução não lê |
+| `DATABASE_ADMIN_URL` | só scripts | Conexão com o papel dono (`compasso_owner`): migrações, contas, convites, purga. A API em execução não lê |
 | `PORT` | não | Porta da API. Padrão 3000 |
 | `SYNC_CURSOR_WINDOW_SECONDS` | não | Janela de segurança do cursor de sync (§6.6). Padrão 60 |
 | `TZ_DEFAULT` | não | Fuso padrão dos itens. Padrão `America/Sao_Paulo` |
@@ -863,13 +874,14 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 | `BACKUP_KEEP_DAILY` | não | Dumps retidos. Padrão 7 |
 | `TRASH_RETENTION_DAYS` | não | Prazo da lixeira e da purga de tombstones. Padrão 30 |
 
-Token estático resolve enquanto existe uma conta: o token identifica a pessoa e a API resolve o
-`userId` a partir dele. Os tokens não ficam em variável de ambiente: o script de criação de conta
-grava o SHA-256 de cada um na tabela `api_tokens`, um por aparelho, e imprime o valor em claro uma
-única vez ([ADR-0002](adr/0002-ferramentas-e-convencoes-da-fundacao.md)). Isso deixa de servir no dia em que os amigos entrarem, porque token
-compartilhado por vários aparelhos não pode ser revogado individualmente. A troca é localizada — o
-middleware que hoje devolve um `userId` fixo passa a devolver o da sessão — desde que todo o resto
-do sistema já esteja escopado, que é o motivo da regra da seção 5.
+O token identifica a pessoa e a API resolve o `userId` a partir dele. Os tokens não ficam em
+variável de ambiente: a tabela `api_tokens` guarda o SHA-256 de cada um, um por aparelho, e o
+valor em claro aparece uma única vez ([ADR-0002](adr/0002-ferramentas-e-convencoes-da-fundacao.md)).
+Até a F8 só o script de criação de conta emitia tokens. Desde a F10, entrar com e-mail e senha
+(ou criar conta com convite) emite um token de sessão para o aparelho; sair revoga o dele e trocar
+a senha revoga os dos outros ([ADR-0008](adr/0008-senha-propria-convite-e-sessao-por-aparelho.md)).
+A troca foi localizada no middleware, como previsto, porque o resto do sistema já estava escopado —
+o motivo da regra da seção 5.
 
 ## 10. Questões em aberto
 
@@ -885,6 +897,13 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 >
 > **Resolvida.** *Fim de semestre*: um semestre corrente por vez, e as datas limitam a projeção
 > (férias sem aulas). Ver [ADR-0005](adr/0005-semestre-corrente-e-grade.md).
+>
+> **Resolvidas na F10 (2026-09-23).** *Modelo de autenticação*: senha própria, cadastro por
+> convite, sessão por aparelho ([ADR-0008](adr/0008-senha-propria-convite-e-sessao-por-aparelho.md)).
+> *Atributos fixos com outras pessoas* e *régua de esforço por conta*: os cinco atributos e a régua
+> são os mesmos para todas as contas ([ADR-0009](adr/0009-atributos-e-regua-fixos-para-todas-as-contas.md)).
+> *Backup ao abrir para amigos*: sem cópia externa, risco aceito
+> ([ADR-0010](adr/0010-backup-sem-copia-externa-com-contas-de-amigos.md)).
 
 - **Tamanho da janela de segurança do cursor de sync.** A seção 6.6 decide que o pull recua alguns
   segundos para não perder escrita que fez commit fora de ordem. Falta escolher o número. Curto
@@ -899,9 +918,6 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
   passou a ser um segundo mecanismo de repetição no mesmo sistema. A duplicação se justifica por
   enquanto — a grade carrega sala e disciplina, e aula não pontua — mas se ela começar a divergir em
   comportamento, vale unificar sobre RRULE.
-- **Backup ao abrir para amigos.** A rotina atual (dump diário local, sem cópia externa) é adequada
-  a um app de um usuário. Quando as contas de amigos entrarem, o dado deixa de ser só do autor e a
-  cópia fora da máquina volta à mesa.
 - **Curva de nível.** Os números da seção 4.4 são chute. Só se calibram com um mês de uso real.
 - **Régua de esforço.** Os exemplos de referência precisam ser escritos pelo autor, com tarefas da
   vida dele. Sem isso a escala não ancora.
@@ -912,16 +928,6 @@ do sistema já esteja escopado, que é o motivo da regra da seção 5.
 - **XP por presença em aula.** Tentador e provavelmente errado: exigiria transformar cada aula numa
   ocorrência completável, que é exatamente o que a seção 5 evita. Se for muito desejado depois, o
   caminho barato é um check-in diário único que credita XP fixo em Mente, sem materializar nada.
-- **Modelo de autenticação real.** Quando as contas de amigos entrarem: senha própria, link mágico
-  por e-mail ou login social. Cada opção arrasta infraestrutura diferente (envio de e-mail,
-  credenciais de OAuth) e nenhuma é necessária antes disso.
-- **Atributos fixos com outras pessoas.** Corpo, Mente, Ofício, Casa e Social foram escolhidos para
-  a vida de uma pessoa específica. Para amigos, ou os cinco continuam fixos e alguém acha que
-  nenhum descreve o dia dele, ou viram configuráveis por conta — o que quebra qualquer comparação
-  futura e complica a régua de esforço. Decisão adiável, mas não indefinidamente.
-- **Régua de esforço por conta.** Os exemplos de referência são pessoais por natureza. Se forem
-  fixos no Compasso, não ancoram para outra pessoa; se forem por conta, viram passo obrigatório de
-  onboarding.
 
 ## 11. Como evoluir
 

@@ -8,7 +8,37 @@ mova o registro para o PR/commit correspondente.
 
 ---
 
-## Tarefa atual — validação no emulador (2026-09-23)
+## Tarefa atual — F10, abrir para os amigos (2026-09-23)
+
+**Decisões do usuário (2026-09-23):** validado no aparelho real, F10 começa agora. Senha própria;
+cadastro por código de convite; sem backup fora do servidor; atributos fixos; régua fixa; APK
+(caminho mais prático); túnel da Cloudflare fica para depois — só testes locais.
+Default meu (não respondido): esqueci a senha → redefinição por script do administrador.
+
+### Checklist
+- [x] API: tabelas `credentials` e `invites`, funções SECURITY DEFINER, grants (migrações 0015/0016)
+- [x] API: hash de senha (scrypt, teto de 2 simultâneos), limite por e-mail e por IP, rotas
+      `/auth/cadastro`, `/auth/entrar`, `/auth/sair`, `PUT /me/senha`
+- [x] Scripts: `convite:criar`, `convite:listar`, `conta:acesso` (e-mail + senha temporária)
+- [x] Testes da API (`test/acesso.test.ts`)
+- [x] App: tela de entrar/criar conta, 401 → sessão encerrada, troca de senha, sair revoga
+- [x] APK: `npm run apk -w @compasso/mobile`, plugin de assinatura (`plugins/apk-release.js`)
+      — prebuild e injeção da assinatura conferidos no `build.gradle` gerado; o `assembleRelease`
+      **falhou** (21 min): ninja 1.10.2 do CMake 3.22.1 recusa caminho > 260 caracteres ao compilar
+      o C++ do arm64-v8a (`RNGestureHandlerDetectorShadowNode.cpp.o`, ~310). `LongPathsEnabled` já
+      é 1 no Windows; falta um ninja que aceite caminho longo (CMake 3.31+ do SDK Manager).
+- [x] Docs: ADRs 0008–0010, especificação, roadmap, desenvolvimento.md, README
+- [x] `npm run verificar`, revisão do diff (5 sugestões corrigidas), commit
+
+### Pendências para o usuário (F10)
+- APK não gerado ainda: instalar CMake 3.31+ no SDK Manager (ver item do APK acima)
+- Gerar a chave de assinatura e as propriedades `COMPASSO_RELEASE_*` (docs/desenvolvimento.md)
+- Testar no aparelho: criar conta com convite, entrar, trocar senha, sair; sessão encerrada
+- `conta:acesso <seu userId> <seu e-mail>` para a sua conta ganhar senha
+- Túnel da Cloudflare antes de mandar o APK a alguém (o release só fala HTTPS)
+
+
+## Tarefa anterior — validação no emulador (2026-09-23)
 
 **Objetivo:** percorrer o roteiro do handoff (`e7f0c8f`) no emulador Android (AVD Pixel_7),
 fase por fase: passou / falhou (causa + correção ou issue) / fora de alcance (motivo).
@@ -161,7 +191,8 @@ de São Paulo (ADR-0003). Commits quando fizer sentido.
 - #65 estorno: saldo pode ficar negativo → ADR-0006
 
 ### Pendências para o usuário
-- Critérios de saída no aparelho/servidor real: #14, #25, #36, #46, #54, #63, #76, #82, #89
+- ~~Critérios de saída no aparelho real~~ → validado pelo usuário (2026-09-23); falta o servidor
+  real com túnel: #14, #25, #36, #46, #54, #63, #76, #82, #89
 - #66: escrever a régua de esforço com exemplos da própria vida (hoje é provisória, genérica)
 - F9 (#90–#93): só depois de 3–4 semanas de uso com a gamificação ligada
 

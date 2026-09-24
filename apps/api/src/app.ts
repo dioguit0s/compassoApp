@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { rotasDeAcesso, rotasPublicasDeAcesso } from './acesso';
 import { autenticacao, type VariaveisAutenticadas } from './auth';
 import type { Config } from './config';
 import type { Banco } from './db/banco';
@@ -11,6 +12,7 @@ import { serializarUsuario } from './serializar';
 import { rotasDaGrade } from './grade';
 import { rotasDeImportacao } from './importacao';
 import { rotasDeItens } from './itens';
+import { LimiteDeTentativas } from './limite';
 import { rotasDeSync } from './sync';
 
 export function criarApp(banco: Banco, config: Config) {
@@ -22,8 +24,12 @@ export function criarApp(banco: Banco, config: Config) {
     return c.json({ erro: 'erro interno' }, 500);
   });
 
-  // Sem autenticação: /health (túnel e deploy) e /avatares.
+  // Sem autenticação: /health (túnel e deploy), /avatares, cadastro e entrada.
   app.get('/health', (c) => c.json({ ok: true }));
+
+  const limite = new LimiteDeTentativas(); // por conta: 5 em 15 min
+  const limitePorIp = new LimiteDeTentativas(20); // por IP: 20 em 15 min, qualquer e-mail
+  app.route('/', rotasPublicasDeAcesso(banco, limite, limitePorIp));
 
   // Fotos de perfil, públicas como o Nginx as serve em produção (deploy/nginx.conf.example): o nome
   // é aleatório e muda a cada troca. Em produção o Nginx responde antes; sem ele (desenvolvimento)
@@ -51,6 +57,7 @@ export function criarApp(banco: Banco, config: Config) {
     return c.json(serializarUsuario(usuario));
   });
 
+  autenticada.route('/', rotasDeAcesso(limite));
   autenticada.route('/sync', rotasDeSync(config));
   autenticada.route('/', rotasDeItens());
   autenticada.route('/import', rotasDeImportacao());

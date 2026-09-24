@@ -20,10 +20,26 @@ npm run lint && npm run typecheck && npm test
 docker compose up -d                 # PostgreSQL 17 com os papéis compasso_owner e compasso_app
 cp apps/api/.env.example apps/api/.env
 npm run db:migrate -w @compasso/api  # banco vazio → schema atual
-npm run conta:criar -w @compasso/api -- "Seu Nome"   # imprime o token uma vez
+npm run conta:criar -w @compasso/api -- "Seu Nome"   # imprime o userId e o token uma vez
+npm run conta:acesso -w @compasso/api -- <userId> voce@exemplo.com   # e-mail + senha temporária
 npm run dev -w @compasso/api         # http://localhost:3000
 curl -H "Authorization: Bearer <token>" localhost:3000/me
 ```
+
+### Contas, convites e senhas (F10)
+
+Tudo pelo papel dono ([ADR-0008](adr/0008-senha-propria-convite-e-sessao-por-aparelho.md)). Os
+segredos aparecem **uma vez** na saída.
+
+| Comando (`-w @compasso/api --`) | Faz |
+|---|---|
+| `convite:criar "nota" [dias]` | Código de convite de uso único (padrão 7 dias). Mande à pessoa com o endereço do servidor |
+| `convite:listar` | Convites abertos, usados (por quem) e vencidos |
+| `conta:acesso <userId\|e-mail> [e-mail]` | Define e-mail e gera senha temporária. Serve para dar senha à conta criada por script e para "esqueci a senha" |
+| `conta:criar "Nome"` / `conta:token <userId> "rótulo"` | Conta e token sem senha (desenvolvimento) |
+
+Sessão perdida (aparelho roubado): a pessoa troca a senha em outro aparelho — isso revoga as outras
+sessões. Sem outro aparelho: `conta:acesso` e depois a troca.
 
 ## Estrutura
 
@@ -44,7 +60,7 @@ packages/core    lógica pura, sem Node nem React Native: IDs, datas, validaçã
 
 | Papel | Quem usa | Sujeito ao RLS |
 |---|---|---|
-| `compasso_owner` | migrações, `conta:criar`, purga de tombstones, backup | não (dono das tabelas) |
+| `compasso_owner` | migrações, contas e convites, purga de tombstones, backup | não (dono das tabelas) |
 | `compasso_app` | a API em execução | **sim** |
 
 A API conecta com `DATABASE_URL` (papel `compasso_app`). Scripts usam `DATABASE_ADMIN_URL`
@@ -105,9 +121,49 @@ abertura e são aditivas.
 ### Primeira abertura
 
 A aba Perfil pede a URL da API (a do túnel, ou `http://<ip-da-máquina>:3000` em desenvolvimento) e
-o token impresso por `conta:criar`. Os dois vão para o `expo-secure-store`. A partir daí, cada
-abertura tenta `GET /me`, grava no SQLite e a tela lê sempre do SQLite — sem rede, mostra o que já
-estava gravado.
+e-mail e senha — ou, em "Tenho um convite", o código, o nome, o e-mail e uma senha nova. A URL e o
+token de sessão devolvido vão para o `expo-secure-store`. A partir daí, cada abertura tenta
+`GET /me`, grava no SQLite e a tela lê sempre do SQLite — sem rede, mostra o que já estava gravado.
+
+Se o servidor responder `401` (sessão revogada), o app esquece só o token: os dados e a URL ficam,
+o indicador mostra "sessão encerrada" e o Perfil volta a pedir a senha. Entrar com **outra** conta
+apaga os dados locais antes.
+
+### APK para os amigos
+
+```sh
+npm run apk -w @compasso/mobile                           # → apps/mobile/dist/compasso-<versão>.apk
+COMPASSO_PERMITIR_HTTP=1 npm run apk -w @compasso/mobile  # → …-http.apk, só para testar contra a API local
+```
+
+Mesmo ambiente do development build (JDK 17–23, ver [Emulador Android](#emulador-android)). O
+script roda o prebuild (a pasta `android/` é regenerada) e o `assembleRelease`. O release só fala
+**HTTPS**; o `-http` aceita `http://` e não deve ser distribuído.
+
+**Chave de assinatura — uma vez, e guarde bem.** O Android só instala uma atualização por cima se a
+chave for a mesma; perdê-la obriga cada amigo a desinstalar (e perder os dados locais não enviados).
+
+```sh
+keytool -genkeypair -v -storetype PKCS12 -keystore ~/compasso-release.keystore -alias compasso -keyalg RSA -keysize 2048 -validity 10000
+```
+
+E no `~/.gradle/gradle.properties` (fora do repositório):
+
+```properties
+COMPASSO_RELEASE_STORE_FILE=C:/Users/<você>/compasso-release.keystore
+COMPASSO_RELEASE_STORE_PASSWORD=...
+COMPASSO_RELEASE_KEY_ALIAS=compasso
+COMPASSO_RELEASE_KEY_PASSWORD=...
+```
+
+Sem essas propriedades o APK sai assinado com a chave de debug e o script avisa. O plugin
+`apps/mobile/plugins/apk-release.js` é quem injeta a assinatura no `build.gradle` gerado.
+
+A cada versão distribuída, suba `version` e `android.versionCode` no `app.json`. O Android não
+instala versão com `versionCode` menor que a instalada.
+
+Instalar: mande o `.apk` (por mensagem ou link) e a pessoa permite "instalar apps desconhecidos"
+para o app por onde abriu o arquivo. Com o aparelho no cabo: `adb install -r <arquivo>.apk`.
 
 ### `packages/core` no Metro
 

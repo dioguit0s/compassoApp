@@ -7,7 +7,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { db } from '../src/db';
 import { reagendar } from '../src/notificacoes';
 import { salvarPreferencias } from '../src/perfil';
-import { esquecerConexao } from '../src/servidor';
+import { encerrarSessaoNoServidor, esquecerConexao, trocarSenha } from '../src/servidor';
 import { apagarDadosLocais, repositorio } from '../src/sync';
 import { useTema } from '../src/tema';
 import { Botao, Campo, Chip } from '../src/ui/Campos';
@@ -90,6 +90,8 @@ export default function Configuracoes() {
         Importar calendário (.ics)
       </Link>
 
+      {conta ? <TrocaDeSenha /> : null}
+
       <Botao
         perigo
         rotulo="Sair da conta"
@@ -97,7 +99,7 @@ export default function Configuracoes() {
           const pendentes = Object.values(repositorio.sujos()).reduce((n, l) => n + l.length, 0);
           Alert.alert(
             'Sair da conta?',
-            `Apaga o token e todos os dados deste aparelho.${pendentes ? ` ${pendentes} alteração(ões) ainda não foram enviadas ao servidor e serão perdidas.` : ' Tudo já está no servidor.'}`,
+            `Encerra a sessão e apaga todos os dados deste aparelho.${pendentes ? ` ${pendentes} alteração(ões) ainda não foram enviadas ao servidor e serão perdidas.` : ' Tudo já está no servidor.'}`,
             [
               { text: 'Cancelar', style: 'cancel' },
               {
@@ -105,6 +107,7 @@ export default function Configuracoes() {
                 style: 'destructive',
                 onPress: async () => {
                   try {
+                    await encerrarSessaoNoServidor();
                     await esquecerConexao();
                     apagarDadosLocais();
                     await reagendar(); // cancela os lembretes da conta que saiu
@@ -119,6 +122,74 @@ export default function Configuracoes() {
         }}
       />
     </ScrollView>
+  );
+}
+
+/** Troca de senha (F10, ADR-0008). Precisa de rede; encerra a sessão dos outros aparelhos. */
+function TrocaDeSenha() {
+  const tema = useTema();
+  const [atual, setAtual] = useState('');
+  const [nova, setNova] = useState('');
+  const [confirmacao, setConfirmacao] = useState('');
+  const [mensagem, setMensagem] = useState<{ texto: string; erro: boolean } | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const naoConfere = confirmacao !== '' && nova !== confirmacao;
+
+  return (
+    <View style={estilos.bloco}>
+      <Text style={[estilos.subtitulo, { color: tema.texto }]}>Trocar senha</Text>
+      <Campo
+        rotulo="Senha atual"
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="current-password"
+        value={atual}
+        onChangeText={setAtual}
+      />
+      <Campo
+        rotulo="Senha nova (mínimo 8 caracteres)"
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="new-password"
+        value={nova}
+        onChangeText={setNova}
+      />
+      <Campo
+        rotulo="Repita a senha nova"
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="new-password"
+        value={confirmacao}
+        onChangeText={setConfirmacao}
+      />
+      {naoConfere ? (
+        <Text style={{ color: tema.perigo }}>As duas senhas novas diferem.</Text>
+      ) : null}
+      {mensagem ? (
+        <Text style={{ color: mensagem.erro ? tema.perigo : tema.sutil }}>{mensagem.texto}</Text>
+      ) : null}
+      <Botao
+        rotulo={enviando ? 'Enviando…' : 'Trocar senha'}
+        desativado={enviando || !atual || nova.length < 8 || nova !== confirmacao}
+        aoTocar={async () => {
+          setEnviando(true);
+          try {
+            const n = await trocarSenha(atual, nova);
+            setAtual('');
+            setNova('');
+            setConfirmacao('');
+            setMensagem({
+              texto: `Senha trocada.${n ? ` ${n} outro(s) aparelho(s) precisarão entrar de novo.` : ''}`,
+              erro: false,
+            });
+          } catch (e) {
+            setMensagem({ texto: (e as Error).message, erro: true });
+          } finally {
+            setEnviando(false);
+          }
+        }}
+      />
+    </View>
   );
 }
 

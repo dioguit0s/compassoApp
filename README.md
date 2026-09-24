@@ -16,17 +16,23 @@ horas — porque um app de tarefa que ignora a agenda mente sobre o tempo dispon
 
 ## Status
 
-🚧 **Código da v1 escrito (F0 a F8 do [roadmap](docs/roadmap.md)), ainda não validado em uso real.**
-Calendário offline-first com recorrência, lembretes locais, importação do Google Calendar, grade
-acadêmica, gamificação (esforço, XP, radar) e economia (moedas, recompensas). Os critérios de
-saída de cada fase exigem o aparelho e o servidor doméstico e ainda não foram executados; a F9
-(calibração) só começa depois de semanas de uso.
+🚧 **Código da v1 escrito (F0 a F8 do [roadmap](docs/roadmap.md)) e validado no aparelho real,
+ainda sem semanas de uso.** Calendário offline-first com recorrência, lembretes locais, importação
+do Google Calendar, grade acadêmica, gamificação (esforço, XP, radar) e economia (moedas,
+recompensas). Falta o servidor doméstico exposto pelo túnel; a F9 (calibração) só começa depois de
+semanas de uso.
 
 **Validado no emulador Android (2026-09-23):** o mecanismo de F0 a F8 — sync offline e LWW com
 dois clientes, calendário e fuso fixo, recorrência, lembretes com modo avião/tela bloqueada/app
 fechado/reboot, tarefa de background, importação de ICS, grade, gamificação, economia, foto,
 lixeira, sair da conta, tema escuro e fonte grande. 15 correções em commits `fix:` (lista em
 `TASKS.md`). Falta: uso real, iOS, servidor doméstico com túnel.
+
+**F10 — abrir para os amigos (2026-09-23):** e-mail e senha, cadastro por código de convite,
+sessão revogável por aparelho, troca de senha e APK de release gerado localmente
+([ADR-0008](docs/adr/0008-senha-propria-convite-e-sessao-por-aparelho.md)). Atributos e régua
+fixos para todos (ADR-0009); backup continua só no servidor (ADR-0010). A API ainda não está no
+túnel.
 
 ## Estrutura
 

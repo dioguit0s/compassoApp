@@ -14,11 +14,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { db } from '../../src/db';
-import { useProgresso } from '../../src/hooks';
+import { useEstadoSync, useProgresso } from '../../src/hooks';
 import {
   abrirAjusteDeAlarmeExato,
   estadoDaPermissao,
@@ -26,9 +25,10 @@ import {
   type EstadoPermissao,
 } from '../../src/notificacoes';
 import { atualizarPerfil, enviarFoto, removerFoto } from '../../src/perfil';
-import { lerConexao, salvarConexao, urlDeServidorValida } from '../../src/servidor';
+import { lerConexao } from '../../src/servidor';
 import { sincronizarAgora } from '../../src/sync';
 import { useTema } from '../../src/tema';
+import { FormularioAcesso } from '../../src/ui/FormularioAcesso';
 import { HistoricoXp } from '../../src/ui/HistoricoXp';
 import { FaixasDeNivel, Radar } from '../../src/ui/Radar';
 import { moedas } from '../../src/texto';
@@ -56,10 +56,15 @@ export default function Perfil() {
   const [estado, setEstado] = useState('');
   const progresso = useProgresso();
 
+  const estadoSync = useEstadoSync();
+
   useEffect(() => {
-    void lerConexao().then((c) => setTemConexao(c !== null));
     void estadoDaPermissao().then(setPermissao);
   }, []);
+  // Relê a cada sincronização: um 401 apaga o token, e o formulário de entrar precisa aparecer.
+  useEffect(() => {
+    void lerConexao().then((c) => setTemConexao(c !== null));
+  }, [estadoSync]);
 
   async function atualizar() {
     setEstado('buscando…');
@@ -133,8 +138,8 @@ export default function Perfil() {
       )}
 
       {temConexao === false ? (
-        <FormularioConexao
-          aoSalvar={async () => {
+        <FormularioAcesso
+          aoEntrar={async () => {
             setTemConexao(true);
             await atualizar();
           }}
@@ -232,49 +237,6 @@ export default function Perfil() {
   );
 }
 
-function FormularioConexao({ aoSalvar }: { aoSalvar: () => Promise<void> }) {
-  const tema = useTema();
-  const [url, setUrl] = useState('');
-  const [token, setToken] = useState('');
-  const urlOk = urlDeServidorValida(url);
-  return (
-    <View style={estilos.bloco}>
-      <Text style={[estilos.subtitulo, { color: tema.texto }]}>Conectar ao servidor</Text>
-      <TextInput
-        style={[estilos.campo, { color: tema.texto, borderColor: tema.borda }]}
-        placeholder="https://compasso.seu-dominio"
-        placeholderTextColor={tema.sutil}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="url"
-        value={url}
-        onChangeText={setUrl}
-      />
-      {url && !urlOk ? (
-        <Text style={{ color: tema.perigo }}>Use o endereço completo: http:// ou https://</Text>
-      ) : null}
-      <TextInput
-        style={[estilos.campo, { color: tema.texto, borderColor: tema.borda }]}
-        placeholder="token"
-        placeholderTextColor={tema.sutil}
-        autoCapitalize="none"
-        autoCorrect={false}
-        secureTextEntry
-        value={token}
-        onChangeText={setToken}
-      />
-      <Button
-        title="Salvar"
-        disabled={!urlOk || !token}
-        onPress={async () => {
-          await salvarConexao({ url, token });
-          await aoSalvar();
-        }}
-      />
-    </View>
-  );
-}
-
 const estilos = StyleSheet.create({
   tela: { padding: 24, gap: 24 },
   cabecalho: { alignItems: 'center', gap: 8 },
@@ -290,6 +252,5 @@ const estilos = StyleSheet.create({
   subtitulo: { fontSize: 16, fontWeight: '600' },
   detalhe: { textAlign: 'center' },
   bloco: { gap: 12 },
-  campo: { borderWidth: 1, borderRadius: 6, padding: 10 },
   link: { textAlign: 'center', padding: 8 },
 });

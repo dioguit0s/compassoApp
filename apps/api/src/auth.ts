@@ -5,6 +5,8 @@ import type { Repositorios } from './db/repositorios';
 
 export interface VariaveisAutenticadas {
   userId: string;
+  /** Hash do token desta requisição: sair revoga só ele, trocar a senha revoga os outros. */
+  tokenHash: string;
   /** Executa `fn` numa transação escopada à conta autenticada. */
   transacao: <T>(fn: (repos: Repositorios) => Promise<T>) => Promise<T>;
 }
@@ -14,8 +16,9 @@ export function hashDoToken(token: string): string {
 }
 
 /**
- * Token estático → `userId`. O resto da API só enxerga o `userId`, então trocar por
- * autenticação real (F10) mexe só aqui.
+ * Token de sessão → `userId`. Cada aparelho tem o seu, emitido ao entrar com e-mail e senha
+ * (ou, para a conta criada por script, pelo próprio script) e revogável individualmente
+ * (ADR-0008). O resto da API só enxerga o `userId`.
  *
  * O token não é comparado diretamente: a busca é pelo SHA-256 dele, então o tempo da consulta
  * não depende de quantos caracteres do token recebido coincidem com o guardado.
@@ -27,10 +30,12 @@ export function autenticacao(banco: Banco) {
     if (esquema !== 'Bearer' || !token || token.length < 32 || token.length > 256) {
       return c.json({ erro: 'não autorizado' }, 401);
     }
-    const userId = await banco.resolverToken(hashDoToken(token));
+    const tokenHash = hashDoToken(token);
+    const userId = await banco.resolverToken(tokenHash);
     if (!userId) return c.json({ erro: 'não autorizado' }, 401);
 
     c.set('userId', userId);
+    c.set('tokenHash', tokenHash);
     c.set('transacao', (fn) => banco.comUsuario(userId, fn));
     await next();
   });

@@ -12,6 +12,9 @@
     "db:migrate": "tsx --env-file-if-exists=.env scripts/migrar.ts",
     "conta:criar": "tsx --env-file-if-exists=.env scripts/criar-conta.ts criar",
     "conta:token": "tsx --env-file-if-exists=.env scripts/criar-conta.ts token",
+    "conta:acesso": "tsx --env-file-if-exists=.env scripts/criar-conta.ts acesso",
+    "convite:criar": "tsx --env-file-if-exists=.env scripts/convite.ts criar",
+    "convite:listar": "tsx --env-file-if-exists=.env scripts/convite.ts listar",
     "db:purgar": "tsx --env-file-if-exists=.env scripts/purgar.ts"
   },
   "dependencies": {

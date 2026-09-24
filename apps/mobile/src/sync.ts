@@ -9,7 +9,7 @@ import { sql } from 'drizzle-orm';
 import * as tabelasLocais from '@compasso/core/local';
 import { RepositorioLocal } from '@compasso/core/local';
 import { db } from './db';
-import { chamarApi, ErroHttp, lerConexao } from './servidor';
+import { chamarApi, ErroHttp, lerConexao, lerUrl } from './servidor';
 
 /** Repositório local único do app. Toda escrita da UI passa por ele. */
 export const repositorio = new RepositorioLocal(db);
@@ -53,6 +53,8 @@ const tabelas = [
 export type EstadoSync =
   | { tipo: 'ok'; resultado: ResultadoSync }
   | { tipo: 'sem-conexao' }
+  // Há servidor, mas não há token: o servidor recusou a sessão (401) e é preciso entrar de novo.
+  | { tipo: 'sessao-encerrada' }
   // semRede: não houve resposta (offline, servidor fora). Com resposta de erro (HTTP 4xx/5xx) é
   // outra coisa: o indicador não pode dizer "sem rede" quando o servidor recusou o envio.
   | { tipo: 'falhou'; mensagem: string; semRede: boolean };
@@ -63,11 +65,16 @@ export type EstadoSync =
  * compartilham a mesma execução.
  */
 export async function sincronizarAgora(): Promise<EstadoSync> {
-  if (!(await lerConexao())) return publicar({ tipo: 'sem-conexao' });
+  if (!(await lerConexao())) {
+    return publicar({ tipo: (await lerUrl()) ? 'sessao-encerrada' : 'sem-conexao' });
+  }
   publicar(null);
   try {
     return publicar({ tipo: 'ok', resultado: await motor.sincronizar() });
   } catch (erro) {
+    if (erro instanceof ErroHttp && erro.status === 401) {
+      return publicar({ tipo: 'sessao-encerrada' });
+    }
     return publicar({
       tipo: 'falhou',
       mensagem: (erro as Error).message,

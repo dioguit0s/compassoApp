@@ -16,6 +16,7 @@
     },
     "android": {
       "package": "com.dioguit0s.compasso",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -40,6 +41,7 @@
         }
       ],
       "expo-background-task",
+      "./plugins/apk-release.js",
       [
         "expo-image-picker",
         {
