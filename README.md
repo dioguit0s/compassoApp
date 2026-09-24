@@ -28,6 +28,10 @@ fechado/reboot, tarefa de background, importação de ICS, grade, gamificação,
 lixeira, sair da conta, tema escuro e fonte grande. 15 correções em commits `fix:` (lista em
 `TASKS.md`). Falta: uso real e o servidor doméstico com túnel.
 
+**Redesign "Compasso em códice" (2026-09-23, branch `feat/redesign`):** todas as telas no visual
+do protótipo RPG — pergaminho, Cinzel e Archivo, dourado, cores por atributo, diálogo próprio no
+lugar do `Alert` nativo. Tema único (o escuro saiu; temas estão fora do escopo, §3).
+
 **F10 — abrir para os amigos (2026-09-23):** e-mail e senha, cadastro por código de convite,
 sessão revogável por aparelho, troca de senha e APK de release gerado localmente
 ([ADR-0008](docs/adr/0008-senha-propria-convite-e-sessao-por-aparelho.md)). Atributos e régua

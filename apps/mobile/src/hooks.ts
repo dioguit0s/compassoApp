@@ -3,6 +3,7 @@ import {
   diaDe,
   FUSO_PADRAO,
   projetarAgenda,
+  type Atributo,
   type Aula,
   type Dia,
   type EntradaAgenda,
@@ -32,17 +33,26 @@ export function useHoje(): Dia {
   return hoje;
 }
 
+/** Entrada da agenda com o atributo principal do item — o escudo na lista do dia. */
+export type EntradaDoApp = EntradaAgenda & { atributo: Atributo | null };
+
 /**
  * Agenda de `[de, ate)` projetada do SQLite com a MESMA função da API (`projetarAgenda`): itens
  * simples, séries expandidas e desvios de ocorrência. Re-renderiza quando as tabelas mudam.
  */
-export function useAgenda(de: Date, ate: Date): EntradaAgenda[] {
+export function useAgenda(de: Date, ate: Date): EntradaDoApp[] {
   const { data: itens } = useLiveQuery(repositorio.consultaItensDaAgenda(de, ate), [
     de.getTime(),
     ate.getTime(),
   ]);
   const { data: desvios } = useLiveQuery(repositorio.consultaDesvios());
-  return useMemo(() => projetarAgenda(itens, desvios, de, ate), [itens, desvios, de, ate]);
+  return useMemo(() => {
+    const atributos = new Map(itens.map((i) => [i.id, i.primaryAttribute]));
+    return projetarAgenda(itens, desvios, de, ate).map((e) => ({
+      ...e,
+      atributo: atributos.get(e.itemId) ?? null,
+    }));
+  }, [itens, desvios, de, ate]);
 }
 
 /** A grade acadêmica do SQLite, observada. */

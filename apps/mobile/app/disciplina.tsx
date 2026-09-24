@@ -1,12 +1,16 @@
 import { PALETA_DESTAQUE, REGEX_HORA } from '@compasso/core';
 import { ErroDeValidacao, type DisciplinaLocal, type HorarioLocal } from '@compasso/core/local';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useGrade } from '../src/hooks';
 import { repositorio } from '../src/sync';
 import { useTema } from '../src/tema';
-import { Botao, Campo, Chip } from '../src/ui/Campos';
+import { CabecalhoInterno } from '../src/ui/Cabecalho';
+import { CampoHora } from '../src/ui/CampoDataHora';
+import { Botao, Campo, Rotulo, Secao } from '../src/ui/Campos';
+import { useAlerta } from '../src/ui/Dialogo';
+import { Entrada, Texto } from '../src/ui/Texto';
 
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
@@ -30,7 +34,9 @@ function Formulario({
 }) {
   const tema = useTema();
   const router = useRouter();
+  const alerta = useAlerta();
   const grade = useGrade();
+  const semestre = grade.semestres.find((s) => s.id === semestreId);
   const [nome, setNome] = useState(disciplina?.name ?? '');
   const [codigo, setCodigo] = useState(disciplina?.code ?? '');
   const [professor, setProfessor] = useState(disciplina?.professor ?? '');
@@ -65,106 +71,144 @@ function Formulario({
   });
 
   return (
-    <ScrollView
-      style={{ backgroundColor: tema.fundo }}
-      contentContainerStyle={estilos.tela}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Stack.Screen options={{ title: disciplina ? disciplina.name : 'Nova disciplina' }} />
-      <Campo
-        rotulo="Nome"
-        value={nome}
-        onChangeText={setNome}
-        placeholder="Sistemas Reconfiguráveis"
+    <View style={{ flex: 1, backgroundColor: tema.fundo }}>
+      <CabecalhoInterno
+        voltar={semestre ? `Semestre ${semestre.label}` : 'Semestre'}
+        titulo={disciplina ? disciplina.name : 'Nova disciplina'}
+        corTopo={cor}
       />
-      <Campo rotulo="Código" value={codigo} onChangeText={setCodigo} autoCapitalize="characters" />
-      <Campo rotulo="Professor" value={professor} onChangeText={setProfessor} />
-      <Campo rotulo="Sala padrão" value={sala} onChangeText={setSala} />
-      <Text style={{ color: tema.sutil, fontSize: 12 }}>Cor</Text>
-      <View style={estilos.chips}>
-        {PALETA_DESTAQUE.map((c) => (
-          <Chip
-            key={c}
-            rotulo="  "
-            cor={c}
-            ativo={cor === c}
-            aoTocar={() => setCor(c)}
-            dica={`cor ${c}`}
-          />
-        ))}
-      </View>
-      <Campo rotulo="Notas (ex.: prova vale 40%)" value={notas} onChangeText={setNotas} multiline />
-      {erro ? <Text style={{ color: tema.perigo }}>{erro}</Text> : null}
-      <Botao
-        rotulo={disciplina ? 'Salvar disciplina' : 'Criar disciplina'}
-        aoTocar={() =>
-          tentar(() => {
-            if (disciplina) repositorio.editarDisciplina(disciplina.id, dados());
-            else {
-              const nova = repositorio.criarDisciplina({ ...dados(), semesterId: semestreId });
-              router.replace({ pathname: '/disciplina', params: { id: nova.id } });
-            }
-          })
-        }
-      />
+      <ScrollView contentContainerStyle={estilos.tela} keyboardShouldPersistTaps="handled">
+        <View style={estilos.dupla}>
+          <View style={{ flex: 1 }}>
+            <Campo
+              rotulo="Nome"
+              value={nome}
+              onChangeText={setNome}
+              placeholder="Sistemas Reconfiguráveis"
+            />
+          </View>
+          <View style={estilos.estreito}>
+            <Campo
+              rotulo="Código"
+              value={codigo}
+              onChangeText={setCodigo}
+              autoCapitalize="characters"
+            />
+          </View>
+        </View>
+        <View style={estilos.dupla}>
+          <View style={{ flex: 1 }}>
+            <Campo rotulo="Professor" value={professor} onChangeText={setProfessor} />
+          </View>
+          <View style={estilos.estreito}>
+            <Campo rotulo="Sala" value={sala} onChangeText={setSala} />
+          </View>
+        </View>
+        <View style={{ gap: 8 }}>
+          <Rotulo>Cor</Rotulo>
+          <View style={estilos.cores}>
+            {PALETA_DESTAQUE.map((c) => {
+              const ativa = cor === c;
+              return (
+                <Pressable
+                  key={c}
+                  onPress={() => setCor(c)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`cor ${c}`}
+                  accessibilityState={{ selected: ativa }}
+                  style={[estilos.anelCor, { borderColor: ativa ? tema.texto : 'transparent' }]}
+                >
+                  <View style={[estilos.cor, { backgroundColor: c }]} />
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+        <Campo
+          rotulo="Notas"
+          value={notas}
+          onChangeText={setNotas}
+          placeholder="ex.: prova vale 40%"
+          multiline
+        />
+        {erro ? <Texto style={{ color: tema.perigo, fontSize: 12.5 }}>{erro}</Texto> : null}
+        <Botao
+          variante="primario"
+          rotulo={disciplina ? 'Salvar disciplina' : 'Criar disciplina'}
+          aoTocar={() =>
+            tentar(() => {
+              if (disciplina) repositorio.editarDisciplina(disciplina.id, dados());
+              else {
+                const nova = repositorio.criarDisciplina({ ...dados(), semesterId: semestreId });
+                router.replace({ pathname: '/disciplina', params: { id: nova.id } });
+              }
+            })
+          }
+        />
 
-      {disciplina ? (
-        <>
-          <Text style={[estilos.subtitulo, { color: tema.texto }]}>Horários</Text>
-          {horarios.map((h) => (
-            <LinhaHorario key={h.id} horario={h} />
-          ))}
-          <NovoHorario disciplinaId={disciplina.id} />
-          <Botao
-            perigo
-            rotulo="Excluir disciplina"
-            aoTocar={() =>
-              Alert.alert(
-                'Excluir disciplina?',
-                'Horários e exceções saem junto. Provas e trabalhos ligados a ela ficam, sem o selo.',
-                [
-                  { text: 'Cancelar', style: 'cancel' },
-                  {
-                    text: 'Excluir',
-                    style: 'destructive',
-                    onPress: () => {
-                      repositorio.excluirDisciplina(disciplina.id);
-                      router.back();
+        {disciplina ? (
+          <>
+            <View style={{ marginTop: 6 }}>
+              <Secao titulo="Horários" />
+            </View>
+            {horarios.map((h) => (
+              <LinhaHorario key={h.id} horario={h} />
+            ))}
+            <NovoHorario disciplinaId={disciplina.id} />
+            <Botao
+              perigo
+              rotulo="Excluir disciplina"
+              aoTocar={() =>
+                alerta(
+                  'Excluir disciplina?',
+                  'Horários e exceções saem junto. Provas e trabalhos ligados a ela ficam, sem o selo.',
+                  [
+                    {
+                      text: 'Excluir',
+                      style: 'destructive',
+                      onPress: () => {
+                        repositorio.excluirDisciplina(disciplina.id);
+                        router.back();
+                      },
                     },
-                  },
-                ],
-              )
-            }
-          />
-        </>
-      ) : null}
-    </ScrollView>
+                    { text: 'Cancelar', style: 'cancel' },
+                  ],
+                )
+              }
+            />
+          </>
+        ) : null}
+      </ScrollView>
+    </View>
   );
 }
 
 function LinhaHorario({ horario }: { horario: HorarioLocal }) {
   const tema = useTema();
+  const alerta = useAlerta();
   return (
-    <View style={[estilos.linha, { borderColor: tema.borda }]}>
-      <Text style={{ color: tema.texto, flex: 1 }}>
+    <View style={[estilos.horario, { backgroundColor: tema.cartao, borderColor: tema.linha }]}>
+      <Texto style={{ fontSize: 13, flex: 1 }}>
         {DIAS[horario.weekday]} {horario.startTime}–{horario.endTime}
         {horario.room ? ` · sala ${horario.room}` : ''}
-      </Text>
-      <Text
-        style={{ color: tema.perigo }}
+      </Texto>
+      <Pressable
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Excluir horário"
         onPress={() =>
-          Alert.alert('Excluir horário?', '', [
-            { text: 'Cancelar', style: 'cancel' },
+          alerta('Excluir horário?', undefined, [
             {
               text: 'Excluir',
               style: 'destructive',
               onPress: () => repositorio.excluirHorario(horario.id),
             },
+            { text: 'Cancelar', style: 'cancel' },
           ])
         }
       >
-        excluir
-      </Text>
+        <Texto style={{ fontSize: 12, color: tema.perigo }}>excluir</Texto>
+      </Pressable>
     </View>
   );
 }
@@ -178,36 +222,47 @@ function NovoHorario({ disciplinaId }: { disciplinaId: string }) {
   const [erro, setErro] = useState('');
   const valido = REGEX_HORA.test(inicio) && REGEX_HORA.test(fim);
   return (
-    <View style={[estilos.bloco, { borderColor: tema.borda }]}>
-      <View style={estilos.chips}>
-        {DIAS.map((d, i) => (
-          <Chip key={d} rotulo={d} ativo={dia === i} aoTocar={() => setDia(i)} />
-        ))}
+    <View style={[estilos.painel, { backgroundColor: tema.painel, borderColor: tema.linha }]}>
+      <Rotulo>Novo horário</Rotulo>
+      <View style={estilos.dias}>
+        {DIAS.map((d, i) => {
+          const ativo = dia === i;
+          return (
+            <Pressable
+              key={d}
+              onPress={() => setDia(i)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: ativo }}
+              style={[
+                estilos.dia,
+                ativo
+                  ? { backgroundColor: tema.ouro, borderColor: tema.ouroEscuro }
+                  : { backgroundColor: tema.campo, borderColor: tema.bordaCampo },
+              ]}
+            >
+              <Texto style={{ fontSize: 11, color: ativo ? tema.sobreOuro : tema.sutil }}>
+                {d}
+              </Texto>
+            </Pressable>
+          );
+        })}
       </View>
-      <View style={estilos.chips}>
-        <Campo
-          rotulo="Início (HH:mm)"
-          value={inicio}
-          onChangeText={setInicio}
-          keyboardType="numbers-and-punctuation"
-          style={estilos.hora}
-        />
-        <Campo
-          rotulo="Fim (HH:mm)"
-          value={fim}
-          onChangeText={setFim}
-          keyboardType="numbers-and-punctuation"
-          style={estilos.hora}
-        />
-        <Campo
-          rotulo="Sala (se diferente)"
-          value={sala}
-          onChangeText={setSala}
-          style={estilos.hora}
-        />
+      <View style={estilos.tres}>
+        <CampoHora rotulo="Início" valor={inicio} aoMudar={setInicio} />
+        <CampoHora rotulo="Fim" valor={fim} aoMudar={setFim} />
+        <View style={{ gap: 4, flex: 1 }}>
+          <Texto style={{ fontSize: 10.5, color: tema.rotulo }}>Sala</Texto>
+          <Entrada
+            value={sala}
+            onChangeText={setSala}
+            placeholder="opcional"
+            style={[estilos.sala, { backgroundColor: tema.campo, borderColor: tema.bordaCampo }]}
+          />
+        </View>
       </View>
-      {erro ? <Text style={{ color: tema.perigo }}>{erro}</Text> : null}
+      {erro ? <Texto style={{ color: tema.perigo, fontSize: 12.5 }}>{erro}</Texto> : null}
       <Botao
+        compacto
         rotulo="+ Horário"
         desativado={!valido}
         aoTocar={() => {
@@ -230,10 +285,30 @@ function NovoHorario({ disciplinaId }: { disciplinaId: string }) {
 }
 
 const estilos = StyleSheet.create({
-  tela: { padding: 16, gap: 10 },
-  subtitulo: { fontSize: 16, fontWeight: '600', marginTop: 8 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  linha: { flexDirection: 'row', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
-  bloco: { gap: 8, borderWidth: 1, borderRadius: 10, padding: 10 },
-  hora: { minWidth: 90 },
+  tela: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40, gap: 14 },
+  dupla: { flexDirection: 'row', gap: 10 },
+  estreito: { width: 110 },
+  cores: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  anelCor: { padding: 2, borderWidth: 2, borderRadius: 20 },
+  cor: { width: 28, height: 28, borderRadius: 14 },
+  horario: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  painel: { gap: 10, padding: 14, borderWidth: 1, borderRadius: 9 },
+  dias: { flexDirection: 'row', gap: 4 },
+  dia: { flex: 1, paddingVertical: 7, borderWidth: 1, borderRadius: 6, alignItems: 'center' },
+  tres: { flexDirection: 'row', gap: 6, alignItems: 'flex-start' },
+  sala: {
+    borderWidth: 1,
+    borderRadius: 7,
+    paddingVertical: 10,
+    fontSize: 13,
+    textAlign: 'center',
+  },
 });

@@ -8,10 +8,11 @@ import {
   type Dia,
 } from '@compasso/core';
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useAgenda } from '../hooks';
 import { useTema } from '../tema';
 import { EntradaItem } from '../ui/EntradaItem';
+import { Texto } from '../ui/Texto';
 import { quantas } from '../texto';
 
 /**
@@ -38,11 +39,17 @@ export function Mes({
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={estilos.semana}>
+      <View
+        style={[
+          estilos.semana,
+          { backgroundColor: tema.faixa, borderColor: tema.borda },
+          estilos.nomes,
+        ]}
+      >
         {semanas[0]!.map((d) => (
-          <Text key={d} style={[estilos.nomeDia, { color: tema.sutil }]}>
-            {nomeCurtoDoDia(d)}
-          </Text>
+          <Texto key={d} cinzel style={[estilos.nomeDia, { color: tema.rotulo }]}>
+            {nomeCurtoDoDia(d).charAt(0).toLocaleUpperCase('pt-BR')}
+          </Texto>
         ))}
       </View>
       {semanas.map((semana) => (
@@ -55,23 +62,32 @@ export function Mes({
               <Pressable
                 key={d}
                 onPress={() => aoTocarDia(d)}
-                style={[estilos.celula, { borderColor: tema.borda, opacity: fora ? 0.45 : 1 }]}
-                accessibilityLabel={`dia ${partesDoDia(d).dia}, ${quantas(porDia.get(d)?.length ?? 0, 'item', 'itens')}`}
+                style={[
+                  estilos.celula,
+                  { borderColor: tema.grade },
+                  ehHoje && { backgroundColor: tema.hojeFundo },
+                ]}
+                accessibilityLabel={`dia ${partesDoDia(d).dia}${ehHoje ? ', hoje' : ''}, ${quantas(porDia.get(d)?.length ?? 0, 'item', 'itens')}`}
               >
-                <Text
-                  style={[
-                    estilos.numero,
-                    ehHoje && { color: tema.hoje, fontWeight: '700' },
-                    !ehHoje && { color: fora ? tema.foraDoMes : tema.texto },
-                  ]}
-                >
-                  {partesDoDia(d).dia}
-                </Text>
-                {visiveis.map((i) => (
-                  <EntradaItem key={i.id} item={i} variante="mini" />
-                ))}
+                <View style={[estilos.numero, ehHoje && { backgroundColor: tema.hoje }]}>
+                  <Texto
+                    cinzel
+                    style={{
+                      fontSize: 11,
+                      fontWeight: ehHoje ? '700' : '500',
+                      color: ehHoje ? tema.sobreOuro : fora ? tema.foraDoMes : tema.texto,
+                    }}
+                  >
+                    {partesDoDia(d).dia}
+                  </Texto>
+                </View>
+                <View style={fora ? { opacity: 0.5 } : undefined}>
+                  {visiveis.map((i) => (
+                    <EntradaItem key={i.id} item={i} variante="mini" />
+                  ))}
+                </View>
                 {excedentes > 0 ? (
-                  <Text style={[estilos.mais, { color: tema.sutil }]}>+{excedentes}</Text>
+                  <Texto style={[estilos.mais, { color: tema.rotulo }]}>+{excedentes}</Texto>
                 ) : null}
               </Pressable>
             );
@@ -84,8 +100,23 @@ export function Mes({
 
 const estilos = StyleSheet.create({
   semana: { flexDirection: 'row' },
-  nomeDia: { flex: 1, textAlign: 'center', fontSize: 11, paddingVertical: 4 },
-  celula: { flex: 1, borderTopWidth: StyleSheet.hairlineWidth, padding: 1, overflow: 'hidden' },
-  numero: { fontSize: 12, textAlign: 'center' },
-  mais: { fontSize: 10, textAlign: 'center' },
+  nomes: { borderBottomWidth: 1 },
+  nomeDia: { flex: 1, textAlign: 'center', fontSize: 9.5, paddingVertical: 6 },
+  celula: {
+    flex: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    paddingHorizontal: 2,
+    paddingVertical: 4,
+    overflow: 'hidden',
+  },
+  numero: {
+    alignSelf: 'center',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mais: { fontSize: 8.5, paddingLeft: 3, marginTop: 1 },
 });

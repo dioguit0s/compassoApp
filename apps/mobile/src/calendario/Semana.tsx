@@ -20,12 +20,10 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import {
-  Alert,
   PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -33,10 +31,12 @@ import { useAgenda, useAulas } from '../hooks';
 import { repositorio } from '../sync';
 import { FOLGA_DO_FAB, useTema } from '../tema';
 import { useAviso } from '../ui/Aviso';
+import { useAlerta } from '../ui/Dialogo';
 import { EntradaItem } from '../ui/EntradaItem';
+import { Texto } from '../ui/Texto';
 
 const HORA_PX = 44;
-const MARGEM = 32;
+const MARGEM = 34;
 
 /** Visão de semana: onde o dia tem altura e dá para ver os buracos entre compromissos. */
 export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
@@ -64,6 +64,7 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
   // Segurar a tarefa na faixa começa o arrasto; a raiz captura o movimento (a grade não rola) e,
   // ao soltar sobre a grade, a tarefa vira um bloco de 1 h naquele horário. Soltar fora cancela.
   const aviso = useAviso();
+  const alerta = useAlerta();
   const raiz = useRef<View>(null);
   const grade = useRef<View>(null);
   const origem = useRef({ raizX: 0, raizY: 0, gradeX: 0, gradeY: 0, gradeAltura: 0 });
@@ -124,7 +125,7 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
         },
       });
     } catch (e) {
-      Alert.alert('Não foi possível agendar', (e as Error).message);
+      alerta('Não foi possível agendar', (e as Error).message);
     }
   };
 
@@ -154,33 +155,41 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
 
   return (
     <View ref={raiz} style={{ flex: 1 }} {...responder.panHandlers}>
-      <View style={[estilos.cabecalho, { borderColor: tema.borda }]}>
+      <View style={[estilos.cabecalho, { borderColor: tema.borda, backgroundColor: tema.faixa }]}>
         <View style={{ width: MARGEM }} />
         {dias.map((d) => {
           const ehHoje = d === hoje;
+          const cor = ehHoje ? tema.hoje : tema.rotulo;
           return (
-            <View key={d} style={{ width: larguraDia, alignItems: 'center' }}>
-              <Text style={{ color: ehHoje ? tema.hoje : tema.sutil, fontSize: 11 }}>
-                {nomeCurtoDoDia(d)}
-              </Text>
-              <Text
-                style={[
-                  estilos.numero,
-                  { color: ehHoje ? tema.hoje : tema.texto, fontWeight: ehHoje ? '700' : '400' },
-                ]}
+            <View
+              key={d}
+              style={{ width: larguraDia, alignItems: 'center', gap: 1 }}
+              accessibilityLabel={`${nomeCurtoDoDia(d)} ${partesDoDia(d).dia}${ehHoje ? ', hoje' : ''}`}
+            >
+              <Texto cinzel style={{ color: cor, fontSize: 9 }}>
+                {nomeCurtoDoDia(d).charAt(0).toLocaleUpperCase('pt-BR')}
+              </Texto>
+              <Texto
+                cinzel
+                style={{ fontSize: 13, color: cor, fontWeight: ehHoje ? '700' : '500' }}
               >
                 {partesDoDia(d).dia}
-              </Text>
+              </Texto>
             </View>
           );
         })}
       </View>
 
       {/* Faixa de dia inteiro, vários dias e tarefas com prazo */}
-      <View style={[estilos.faixa, { borderColor: tema.borda }]}>
-        <View style={{ width: MARGEM }} />
+      <View style={[estilos.faixa, { borderColor: tema.borda, backgroundColor: tema.faixaClara }]}>
+        <Texto cinzel style={[estilos.rotuloDia, { width: MARGEM, color: tema.inativo }]}>
+          dia
+        </Texto>
         {dias.map((d) => (
-          <View key={d} style={{ width: larguraDia, paddingHorizontal: 1 }}>
+          <View
+            key={d}
+            style={[estilos.colunaFaixa, { width: larguraDia, borderColor: tema.grade }]}
+          >
             {(porDia.get(d) ?? [])
               .filter((i) => vaiParaFaixaDoDia(i))
               .map((i) =>
@@ -189,7 +198,15 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
                     key={i.id}
                     item={i}
                     variante="mini"
-                    style={arrasto?.item.id === i.id ? { opacity: 0.4 } : undefined}
+                    style={
+                      arrasto?.item.id === i.id
+                        ? {
+                            backgroundColor: 'transparent',
+                            borderStyle: 'dashed',
+                            opacity: 0.6,
+                          }
+                        : undefined
+                    }
                     aoSegurar={(x, y) => {
                       medir();
                       capturado.current = false;
@@ -222,20 +239,27 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
           <View style={{ flexDirection: 'row', height: 24 * HORA_PX }}>
             <View style={{ width: MARGEM }}>
               {Array.from({ length: 24 }, (_, h) => (
-                <Text key={h} style={[estilos.hora, { top: h * HORA_PX - 6, color: tema.sutil }]}>
-                  {h === 0 ? '' : `${h}h`}
-                </Text>
+                <View key={h} style={[estilos.hora, { top: h * HORA_PX, borderColor: tema.grade }]}>
+                  <Texto cinzel style={{ fontSize: 8.5, color: tema.inativo }}>
+                    {String(h).padStart(2, '0')}
+                  </Texto>
+                </View>
               ))}
             </View>
             {dias.map((d) => (
               <View
                 key={d}
-                style={{ width: larguraDia, borderLeftWidth: 1, borderColor: tema.borda }}
+                style={{
+                  width: larguraDia,
+                  borderLeftWidth: 1,
+                  borderColor: tema.grade,
+                  backgroundColor: d === hoje ? 'rgba(154,75,38,0.06)' : 'transparent',
+                }}
               >
                 {Array.from({ length: 24 }, (_, h) => (
                   <View
                     key={h}
-                    style={[estilos.linhaHora, { top: h * HORA_PX, borderColor: tema.borda }]}
+                    style={[estilos.linhaHora, { top: h * HORA_PX, borderColor: tema.grade }]}
                   />
                 ))}
                 {/* Aulas ao fundo: ocupam o tempo sem competir com os itens (issue #61). Canceladas
@@ -254,14 +278,14 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
                           top: (minutosDeHora(a.inicio) / 60) * HORA_PX,
                           height: ((minutosDeHora(a.fim) - minutosDeHora(a.inicio)) / 60) * HORA_PX,
                           // Cor da disciplina com transparência no fundo, texto opaco por cima.
-                          backgroundColor: `${a.cor}38`,
+                          backgroundColor: `${a.cor}26`,
                           borderLeftColor: a.cor,
                         },
                       ]}
                     >
-                      <Text numberOfLines={2} style={[estilos.textoAula, { color: tema.texto }]}>
+                      <Texto numberOfLines={2} style={[estilos.textoAula, { color: '#3B2F23' }]}>
                         {a.codigo ?? a.disciplina}
-                      </Text>
+                      </Texto>
                     </Pressable>
                   ))}
                 {posicionarNoDia(porDia.get(d) ?? [], d).map((b) => (
@@ -273,8 +297,8 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
                       position: 'absolute',
                       top: (b.inicioMin / 60) * HORA_PX,
                       height: Math.max(16, ((b.fimMin - b.inicioMin) / 60) * HORA_PX - 1),
-                      left: (b.coluna * larguraDia) / b.colunas,
-                      width: larguraDia / b.colunas - 1,
+                      left: (b.coluna * larguraDia) / b.colunas + 1,
+                      width: larguraDia / b.colunas - 2,
                     }}
                   />
                 ))}
@@ -286,18 +310,19 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
                       {
                         top: (destino.minutos / 60) * HORA_PX,
                         height: (DURACAO_DO_AGENDAMENTO_MIN / 60) * HORA_PX,
-                        borderColor: tema.pontuavel,
+                        borderColor: tema.ouro,
                       },
                     ]}
                   />
                 ) : null}
                 {d === hoje && diaDe(agora) === hoje ? (
                   <View
-                    style={[
-                      estilos.agora,
-                      { top: (minutosDoDia(agora) / 60) * HORA_PX, backgroundColor: tema.hoje },
-                    ]}
-                  />
+                    pointerEvents="none"
+                    style={[estilos.agora, { top: (minutosDoDia(agora) / 60) * HORA_PX - 4 }]}
+                  >
+                    <View style={[estilos.agoraPonto, { backgroundColor: tema.hoje }]} />
+                    <View style={[estilos.agoraLinha, { backgroundColor: tema.hoje }]} />
+                  </View>
                 ) : null}
               </View>
             ))}
@@ -314,17 +339,19 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
               left: arrasto.x - origem.current.raizX - 60,
               top: arrasto.y - origem.current.raizY - 44,
               backgroundColor: tema.pontuavel,
+              borderColor: tema.ouro,
+              shadowColor: tema.texto,
             },
           ]}
         >
-          <Text numberOfLines={1} style={{ color: tema.textoSobrePontuavel, fontWeight: '600' }}>
+          <Texto numberOfLines={1} style={{ fontSize: 11, fontWeight: '600' }}>
             {arrasto.item.title}
-          </Text>
-          <Text style={{ color: tema.textoSobrePontuavel, fontSize: 11 }}>
+          </Texto>
+          <Texto cinzel style={{ color: tema.moedaTexto, fontSize: 10, letterSpacing: 0.8 }}>
             {destino
               ? `${nomeCurtoDoDia(destino.dia)} ${String(Math.floor(destino.minutos / 60)).padStart(2, '0')}:${String(destino.minutos % 60).padStart(2, '0')}`
               : 'solte na grade'}
-          </Text>
+          </Texto>
         </View>
       ) : null}
     </View>
@@ -332,28 +359,61 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
 }
 
 const estilos = StyleSheet.create({
-  cabecalho: { flexDirection: 'row', paddingVertical: 4, borderBottomWidth: 1 },
-  numero: { fontSize: 16 },
-  faixa: { flexDirection: 'row', minHeight: 8, paddingVertical: 2, borderBottomWidth: 1 },
-  hora: { position: 'absolute', right: 4, fontSize: 10 },
-  linhaHora: { position: 'absolute', left: 0, right: 0, borderTopWidth: StyleSheet.hairlineWidth },
-  agora: { position: 'absolute', left: 0, right: 0, height: 2 },
-  aula: { position: 'absolute', left: 0, right: 0, borderRadius: 2, borderLeftWidth: 2 },
-  textoAula: { fontSize: 9, padding: 1 },
+  cabecalho: { flexDirection: 'row', paddingTop: 6, paddingBottom: 5, borderBottomWidth: 1 },
+  faixa: { flexDirection: 'row', minHeight: 46, borderBottomWidth: 1 },
+  rotuloDia: { fontSize: 8, paddingTop: 6, paddingLeft: 5 },
+  colunaFaixa: { paddingHorizontal: 2, paddingBottom: 3, paddingTop: 2, borderLeftWidth: 1 },
+  hora: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: HORA_PX,
+    paddingTop: 2,
+    paddingLeft: 6,
+    borderTopWidth: 1,
+  },
+  linhaHora: { position: 'absolute', left: 0, right: 0, borderTopWidth: 1 },
+  agora: {
+    position: 'absolute',
+    left: -4,
+    right: 0,
+    height: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  agoraPonto: { width: 9, height: 9, borderRadius: 5 },
+  agoraLinha: { flex: 1, height: 2, marginLeft: -2 },
+  aula: {
+    position: 'absolute',
+    left: 1,
+    right: 1,
+    borderRadius: 4,
+    borderLeftWidth: 2.5,
+    paddingHorizontal: 3,
+    paddingVertical: 3,
+  },
+  textoAula: { fontSize: 8.5, lineHeight: 10 },
   alvo: {
     position: 'absolute',
     left: 1,
     right: 1,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderRadius: 4,
+    borderRadius: 5,
+    backgroundColor: 'rgba(150,116,42,0.12)',
   },
   fantasma: {
     position: 'absolute',
-    width: 120,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    elevation: 6,
+    width: 118,
+    borderRadius: 7,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 3,
+    elevation: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: 13,
+    shadowOffset: { width: 0, height: 14 },
+    transform: [{ rotate: '-3deg' }],
   },
 });

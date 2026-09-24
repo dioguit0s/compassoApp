@@ -1,13 +1,17 @@
 import { nomeDoMes, partesDoDia, somarDias, somarMeses, type Dia } from '@compasso/core';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Mes } from '../../src/calendario/Mes';
 import { Semana } from '../../src/calendario/Semana';
 import { formatarDiaCurtoIntervalo } from '../../src/calendario/rotulos';
-import { useHoje } from '../../src/hooks';
+import { useGrade, useHoje } from '../../src/hooks';
 import { gravarPreferencia, lerPreferencia } from '../../src/preferencias';
 import { useTema } from '../../src/tema';
+import { Segmentado } from '../../src/ui/Campos';
+import { Seta } from '../../src/ui/Icones';
+import { Texto } from '../../src/ui/Texto';
 
 type Visao = 'semana' | 'mes';
 
@@ -18,7 +22,10 @@ type Visao = 'semana' | 'mes';
 export default function Calendario() {
   const tema = useTema();
   const router = useRouter();
+  const { top } = useSafeAreaInsets();
   const hoje = useHoje();
+  const grade = useGrade();
+  const semestre = grade.semestres.find((s) => s.active);
   const [visao, setVisaoEstado] = useState<Visao>(() =>
     lerPreferencia('calendario.visao') === 'mes' ? 'mes' : 'semana',
   );
@@ -32,43 +39,63 @@ export default function Calendario() {
     setReferencia((r) => (visao === 'semana' ? somarDias(r, 7 * sentido) : somarMeses(r, sentido)));
 
   const { ano, mes } = partesDoDia(referencia);
+  const nome = nomeDoMes(mes);
   const titulo =
-    visao === 'mes' ? `${nomeDoMes(mes)} ${ano}` : formatarDiaCurtoIntervalo(referencia);
+    visao === 'mes'
+      ? `${nome.charAt(0).toLocaleUpperCase('pt-BR')}${nome.slice(1)} ${ano}`
+      : formatarDiaCurtoIntervalo(referencia);
 
   return (
     <View style={[estilos.tela, { backgroundColor: tema.fundo }]}>
-      <View style={estilos.barra}>
-        <Botao rotulo="‹" dica="período anterior" aoTocar={() => andar(-1)} />
-        {/* Com fonte grande do sistema o intervalo da semana era cortado ("20/09 – 2…"). */}
-        <Text
-          style={[estilos.titulo, { color: tema.texto }]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.6}
-        >
-          {titulo}
-        </Text>
-        <Botao rotulo="›" dica="próximo período" aoTocar={() => andar(1)} />
-        <Botao rotulo="Hoje" aoTocar={() => setReferencia(hoje)} />
-        <View style={[estilos.alternancia, { borderColor: tema.borda }]}>
-          {(['semana', 'mes'] as const).map((v) => (
-            <Pressable
-              key={v}
-              onPress={() => setVisao(v)}
-              style={[estilos.opcao, visao === v && { backgroundColor: tema.destaque }]}
-            >
-              <Text style={{ color: visao === v ? tema.superficie : tema.texto, fontSize: 13 }}>
-                {v === 'semana' ? 'Sem' : 'Mês'}
-              </Text>
-            </Pressable>
-          ))}
+      <View
+        style={[
+          estilos.topo,
+          { paddingTop: top + 14, backgroundColor: tema.cabecalho, borderBottomColor: tema.borda },
+        ]}
+      >
+        <View style={estilos.linha1}>
+          <Texto cinzel style={{ fontSize: 20, fontWeight: '700' }}>
+            Calendário
+          </Texto>
+          {/* Tela Semestre: no cabeçalho do Calendário, não numa quinta aba (especificação §7). */}
+          <Pressable
+            onPress={() => router.push('/semestre')}
+            accessibilityRole="button"
+            accessibilityLabel="Semestre e grade de aulas"
+            style={[estilos.grade, { borderColor: tema.ouroClaro, backgroundColor: tema.folha }]}
+          >
+            <Texto cinzel style={{ fontSize: 10, letterSpacing: 0.6, color: tema.moedaTexto }}>
+              {semestre ? `GRADE ${semestre.label}` : 'GRADE'}
+            </Texto>
+            <Seta cor={tema.ouroEscuro} largura={10} />
+          </Pressable>
         </View>
-        {/* Tela Semestre: no cabeçalho do Calendário, não numa quinta aba (especificação §7). */}
-        <Botao
-          rotulo="Grade"
-          dica="Semestre e grade de aulas"
-          aoTocar={() => router.push('/semestre')}
-        />
+        <View style={estilos.linha2}>
+          <Caixa rotulo="‹" dica="período anterior" aoTocar={() => andar(-1)} />
+          {/* Com fonte grande do sistema o intervalo da semana era cortado ("20/09 – 2…"). */}
+          <Texto
+            cinzel
+            style={{ flex: 1, textAlign: 'center', fontSize: 14, fontWeight: '600' }}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+          >
+            {titulo}
+          </Texto>
+          <Caixa rotulo="›" dica="próximo período" aoTocar={() => andar(1)} />
+          <Caixa rotulo="HOJE" aoTocar={() => setReferencia(hoje)} />
+          <Segmentado
+            cinzel
+            tom="ouro"
+            valor={visao}
+            aoMudar={setVisao}
+            opcoes={[
+              { valor: 'semana', rotulo: 'SEM' },
+              { valor: 'mes', rotulo: 'MÊS' },
+            ]}
+            style={{ borderRadius: 6 }}
+          />
+        </View>
       </View>
       {visao === 'semana' ? (
         <Semana referencia={referencia} hoje={hoje} />
@@ -86,22 +113,52 @@ export default function Calendario() {
   );
 }
 
-function Botao({ rotulo, dica, aoTocar }: { rotulo: string; dica?: string; aoTocar: () => void }) {
+function Caixa({ rotulo, dica, aoTocar }: { rotulo: string; dica?: string; aoTocar: () => void }) {
   const tema = useTema();
+  const seta = rotulo.length === 1;
   return (
-    <Pressable onPress={aoTocar} accessibilityLabel={dica ?? rotulo} style={estilos.botao}>
-      <Text style={{ color: tema.destaque, fontSize: rotulo.length === 1 ? 22 : 14 }}>
+    <Pressable
+      onPress={aoTocar}
+      accessibilityRole="button"
+      accessibilityLabel={dica ?? rotulo}
+      hitSlop={4}
+      style={[seta ? estilos.caixaSeta : estilos.caixaTexto, { borderColor: tema.borda }]}
+    >
+      <Texto
+        cinzel={!seta}
+        style={
+          seta
+            ? { fontSize: 18, lineHeight: 20, color: tema.moedaTexto }
+            : { fontSize: 10, letterSpacing: 1, color: tema.moedaTexto }
+        }
+      >
         {rotulo}
-      </Text>
+      </Texto>
     </Pressable>
   );
 }
 
 const estilos = StyleSheet.create({
   tela: { flex: 1 },
-  barra: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, gap: 4 },
-  titulo: { flex: 1, fontSize: 16, fontWeight: '600', textAlign: 'center' },
-  botao: { paddingHorizontal: 8, paddingVertical: 6 },
-  alternancia: { flexDirection: 'row', borderWidth: 1, borderRadius: 6, overflow: 'hidden' },
-  opcao: { paddingHorizontal: 8, paddingVertical: 4 },
+  topo: { paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, gap: 10 },
+  linha1: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  grade: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  linha2: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  caixaSeta: {
+    width: 30,
+    height: 30,
+    borderWidth: 1,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  caixaTexto: { paddingHorizontal: 9, paddingVertical: 6, borderWidth: 1, borderRadius: 6 },
 });

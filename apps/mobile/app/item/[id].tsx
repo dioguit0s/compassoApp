@@ -1,5 +1,7 @@
 import {
+  descreverRegra,
   diaDe,
+  formatarDiaCurto,
   FUSO_PADRAO,
   inicioDoDia,
   limitesDiaInteiro,
@@ -8,27 +10,22 @@ import {
   type Dia,
 } from '@compasso/core';
 import { ErroDeValidacao, serieDoItem, type DadosItem, type ItemLocal } from '@compasso/core/local';
-import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { fusoDoAparelhoDifere, tituloDoDia } from '../../src/datasUi';
 import { pedirPermissao } from '../../src/notificacoes';
 import { repositorio } from '../../src/sync';
 import { useTema } from '../../src/tema';
+import { CabecalhoModal } from '../../src/ui/Cabecalho';
 import { CampoDataHora } from '../../src/ui/CampoDataHora';
+import { Botao, Campo, Chip, Rotulo, Segmentado } from '../../src/ui/Campos';
+import { useAlerta } from '../../src/ui/Dialogo';
 import { EditorRecorrencia } from '../../src/ui/EditorRecorrencia';
+import { CaixaDeMarcar, Repetir } from '../../src/ui/Icones';
 import { useGrade } from '../../src/hooks';
-import { Chip } from '../../src/ui/Campos';
 import { SeletorEsforco, type Pontuacao } from '../../src/ui/SeletorEsforco';
+import { Entrada, Texto } from '../../src/ui/Texto';
 import { useAviso } from '../../src/ui/Aviso';
 import { descreverEfeito } from '../../src/conclusao';
 import type { Esforco } from '@compasso/core';
@@ -56,8 +53,11 @@ export default function DetalheDoItem() {
   const tema = useTema();
   if (!item) {
     return (
-      <View style={[estilos.tela, { backgroundColor: tema.superficie }]}>
-        <Text style={{ color: tema.texto }}>Item não encontrado (talvez excluído).</Text>
+      <View style={{ flex: 1, backgroundColor: tema.folha }}>
+        <CabecalhoModal titulo="Item" />
+        <Texto style={{ padding: 20, color: tema.sutil }}>
+          Item não encontrado (talvez excluído).
+        </Texto>
       </View>
     );
   }
@@ -91,6 +91,7 @@ function Formulario({
   aoTerminar: () => void;
 }) {
   const tema = useTema();
+  const alerta = useAlerta();
   const desvio = ocorrencia ? repositorio.obterDesvio(item.id, ocorrencia) : null;
   const vivo = desvio && !desvio.deletedAt ? desvio : null;
   // Concluir não fecha a tela (preserva edições não salvas): relê o status a cada render.
@@ -126,7 +127,7 @@ function Formulario({
   const [erros, setErros] = useState<string[]>([]);
   const rolagem = useRef<ScrollView>(null);
 
-  // Sair com alterações não salvas pergunta antes de descartar (voltar, gesto, botão do sistema).
+  // Sair com alterações não salvas pergunta antes de descartar (fechar, gesto, botão do sistema).
   // Salvar e excluir fecham pelo `tentar`, que libera a saída.
   const retrato = () =>
     JSON.stringify([
@@ -150,16 +151,16 @@ function Formulario({
       navegacao.addListener('beforeRemove', (e) => {
         if (!alterado || saidaLiberada.current) return;
         e.preventDefault();
-        Alert.alert('Descartar alterações?', 'O que você mudou nesta tela não foi salvo.', [
-          { text: 'Continuar editando', style: 'cancel' },
+        alerta('Descartar alterações?', 'O que você mudou nesta tela não foi salvo.', [
           {
             text: 'Descartar',
             style: 'destructive',
             onPress: () => navegacao.dispatch(e.data.action),
           },
+          { text: 'Continuar editando', style: 'cancel' },
         ]);
       }),
-    [navegacao, alterado],
+    [navegacao, alterado, alerta],
   );
   const ehTarefa = tipo === 'task';
   const concluivel = item.effort !== null;
@@ -222,6 +223,13 @@ function Formulario({
     );
   }
 
+  /** "Treino na academia — toda segunda, quarta e sexta, sem fim." */
+  const regraDaSerie = () => {
+    const serie = item.rrule ? serieDoItem(item) : null;
+    return serie ? `${item.title} — ${descreverRegra(item.rrule!, serie.inicio)}` : item.title;
+  };
+  const futuras = (o: Dia) => `a partir de ${formatarDiaCurto(o, 0)}; as passadas ficam como estão`;
+
   function salvar() {
     if (!ocorrencia) {
       tentar(() => repositorio.editar(item.id, mudancasDoItem()));
@@ -237,270 +245,315 @@ function Formulario({
       pontuacao.effort !== item.effort ||
       pontuacao.primaryAttribute !== item.primaryAttribute ||
       pontuacao.secondaryAttribute !== item.secondaryAttribute;
-    Alert.alert(
+    alerta(
       'Aplicar a alteração a…',
-      `Ocorrência de ${tituloDoDia(ocorrencia)}${soDaSerie ? '\n\nTipo, dia inteiro, lembrete, disciplina, esforço e repetição só mudam nesta e nas futuras.' : ''}`,
+      `${regraDaSerie()}${soDaSerie ? '\n\nTipo, dia inteiro, lembrete, disciplina, esforço e repetição só mudam nesta e nas futuras.' : ''}`,
       [
-        ...(soDaSerie ? [] : [{ text: 'Só esta', onPress: soEsta }]),
+        ...(soDaSerie
+          ? []
+          : [{ text: 'Só esta', detalhe: tituloDoDia(ocorrencia), onPress: soEsta }]),
         {
           text: 'Esta e as futuras',
+          detalhe: futuras(ocorrencia),
           onPress: () =>
             tentar(() => repositorio.alterarDaquiEmDiante(item.id, ocorrencia, mudancasDoItem())),
         },
         { text: 'Cancelar', style: 'cancel' as const },
       ],
+      { serie: true },
     );
   }
 
   function excluir() {
     if (!ocorrencia) {
-      Alert.alert('Excluir item?', 'Ele vai para a lixeira por 30 dias.', [
-        { text: 'Cancelar', style: 'cancel' },
+      alerta('Excluir item?', 'Ele vai para a lixeira por 30 dias.', [
         {
           text: 'Excluir',
           style: 'destructive',
           onPress: () => tentar(() => repositorio.excluir(item.id)),
         },
+        { text: 'Cancelar', style: 'cancel' },
       ]);
       return;
     }
-    Alert.alert('Excluir…', `Ocorrência de ${tituloDoDia(ocorrencia)}`, [
-      {
-        text: 'Só esta',
-        onPress: () => tentar(() => repositorio.cancelarOcorrencia(item.id, ocorrencia)),
-      },
-      {
-        text: 'Esta e as futuras',
-        style: 'destructive',
-        onPress: () => tentar(() => repositorio.encerrarSerieAntes(item.id, ocorrencia)),
-      },
-      { text: 'Cancelar', style: 'cancel' },
-    ]);
+    alerta(
+      'Excluir…',
+      regraDaSerie(),
+      [
+        {
+          text: 'Só esta',
+          detalhe: tituloDoDia(ocorrencia),
+          onPress: () => tentar(() => repositorio.cancelarOcorrencia(item.id, ocorrencia)),
+        },
+        {
+          text: 'Esta e as futuras',
+          detalhe: futuras(ocorrencia),
+          style: 'destructive',
+          onPress: () => tentar(() => repositorio.encerrarSerieAntes(item.id, ocorrencia)),
+        },
+        { text: 'Cancelar', style: 'cancel' },
+      ],
+      { serie: true },
+    );
   }
 
   return (
-    <ScrollView
-      ref={rolagem}
-      style={{ backgroundColor: tema.superficie }}
-      contentContainerStyle={estilos.tela}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Stack.Screen
-        options={{
-          title: ocorrencia ? 'Ocorrência' : ehTarefa ? 'Tarefa' : 'Evento',
-          headerRight: () => (
-            <Pressable onPress={salvar} accessibilityLabel="Salvar">
-              <Text style={{ color: tema.destaque, fontWeight: '600', fontSize: 16 }}>Salvar</Text>
-            </Pressable>
-          ),
-        }}
+    <View style={{ flex: 1, backgroundColor: tema.folha }}>
+      <CabecalhoModal
+        titulo={ocorrencia ? 'Ocorrência' : ehTarefa ? 'Tarefa' : 'Evento'}
+        aoSalvar={salvar}
       />
-      {/* No topo: o Salvar fica no cabeçalho e, com a tela rolada, o erro no fim do formulário
-          passava despercebido (visto no emulador). */}
-      {erros.map((e) => (
-        <Text key={e} style={{ color: tema.perigo }}>
-          • {e}
-        </Text>
-      ))}
-      {ocorrencia ? (
-        <Text style={{ color: tema.sutil }}>
-          Série · ocorrência de {tituloDoDia(ocorrencia)}
-          {vivo?.startAt ? ' (movida)' : ''}
-        </Text>
-      ) : null}
-      <TextInput
-        style={[estilos.titulo, { color: tema.texto, borderColor: tema.borda }]}
-        value={titulo}
-        onChangeText={setTitulo}
-        placeholder="Título"
-        placeholderTextColor={tema.sutil}
-      />
-
-      {concluivel ? (
-        <Pressable
-          onPress={() =>
-            tentar(() => {
-              const efeito = concluido
-                ? repositorio.desfazerConclusao(item.id, ocorrencia)
-                : repositorio.concluir(item.id, ocorrencia);
-              if (efeito.tipo !== 'nada') aviso({ texto: descreverEfeito(efeito) });
-              setVersao((v) => v + 1);
-            }, false)
-          }
-          style={[estilos.botao, { borderColor: tema.pontuavel }]}
-        >
-          <Text style={{ color: tema.pontuavel, fontWeight: '600' }}>
-            {concluido
-              ? 'Desfazer conclusão'
-              : ocorrencia
-                ? 'Concluir esta ocorrência'
-                : 'Concluir'}
-          </Text>
-        </Pressable>
-      ) : null}
-      {concluivel && !ocorrencia && !item.rrule && !concluido ? (
-        <Pressable
-          onPress={() => tentar(() => repositorio.adiar(item.id, 1))}
-          style={[estilos.botao, { borderColor: tema.borda }]}
-        >
-          <Text style={{ color: tema.texto }}>Adiar para amanhã</Text>
-        </Pressable>
-      ) : null}
-      {item.postponeCount > 0 ? (
-        <Text style={{ color: tema.sutil }}>
-          Adiada {item.postponeCount} {item.postponeCount === 1 ? 'vez' : 'vezes'}.
-        </Text>
-      ) : null}
-
-      <Text style={{ color: tema.sutil }}>Esforço</Text>
-      <SeletorEsforco
-        valor={pontuacao}
-        congelado={congelado}
-        aoMudar={(p) => {
-          setPontuacao(p);
-          if (p.effort === null) setTipo('event'); // tarefa exige esforço
-        }}
-      />
-      {pontuacao.effort !== null && !ocorrencia ? (
-        <View style={estilos.chips}>
-          <Chip
-            rotulo="Evento (horário)"
-            ativo={tipo === 'event'}
-            aoTocar={() => setTipo('event')}
-          />
-          <Chip rotulo="Tarefa (prazo)" ativo={tipo === 'task'} aoTocar={() => setTipo('task')} />
-        </View>
-      ) : null}
-
-      {ehTarefa ? (
-        <CampoDataHora rotulo="Prazo" valor={inicio} aoMudar={setInicio} />
-      ) : (
-        <>
-          <View style={estilos.linha}>
-            <Text style={{ color: tema.texto }}>Dia inteiro</Text>
-            <Switch value={diaInteiro} onValueChange={alternarDiaInteiro} />
+      <ScrollView
+        ref={rolagem}
+        contentContainerStyle={estilos.tela}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* No topo: o Salvar fica no cabeçalho e, com a tela rolada, o erro no fim do formulário
+            passava despercebido (visto no emulador). */}
+        {erros.length ? (
+          <View
+            style={[estilos.erros, { backgroundColor: tema.perigoFundo, borderColor: tema.perigo }]}
+          >
+            {erros.map((e) => (
+              <Texto key={e} style={{ color: tema.perigo, fontSize: 12.5 }}>
+                • {e}
+              </Texto>
+            ))}
           </View>
-          {diaInteiro ? (
-            <>
-              <CampoDataHora
-                rotulo="De"
-                somenteData
-                valor={inicio}
-                aoMudar={(v) => {
-                  const primeiro = diaDe(v);
-                  const ultimo = primeiro > ultimoDia ? primeiro : ultimoDia;
-                  const l = limitesDiaInteiro(primeiro, ultimo);
-                  setInicio(l.startAt);
-                  setFim(l.endAt);
+        ) : null}
+        {ocorrencia ? (
+          <View style={[estilos.serie, { backgroundColor: tema.painel }]}>
+            <Repetir cor={tema.rotulo} />
+            <Texto style={{ fontSize: 12, color: tema.texto3, flex: 1 }}>
+              Série · ocorrência de {tituloDoDia(ocorrencia)}
+              {vivo?.startAt ? ' (movida)' : ''}
+            </Texto>
+          </View>
+        ) : null}
+        <Entrada
+          cinzel
+          style={[estilos.titulo, { borderBottomColor: tema.bordaCampo }]}
+          value={titulo}
+          onChangeText={setTitulo}
+          placeholder="Título"
+        />
+
+        {concluivel ? (
+          <View style={{ gap: 8 }}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() =>
+                tentar(() => {
+                  const efeito = concluido
+                    ? repositorio.desfazerConclusao(item.id, ocorrencia)
+                    : repositorio.concluir(item.id, ocorrencia);
+                  if (efeito.tipo !== 'nada') aviso({ texto: descreverEfeito(efeito) });
+                  setVersao((v) => v + 1);
+                }, false)
+              }
+              style={[estilos.concluir, { borderColor: tema.ouro }]}
+            >
+              <CaixaDeMarcar marcada={!concluido} tamanho={16} />
+              <Texto
+                cinzel
+                style={{
+                  fontSize: 12.5,
+                  letterSpacing: 1.7,
+                  color: tema.ouroEscuro,
+                  fontWeight: '600',
                 }}
+              >
+                {(concluido
+                  ? 'Desfazer conclusão'
+                  : ocorrencia
+                    ? 'Concluir esta ocorrência'
+                    : 'Concluir'
+                ).toLocaleUpperCase('pt-BR')}
+              </Texto>
+            </Pressable>
+            {!ocorrencia && !item.rrule && !concluido ? (
+              <Botao
+                variante="neutro"
+                rotulo="Adiar para amanhã"
+                aoTocar={() => tentar(() => repositorio.adiar(item.id, 1))}
               />
-              <CampoDataHora
-                rotulo="Até"
-                somenteData
-                valor={inicioDoDia(ultimoDia)}
-                aoMudar={(v) => setFim(inicioDoDia(somarDias(diaDe(v), 1)))}
-              />
+            ) : null}
+            {item.postponeCount > 0 ? (
+              <Texto style={{ fontSize: 12, color: tema.rotulo }}>
+                Adiada {item.postponeCount} {item.postponeCount === 1 ? 'vez' : 'vezes'}.
+              </Texto>
+            ) : null}
+          </View>
+        ) : null}
+
+        <SeletorEsforco
+          valor={pontuacao}
+          congelado={congelado}
+          aoMudar={(p) => {
+            setPontuacao(p);
+            if (p.effort === null) setTipo('event'); // tarefa exige esforço
+          }}
+        />
+        {pontuacao.effort !== null && !ocorrencia ? (
+          <Segmentado
+            valor={tipo}
+            aoMudar={setTipo}
+            opcoes={[
+              { valor: 'event', rotulo: 'Evento (horário)' },
+              { valor: 'task', rotulo: 'Tarefa (prazo)' },
+            ]}
+          />
+        ) : null}
+
+        <View style={{ gap: 9 }}>
+          {ehTarefa ? (
+            <>
+              <Rotulo>Prazo</Rotulo>
+              <CampoDataHora rotulo="Até" valor={inicio} aoMudar={setInicio} />
             </>
           ) : (
             <>
-              <CampoDataHora
-                rotulo="Início"
-                valor={inicio}
-                aoMudar={(v) => {
-                  // Mover o início leva o fim junto, mantendo a duração.
-                  if (fim) setFim(new Date(fim.getTime() + (v.getTime() - inicio.getTime())));
-                  setInicio(v);
-                }}
-              />
-              {fim ? (
-                <CampoDataHora rotulo="Fim" valor={fim} aoMudar={setFim} />
+              <View style={estilos.linha}>
+                <Rotulo>Quando</Rotulo>
+                <View style={estilos.chave}>
+                  <Texto style={{ fontSize: 12, color: tema.texto3 }}>Dia inteiro</Texto>
+                  <Switch
+                    value={diaInteiro}
+                    onValueChange={alternarDiaInteiro}
+                    trackColor={{ false: tema.linha, true: tema.ouroClaro }}
+                    thumbColor={diaInteiro ? tema.ouro : tema.campo}
+                    ios_backgroundColor={tema.linha}
+                    accessibilityLabel="Dia inteiro"
+                  />
+                </View>
+              </View>
+              {diaInteiro ? (
+                <>
+                  <CampoDataHora
+                    rotulo="De"
+                    somenteData
+                    valor={inicio}
+                    aoMudar={(v) => {
+                      const primeiro = diaDe(v);
+                      const ultimo = primeiro > ultimoDia ? primeiro : ultimoDia;
+                      const l = limitesDiaInteiro(primeiro, ultimo);
+                      setInicio(l.startAt);
+                      setFim(l.endAt);
+                    }}
+                  />
+                  <CampoDataHora
+                    rotulo="Até"
+                    somenteData
+                    valor={inicioDoDia(ultimoDia)}
+                    aoMudar={(v) => setFim(inicioDoDia(somarDias(diaDe(v), 1)))}
+                  />
+                </>
               ) : (
-                <Pressable onPress={() => setFim(new Date(inicio.getTime() + HORA_MS))}>
-                  <Text style={{ color: tema.destaque }}>+ adicionar fim</Text>
-                </Pressable>
+                <>
+                  <CampoDataHora
+                    rotulo="Início"
+                    valor={inicio}
+                    aoMudar={(v) => {
+                      // Mover o início leva o fim junto, mantendo a duração.
+                      if (fim) setFim(new Date(fim.getTime() + (v.getTime() - inicio.getTime())));
+                      setInicio(v);
+                    }}
+                  />
+                  {fim ? (
+                    <CampoDataHora rotulo="Fim" valor={fim} aoMudar={setFim} />
+                  ) : (
+                    <Pressable
+                      onPress={() => setFim(new Date(inicio.getTime() + HORA_MS))}
+                      accessibilityRole="button"
+                    >
+                      <Texto style={{ fontSize: 12.5, color: tema.ouroEscuro }}>
+                        + adicionar fim
+                      </Texto>
+                    </Pressable>
+                  )}
+                </>
               )}
             </>
           )}
-        </>
-      )}
-      {fusoDoAparelhoDifere() ? (
-        <Text style={[estilos.dica, { color: tema.sutil }]}>
-          Horários em hora de São Paulo ({FUSO_PADRAO}), não no fuso deste aparelho.
-        </Text>
-      ) : null}
+          {fusoDoAparelhoDifere() ? (
+            <Texto style={{ fontSize: 11.5, color: tema.rotulo }}>
+              Horários em hora de São Paulo ({FUSO_PADRAO}), não no fuso deste aparelho.
+            </Texto>
+          ) : null}
+        </View>
 
-      <Text style={{ color: tema.sutil }}>Repetição</Text>
-      <EditorRecorrencia rrule={rrule} inicio={inicio} aoMudar={setRrule} />
+        <EditorRecorrencia rrule={rrule} inicio={inicio} aoMudar={setRrule} />
 
-      {disciplinas.length || disciplina ? (
-        <>
-          <Text style={{ color: tema.sutil }}>Disciplina (prova, trabalho, entrega)</Text>
-          <View style={estilos.chips}>
-            <Chip
-              rotulo="Nenhuma"
-              ativo={disciplina === null}
-              aoTocar={() => setDisciplina(null)}
-            />
-            {disciplinas.map((c) => (
+        {disciplinas.length || disciplina ? (
+          <View style={{ gap: 8 }}>
+            <Rotulo>Disciplina</Rotulo>
+            <View style={estilos.chips}>
               <Chip
-                key={c.id}
-                rotulo={c.code ?? c.name}
-                cor={c.color}
-                ativo={disciplina === c.id}
-                aoTocar={() => setDisciplina(c.id)}
+                rotulo="Nenhuma"
+                ativo={disciplina === null}
+                aoTocar={() => setDisciplina(null)}
+              />
+              {disciplinas.map((c) => (
+                <Chip
+                  key={c.id}
+                  rotulo={c.code ?? c.name}
+                  cor={c.color}
+                  ativo={disciplina === c.id}
+                  aoTocar={() => setDisciplina(c.id)}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        <View style={{ gap: 8 }}>
+          <Rotulo>Lembrete antes</Rotulo>
+          <View style={estilos.chips}>
+            {LEMBRETES.map((l) => (
+              <Chip
+                key={l.rotulo}
+                rotulo={l.rotulo}
+                ativo={lembrete === l.minutos}
+                aoTocar={() => {
+                  setLembrete(l.minutos);
+                  // Momento com contexto para pedir a permissão: a pessoa acabou de pedir um lembrete.
+                  if (l.minutos !== null) void pedirPermissao();
+                }}
               />
             ))}
           </View>
-        </>
-      ) : null}
+        </View>
 
-      <Text style={{ color: tema.sutil }}>Lembrete antes</Text>
-      <View style={estilos.chips}>
-        {LEMBRETES.map((l) => {
-          const ativo = lembrete === l.minutos;
-          return (
-            <Pressable
-              key={l.rotulo}
-              onPress={() => {
-                setLembrete(l.minutos);
-                // Momento com contexto para pedir a permissão: a pessoa acabou de pedir um lembrete.
-                if (l.minutos !== null) void pedirPermissao();
-              }}
-              style={[
-                estilos.chip,
-                { borderColor: tema.borda },
-                ativo && { backgroundColor: tema.destaque, borderColor: tema.destaque },
-              ]}
-            >
-              <Text style={{ color: ativo ? tema.superficie : tema.texto }}>{l.rotulo}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+        <Campo rotulo="Notas" value={notas} onChangeText={setNotas} multiline />
 
-      <TextInput
-        style={[estilos.notas, { color: tema.texto, borderColor: tema.borda }]}
-        value={notas}
-        onChangeText={setNotas}
-        placeholder="Notas"
-        placeholderTextColor={tema.sutil}
-        multiline
-      />
-
-      <Pressable onPress={excluir} style={[estilos.botao, { borderColor: tema.perigo }]}>
-        <Text style={{ color: tema.perigo }}>Excluir</Text>
-      </Pressable>
-    </ScrollView>
+        <Botao perigo rotulo="Excluir" aoTocar={excluir} />
+      </ScrollView>
+    </View>
   );
 }
 
 const estilos = StyleSheet.create({
-  tela: { padding: 16, gap: 14 },
-  titulo: { fontSize: 20, borderBottomWidth: 1, paddingVertical: 8 },
+  tela: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40, gap: 18 },
+  erros: { borderWidth: 1, borderRadius: 8, padding: 10, gap: 4 },
+  serie: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 7,
+  },
+  titulo: { fontSize: 22, fontWeight: '600', paddingBottom: 8, borderBottomWidth: 1 },
+  concluir: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 12,
+    borderWidth: 1.5,
+    borderRadius: 8,
+  },
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  dica: { fontSize: 12 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
-  notas: { borderWidth: 1, borderRadius: 8, padding: 10, minHeight: 100, textAlignVertical: 'top' },
-  botao: { borderWidth: 1, borderRadius: 10, padding: 12, alignItems: 'center' },
+  chave: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
 });

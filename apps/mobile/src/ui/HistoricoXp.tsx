@@ -1,16 +1,12 @@
-import { ATRIBUTOS, NOMES_ATRIBUTOS, historicoMensal, type Atributo } from '@compasso/core';
+import { ATRIBUTOS, NOMES_ATRIBUTOS, historicoMensal } from '@compasso/core';
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { repositorio } from '../sync';
-import { useTema, type Tema } from '../tema';
+import { COR_DO_ATRIBUTO, useTema } from '../tema';
+import { Texto } from './Texto';
 
-const cores = (t: Tema): Record<Atributo, string> => ({
-  corpo: t.pontuavel,
-  mente: t.destaque,
-  oficio: t.hoje,
-  casa: '#7A3A6B',
-  social: '#76682A',
-});
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const ALTURA = 92;
 
 /**
  * Evolução do XP por mês (issue #87): barras empilhadas por atributo, últimos 12 meses. Meses sem
@@ -25,9 +21,8 @@ export function HistoricoXp({ gatilho }: { gatilho: unknown }) {
   );
   if (meses.length === 0) return null;
   const max = Math.max(1, ...meses.map((m) => m.total));
-  const c = cores(tema);
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: 12 }}>
       <View style={estilos.grafico}>
         {meses.map((m) => (
           <View
@@ -35,25 +30,31 @@ export function HistoricoXp({ gatilho }: { gatilho: unknown }) {
             style={estilos.coluna}
             accessibilityLabel={`${m.mes}: ${m.total / 10} pontos`}
           >
-            <View style={[estilos.pilha, { height: 100 }]}>
+            <View style={[estilos.pilha, { height: ALTURA }]}>
               {ATRIBUTOS.map((a) =>
                 m.porAtributo[a] > 0 ? (
                   <View
                     key={a}
-                    style={{ height: (100 * m.porAtributo[a]) / max, backgroundColor: c[a] }}
+                    style={{
+                      height: (ALTURA * m.porAtributo[a]) / max,
+                      backgroundColor: COR_DO_ATRIBUTO[a],
+                    }}
                   />
                 ) : null,
               )}
             </View>
-            <Text style={{ color: tema.sutil, fontSize: 9 }}>{m.mes.slice(5)}</Text>
+            <Texto style={{ color: tema.apagado, fontSize: 8.5, textAlign: 'center' }}>
+              {MESES[Number(m.mes.slice(5)) - 1] ?? m.mes.slice(5)}
+            </Texto>
           </View>
         ))}
       </View>
       <View style={estilos.legenda}>
         {ATRIBUTOS.map((a) => (
-          <Text key={a} style={{ color: c[a], fontSize: 11 }}>
-            ■ {NOMES_ATRIBUTOS[a]}
-          </Text>
+          <View key={a} style={estilos.chave}>
+            <View style={[estilos.amostra, { backgroundColor: COR_DO_ATRIBUTO[a] }]} />
+            <Texto style={{ color: tema.sutil, fontSize: 10.5 }}>{NOMES_ATRIBUTOS[a]}</Texto>
+          </View>
         ))}
       </View>
     </View>
@@ -61,8 +62,10 @@ export function HistoricoXp({ gatilho }: { gatilho: unknown }) {
 }
 
 const estilos = StyleSheet.create({
-  grafico: { flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
-  coluna: { flex: 1, alignItems: 'center', gap: 2 },
-  pilha: { width: '100%', justifyContent: 'flex-end', flexDirection: 'column-reverse' },
-  legenda: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
+  grafico: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  coluna: { flex: 1, gap: 4 },
+  pilha: { width: '100%', justifyContent: 'flex-start', flexDirection: 'column-reverse' },
+  legenda: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  chave: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  amostra: { width: 8, height: 8, borderRadius: 2 },
 });

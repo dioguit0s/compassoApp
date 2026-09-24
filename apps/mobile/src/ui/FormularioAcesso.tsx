@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { reagendar } from '../notificacoes';
 import { perfilLocal } from '../perfil';
 import { acessar, lerUrl, salvarConexao, urlDeServidorValida } from '../servidor';
 import { apagarDadosLocais } from '../sync';
 import { useTema } from '../tema';
-import { Botao, Campo, Chip } from './Campos';
+import { Botao, Campo, Segmentado } from './Campos';
+import { Texto } from './Texto';
 
 /**
  * Entrar com e-mail e senha, ou criar conta com um código de convite (F10, ADR-0008). Aparece no
@@ -28,10 +29,12 @@ export function FormularioAcesso({ aoEntrar }: { aoEntrar: () => Promise<void> }
   }, []);
 
   const urlOk = urlDeServidorValida(url);
+  const senhaCurta = modo === 'cadastro' && senha !== '' && senha.length < 8;
   const pronto =
     urlOk &&
     email.trim() !== '' &&
     senha !== '' &&
+    !senhaCurta &&
     (modo === 'entrar' || (nome.trim() !== '' && convite.trim() !== ''));
 
   async function enviar() {
@@ -61,38 +64,40 @@ export function FormularioAcesso({ aoEntrar }: { aoEntrar: () => Promise<void> }
 
   return (
     <View style={estilos.bloco}>
-      <Text style={[estilos.subtitulo, { color: tema.texto }]}>
+      <Texto cinzel style={{ fontSize: 20, fontWeight: '700' }}>
         {modo === 'entrar' ? 'Entrar' : 'Criar conta'}
-      </Text>
-      <View style={estilos.chips}>
-        <Chip rotulo="Já tenho conta" ativo={modo === 'entrar'} aoTocar={() => setModo('entrar')} />
-        <Chip
-          rotulo="Tenho um convite"
-          ativo={modo === 'cadastro'}
-          aoTocar={() => setModo('cadastro')}
-        />
-      </View>
+      </Texto>
+      <Segmentado
+        tom="ouro"
+        valor={modo}
+        aoMudar={setModo}
+        opcoes={[
+          { valor: 'entrar', rotulo: 'Já tenho conta' },
+          { valor: 'cadastro', rotulo: 'Tenho um convite' },
+        ]}
+        style={{ borderRadius: 8 }}
+      />
       <Campo
-        rotulo="Endereço do servidor"
+        rotulo="Servidor"
         placeholder="https://compasso.seu-dominio"
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="url"
         value={url}
         onChangeText={setUrl}
+        erro={url && !urlOk ? 'Use o endereço completo: http:// ou https://' : null}
       />
-      {url && !urlOk ? (
-        <Text style={{ color: tema.perigo }}>Use o endereço completo: http:// ou https://</Text>
-      ) : null}
       {modo === 'cadastro' ? (
         <>
           <Campo
-            rotulo="Código de convite"
+            rotulo="Convite"
+            cinzel
             placeholder="XXXX-XXXX-XXXX-XXXX"
             autoCapitalize="characters"
             autoCorrect={false}
             value={convite}
             onChangeText={setConvite}
+            style={{ letterSpacing: 1.1 }}
           />
           <Campo rotulo="Seu nome" autoComplete="name" value={nome} onChangeText={setNome} />
         </>
@@ -107,31 +112,30 @@ export function FormularioAcesso({ aoEntrar }: { aoEntrar: () => Promise<void> }
         onChangeText={setEmail}
       />
       <Campo
-        rotulo={modo === 'cadastro' ? 'Senha (mínimo 8 caracteres)' : 'Senha'}
+        rotulo="Senha"
+        placeholder={modo === 'cadastro' ? 'mínimo 8 caracteres' : undefined}
         autoCapitalize="none"
         autoCorrect={false}
         autoComplete={modo === 'cadastro' ? 'new-password' : 'current-password'}
         secureTextEntry
         value={senha}
         onChangeText={setSenha}
+        erro={senhaCurta ? 'A senha precisa ter pelo menos 8 caracteres.' : null}
       />
-      {erro ? <Text style={{ color: tema.perigo }}>{erro}</Text> : null}
+      {erro ? <Texto style={{ color: tema.perigo, fontSize: 12.5 }}>{erro}</Texto> : null}
       <Botao
+        variante="primario"
         rotulo={enviando ? 'Enviando…' : modo === 'entrar' ? 'Entrar' : 'Criar conta'}
         desativado={!pronto || enviando}
         aoTocar={() => void enviar()}
       />
-      {modo === 'entrar' ? (
-        <Text style={{ color: tema.sutil, fontSize: 12 }}>
-          Esqueceu a senha? Peça ao administrador do servidor uma senha temporária.
-        </Text>
-      ) : null}
+      <Texto style={{ color: tema.rotulo, fontSize: 11.5, lineHeight: 17, textAlign: 'center' }}>
+        Esqueceu a senha? Peça ao administrador do servidor uma senha temporária.
+      </Texto>
     </View>
   );
 }
 
 const estilos = StyleSheet.create({
-  bloco: { gap: 12 },
-  subtitulo: { fontSize: 16, fontWeight: '600' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  bloco: { gap: 14 },
 });

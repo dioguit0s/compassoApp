@@ -1,14 +1,30 @@
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import { Stack, useRouter } from 'expo-router';
+import {
+  Archivo_400Regular,
+  Archivo_400Regular_Italic,
+  Archivo_500Medium,
+  Archivo_600SemiBold,
+  Archivo_700Bold,
+} from '@expo-google-fonts/archivo';
+import {
+  Cinzel_400Regular,
+  Cinzel_500Medium,
+  Cinzel_600SemiBold,
+  Cinzel_700Bold,
+} from '@expo-google-fonts/cinzel';
+import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import migracoes from '../drizzle/migrations';
 import { db } from '../src/db';
 import { ProvedorDeDisciplinas } from '../src/disciplinas';
 import { useHoje } from '../src/hooks';
 import { repositorio } from '../src/sync';
 import { ProvedorDeAvisos } from '../src/ui/Aviso';
+import { ProvedorDeDialogos } from '../src/ui/Dialogo';
+import { Emblema } from '../src/ui/Icones';
 import {
   observarMudancas,
   reagendar,
@@ -25,6 +41,19 @@ export default function Raiz() {
   const resposta = useUltimaRespostaDeNotificacao();
   const hoje = useHoje();
   const tema = useTema();
+  // Sem as fontes a tela abre em fonte do sistema e pula quando elas chegam; se falharem, segue.
+  const [fontes, erroDeFonte] = useFonts({
+    Archivo_400Regular,
+    Archivo_400Regular_Italic,
+    Archivo_500Medium,
+    Archivo_600SemiBold,
+    Archivo_700Bold,
+    Cinzel_400Regular,
+    Cinzel_500Medium,
+    Cinzel_600SemiBold,
+    Cinzel_700Bold,
+  });
+  const fontesProntas = fontes || erroDeFonte !== null;
 
   // Congelamento preguiçoso (ADR-0006): na abertura e na virada do dia, os itens cujo dia chegou
   // ganham effortLockedAt — offline, e sincroniza como qualquer campo.
@@ -44,7 +73,8 @@ export default function Raiz() {
 
   // Tocar num lembrete abre o detalhe do item (ou da ocorrência).
   useEffect(() => {
-    if (!success || !resposta) return;
+    // Só com o Stack montado (banco migrado e fontes prontas): antes disso não há onde navegar.
+    if (!success || !fontesProntas || !resposta) return;
     const dados = resposta.notification.request.content.data as {
       itemId?: string;
       ocorrencia?: string | null;
@@ -56,58 +86,63 @@ export default function Raiz() {
         ? { id: dados.itemId, ocorrencia: dados.ocorrencia }
         : { id: dados.itemId },
     });
-  }, [success, resposta, router]);
+  }, [success, fontesProntas, resposta, router]);
 
   if (error) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', padding: 24 }}>
-        <Text style={{ fontWeight: 'bold' }}>Falha ao migrar o banco local</Text>
-        <Text>{error.message}</Text>
+      <View style={[estilos.abertura, { backgroundColor: tema.cabecalho, padding: 24 }]}>
+        <Text style={{ fontWeight: 'bold', color: tema.perigo }}>
+          Falha ao migrar o banco local
+        </Text>
+        <Text style={{ color: tema.texto }}>{error.message}</Text>
       </View>
     );
   }
-  if (!success) {
+  if (!success || !fontesProntas) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Abrindo o Compasso…</Text>
+      <View style={[estilos.abertura, { backgroundColor: tema.cabecalho }]}>
+        <StatusBar style="dark" />
+        <Emblema tamanho={96} abertura />
+        {fontesProntas ? (
+          <>
+            <Text style={[estilos.marca, { color: tema.texto }]}>COMPASSO</Text>
+            <Text style={[estilos.abrindo, { color: tema.sutil }]}>Abrindo o Compasso…</Text>
+          </>
+        ) : null}
       </View>
     );
   }
 
+  const folha = { presentation: 'transparentModal', animation: 'fade' } as const;
   return (
     <ProvedorDeDisciplinas>
-      <ProvedorDeAvisos>
-        <StatusBar style="auto" />
-        <Stack
-          screenOptions={{
-            // Sem isso as telas empilhadas (detalhe, configurações…) ficavam com cabeçalho branco
-            // no tema escuro (visto no emulador).
-            headerStyle: { backgroundColor: tema.fundo },
-            headerTintColor: tema.texto,
-            contentStyle: { backgroundColor: tema.fundo },
-          }}
-        >
-          <Stack.Screen name="(abas)" options={{ headerShown: false }} />
-          <Stack.Screen name="diagnostico" options={{ title: 'Diagnóstico' }} />
-          <Stack.Screen
-            name="captura"
-            options={{ title: 'Captura rápida', presentation: 'modal' }}
-          />
-          <Stack.Screen name="item/[id]" options={{ title: 'Item', presentation: 'modal' }} />
-          <Stack.Screen name="notificacoes" options={{ title: 'Lembretes agendados' }} />
-          <Stack.Screen name="importar" options={{ title: 'Importar calendário' }} />
-          <Stack.Screen name="configuracoes" options={{ title: 'Configurações' }} />
-          <Stack.Screen name="lixeira" options={{ title: 'Lixeira' }} />
-          <Stack.Screen name="regua" options={{ title: 'Régua de esforço' }} />
-          <Stack.Screen name="semestre" options={{ title: 'Semestre' }} />
-          <Stack.Screen name="disciplina" options={{ title: 'Disciplina' }} />
-          <Stack.Screen name="aula" options={{ title: 'Aula', presentation: 'modal' }} />
-          <Stack.Screen
-            name="recompensa"
-            options={{ title: 'Recompensa', presentation: 'modal' }}
-          />
-        </Stack>
-      </ProvedorDeAvisos>
+      <ProvedorDeDialogos>
+        <ProvedorDeAvisos>
+          <StatusBar style="dark" />
+          {/* Cada tela desenha o próprio cabeçalho (códice): sem o do Stack. */}
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: tema.fundo },
+            }}
+          >
+            <Stack.Screen name="(abas)" />
+            <Stack.Screen name="captura" options={folha} />
+            <Stack.Screen
+              name="item/[id]"
+              options={{ presentation: 'modal', contentStyle: { backgroundColor: tema.folha } }}
+            />
+            <Stack.Screen name="aula" options={folha} />
+            <Stack.Screen name="recompensa" options={folha} />
+          </Stack>
+        </ProvedorDeAvisos>
+      </ProvedorDeDialogos>
     </ProvedorDeDisciplinas>
   );
 }
+
+const estilos = StyleSheet.create({
+  abertura: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 22 },
+  marca: { fontFamily: 'Cinzel_700Bold', fontSize: 28, letterSpacing: 2.2 },
+  abrindo: { fontFamily: 'Archivo_400Regular_Italic', fontSize: 13 },
+});

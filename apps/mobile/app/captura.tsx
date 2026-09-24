@@ -9,13 +9,17 @@ import {
 } from '@compasso/core';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { tituloDoDia } from '../src/datasUi';
 import { novoCompromisso } from '../src/novoItem';
 import { perfilLocal } from '../src/perfil';
 import { repositorio } from '../src/sync';
-import { SeletorEsforco, type Pontuacao } from '../src/ui/SeletorEsforco';
 import { useTema } from '../src/tema';
+import { Folha } from '../src/ui/Cabecalho';
+import { Botao, Chip, Segmentado } from '../src/ui/Campos';
+import { Relogio } from '../src/ui/Icones';
+import { SeletorEsforco, type Pontuacao } from '../src/ui/SeletorEsforco';
+import { Entrada, Texto } from '../src/ui/Texto';
 
 const HORA_MS = 3_600_000;
 
@@ -86,79 +90,71 @@ export default function Captura() {
 
   const dia = diaDe(inicio);
   const hoje = diaDe(new Date());
+  const ehTarefa = tarefa && pontuacao.effort !== null;
+  const quando = `${dia === hoje ? 'hoje' : dia === somarDias(hoje, 1) ? 'amanhã' : tituloDoDia(dia)}${
+    diaInteiro && !ehTarefa ? ', dia inteiro' : `, ${ehTarefa ? 'até ' : ''}${horaDe(inicio)}`
+  }`;
   return (
-    <View style={[estilos.tela, { backgroundColor: tema.superficie }]}>
-      <TextInput
-        autoFocus
-        style={[estilos.titulo, { color: tema.texto, borderColor: tema.borda }]}
-        placeholder="O que vai acontecer?"
-        placeholderTextColor={tema.sutil}
-        value={titulo}
-        onChangeText={setTitulo}
-        returnKeyType="done"
-        onSubmitEditing={salvar}
-        submitBehavior="submit"
-      />
-      <Text style={[estilos.quando, { color: tema.texto }]}>
-        {dia === hoje ? 'hoje' : dia === somarDias(hoje, 1) ? 'amanhã' : tituloDoDia(dia)}
-        {diaInteiro ? ', dia inteiro' : `, ${horaDe(inicio)}`}
-      </Text>
-      <View style={estilos.chips}>
-        <Chip rotulo="Hoje" ativo={dia === hoje} aoTocar={() => paraDia(0)} />
-        <Chip rotulo="Amanhã" ativo={dia === somarDias(hoje, 1)} aoTocar={() => paraDia(1)} />
-        <Chip rotulo="−1h" aoTocar={() => mover(-HORA_MS)} desativado={diaInteiro} />
-        <Chip rotulo="+1h" aoTocar={() => mover(HORA_MS)} desativado={diaInteiro} />
-        <Chip rotulo="Dia inteiro" ativo={diaInteiro} aoTocar={() => setDiaInteiro((v) => !v)} />
-      </View>
-      <SeletorEsforco valor={pontuacao} aoMudar={setPontuacao} compacto />
-      {pontuacao.effort !== null ? (
-        <View style={estilos.chips}>
-          <Chip rotulo="Evento (horário)" ativo={!tarefa} aoTocar={() => setTarefa(false)} />
-          <Chip rotulo="Tarefa (prazo)" ativo={tarefa} aoTocar={() => setTarefa(true)} />
+    <Folha>
+      <View style={estilos.corpo}>
+        <View style={[estilos.titulo, { borderBottomColor: tema.ouro }]}>
+          <Entrada
+            autoFocus
+            cinzel
+            style={{ fontSize: 20, paddingVertical: 4 }}
+            placeholder="O que vai acontecer?"
+            value={titulo}
+            onChangeText={setTitulo}
+            returnKeyType="done"
+            onSubmitEditing={salvar}
+            submitBehavior="submit"
+          />
         </View>
-      ) : null}
-      {erro ? <Text style={{ color: tema.perigo }}>{erro}</Text> : null}
-      <Pressable
-        onPress={salvar}
-        disabled={!titulo.trim()}
-        style={[
-          estilos.salvar,
-          { backgroundColor: tema.destaque, opacity: titulo.trim() ? 1 : 0.4 },
-        ]}
-      >
-        <Text style={{ color: tema.superficie, fontWeight: '600' }}>Salvar</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-function Chip(props: {
-  rotulo: string;
-  aoTocar: () => void;
-  ativo?: boolean;
-  desativado?: boolean;
-}) {
-  const tema = useTema();
-  return (
-    <Pressable
-      onPress={props.aoTocar}
-      disabled={props.desativado}
-      style={[
-        estilos.chip,
-        { borderColor: tema.borda, opacity: props.desativado ? 0.4 : 1 },
-        props.ativo && { backgroundColor: tema.destaque, borderColor: tema.destaque },
-      ]}
-    >
-      <Text style={{ color: props.ativo ? tema.superficie : tema.texto }}>{props.rotulo}</Text>
-    </Pressable>
+        <View style={estilos.quando}>
+          <Relogio cor={tema.rotulo} />
+          <Texto style={{ fontSize: 13, color: tema.texto2 }}>{quando}</Texto>
+        </View>
+        <View style={estilos.chips}>
+          <Chip rotulo="Hoje" ativo={dia === hoje} aoTocar={() => paraDia(0)} />
+          <Chip rotulo="Amanhã" ativo={dia === somarDias(hoje, 1)} aoTocar={() => paraDia(1)} />
+          <Chip rotulo="−1h" aoTocar={() => mover(-HORA_MS)} desativado={diaInteiro} />
+          <Chip rotulo="+1h" aoTocar={() => mover(HORA_MS)} desativado={diaInteiro} />
+          <Chip rotulo="Dia inteiro" ativo={diaInteiro} aoTocar={() => setDiaInteiro((v) => !v)} />
+        </View>
+        <SeletorEsforco valor={pontuacao} aoMudar={setPontuacao} compacto />
+        {erro ? <Texto style={{ color: tema.perigo, fontSize: 12.5 }}>{erro}</Texto> : null}
+        <View style={estilos.rodape}>
+          {pontuacao.effort !== null ? (
+            <Segmentado
+              style={{ flex: 1 }}
+              valor={tarefa ? 'tarefa' : 'evento'}
+              aoMudar={(v) => setTarefa(v === 'tarefa')}
+              opcoes={[
+                { valor: 'evento', rotulo: 'Evento (horário)' },
+                { valor: 'tarefa', rotulo: 'Tarefa (prazo)' },
+              ]}
+            />
+          ) : (
+            <View style={{ flex: 1 }} />
+          )}
+          <Botao
+            variante="primario"
+            compacto
+            rotulo="Salvar"
+            desativado={!titulo.trim()}
+            aoTocar={salvar}
+            style={{ paddingHorizontal: 18 }}
+          />
+        </View>
+      </View>
+    </Folha>
   );
 }
 
 const estilos = StyleSheet.create({
-  tela: { flex: 1, padding: 16, gap: 12 },
-  titulo: { fontSize: 20, borderBottomWidth: 1, paddingVertical: 8 },
-  quando: { fontSize: 15 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
-  salvar: { alignItems: 'center', padding: 14, borderRadius: 10, marginTop: 8 },
+  corpo: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 16, gap: 14 },
+  titulo: { borderBottomWidth: 1.5, paddingBottom: 6 },
+  quando: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  rodape: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 });

@@ -1,12 +1,16 @@
-import { diaDe, formatarDiaCurto, partesDoDia } from '@compasso/core';
+import { diaDe, formatarDiaCurto, inicioDoDia, partesDoDia, type Dia } from '@compasso/core';
 import { ErroDeValidacao } from '@compasso/core/local';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useGrade, useHoje } from '../src/hooks';
 import { repositorio } from '../src/sync';
 import { useTema } from '../src/tema';
-import { Botao, Campo } from '../src/ui/Campos';
+import { CabecalhoInterno } from '../src/ui/Cabecalho';
+import { CampoDataHora } from '../src/ui/CampoDataHora';
+import { Botao, Campo, Secao } from '../src/ui/Campos';
+import { useAlerta } from '../src/ui/Dialogo';
+import { Texto } from '../src/ui/Texto';
 
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
@@ -17,6 +21,7 @@ const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 export default function Semestre() {
   const tema = useTema();
   const router = useRouter();
+  const alerta = useAlerta();
   const hoje = useHoje();
   const grade = useGrade();
   const ativo = grade.semestres.find((s) => s.active) ?? null;
@@ -34,90 +39,115 @@ export default function Semestre() {
 
   const fmt = (d: string) => formatarDiaCurto(d, 0);
   return (
-    <ScrollView style={{ backgroundColor: tema.fundo }} contentContainerStyle={estilos.tela}>
-      {ativo ? (
-        <View style={estilos.bloco}>
-          <Text style={[estilos.titulo, { color: tema.texto }]}>Semestre {ativo.label}</Text>
-          <Text style={{ color: tema.sutil }}>
-            {fmt(ativo.startDate)} a {fmt(ativo.endDate)}
-            {hoje < ativo.startDate
-              ? ' · ainda não começou'
-              : hoje > ativo.endDate
-                ? ' · encerrado (férias)'
-                : ''}
-          </Text>
-        </View>
-      ) : (
-        <Text style={{ color: tema.sutil }}>
-          Nenhum semestre ativo: a aba Hoje não mostra aulas.
-        </Text>
-      )}
+    <View style={{ flex: 1, backgroundColor: tema.fundo }}>
+      <CabecalhoInterno
+        voltar="Calendário"
+        titulo={ativo ? `Semestre ${ativo.label}` : 'Semestre'}
+        subtitulo={
+          ativo
+            ? `${fmt(ativo.startDate)} a ${fmt(ativo.endDate)}${
+                hoje < ativo.startDate
+                  ? ' · ainda não começou'
+                  : hoje > ativo.endDate
+                    ? ' · encerrado (férias)'
+                    : ''
+              }`
+            : 'Nenhum semestre ativo: a aba Hoje não mostra aulas.'
+        }
+      />
+      <ScrollView contentContainerStyle={estilos.tela} keyboardShouldPersistTaps="handled">
+        {ativo
+          ? disciplinas.map((c) => {
+              const horarios = grade.horarios
+                .filter((h) => h.courseId === c.id)
+                .sort((a, b) => a.weekday - b.weekday || a.startTime.localeCompare(b.startTime));
+              return (
+                <Pressable
+                  key={c.id}
+                  onPress={() => router.push({ pathname: '/disciplina', params: { id: c.id } })}
+                  accessibilityRole="button"
+                  style={[
+                    estilos.cartao,
+                    {
+                      backgroundColor: tema.cartao,
+                      borderColor: tema.bordaCampo,
+                      borderLeftColor: c.color,
+                    },
+                  ]}
+                >
+                  <View style={estilos.linha}>
+                    <Texto style={{ fontSize: 15, fontWeight: '600', flexShrink: 1 }}>
+                      {c.name}
+                    </Texto>
+                    {c.code ? (
+                      <Texto cinzel style={{ fontSize: 11, letterSpacing: 1.1, color: c.color }}>
+                        {c.code}
+                      </Texto>
+                    ) : null}
+                  </View>
+                  {horarios.map((h) => (
+                    <Texto key={h.id} style={{ fontSize: 12, color: tema.texto3 }}>
+                      {DIAS[h.weekday]} {h.startTime}–{h.endTime} · sala{' '}
+                      {h.room ?? c.defaultRoom ?? '—'}
+                    </Texto>
+                  ))}
+                  {horarios.length === 0 ? (
+                    <Texto style={{ fontSize: 12, color: tema.apagado, fontStyle: 'italic' }}>
+                      sem horários
+                    </Texto>
+                  ) : null}
+                </Pressable>
+              );
+            })
+          : null}
+        {ativo ? (
+          <Pressable
+            onPress={() => router.push({ pathname: '/disciplina', params: { semestre: ativo.id } })}
+            accessibilityRole="button"
+            style={[estilos.nova, { borderColor: tema.ouroClaro }]}
+          >
+            <Texto cinzel style={{ fontSize: 12, letterSpacing: 1.7, color: tema.ouroEscuro }}>
+              + DISCIPLINA
+            </Texto>
+          </Pressable>
+        ) : null}
 
-      {ativo
-        ? disciplinas.map((c) => {
-            const horarios = grade.horarios
-              .filter((h) => h.courseId === c.id)
-              .sort((a, b) => a.weekday - b.weekday || a.startTime.localeCompare(b.startTime));
-            return (
+        {arquivados.length ? (
+          <View style={{ marginTop: 10 }}>
+            <Secao titulo="Arquivados" />
+            {arquivados.map((s) => (
               <Pressable
-                key={c.id}
-                onPress={() => router.push({ pathname: '/disciplina', params: { id: c.id } })}
-                style={[
-                  estilos.cartao,
-                  { backgroundColor: tema.superficie, borderLeftColor: c.color },
-                ]}
+                key={s.id}
+                accessibilityRole="button"
+                onPress={() =>
+                  alerta(`Semestre ${s.label}`, 'Tornar este o semestre corrente?', [
+                    { text: 'Tornar corrente', onPress: () => repositorio.ativarSemestre(s.id) },
+                    { text: 'Cancelar', style: 'cancel' },
+                  ])
+                }
+                style={[estilos.arquivado, { borderBottomColor: tema.divisoria }]}
               >
-                <Text style={[estilos.nome, { color: tema.texto }]}>
-                  {c.name}
-                  {c.code ? ` (${c.code})` : ''}
-                </Text>
-                {horarios.map((h) => (
-                  <Text key={h.id} style={{ color: tema.sutil }}>
-                    {DIAS[h.weekday]} {h.startTime}–{h.endTime} · sala{' '}
-                    {h.room ?? c.defaultRoom ?? '—'}
-                  </Text>
-                ))}
-                {horarios.length === 0 ? (
-                  <Text style={{ color: tema.sutil }}>sem horários</Text>
-                ) : null}
+                <Texto style={{ fontSize: 13.5, color: tema.texto2 }}>Semestre {s.label}</Texto>
+                <Texto style={{ fontSize: 11.5, color: tema.apagado }}>
+                  {fmt(s.startDate)} a {fmt(s.endDate)}
+                </Texto>
               </Pressable>
-            );
-          })
-        : null}
-      {ativo ? (
-        <Botao
-          rotulo="+ Disciplina"
-          aoTocar={() => router.push({ pathname: '/disciplina', params: { semestre: ativo.id } })}
-        />
-      ) : null}
+            ))}
+          </View>
+        ) : null}
 
-      {criando ? (
-        <NovoSemestre aoCriar={() => setCriando(false)} />
-      ) : (
-        <Botao rotulo="Criar semestre novo" aoTocar={() => setCriando(true)} />
-      )}
-
-      {arquivados.length ? (
-        <View style={estilos.bloco}>
-          <Text style={[estilos.subtitulo, { color: tema.texto }]}>Semestres arquivados</Text>
-          {arquivados.map((s) => (
-            <Pressable
-              key={s.id}
-              onPress={() =>
-                Alert.alert(`Semestre ${s.label}`, 'Tornar este o semestre corrente?', [
-                  { text: 'Cancelar', style: 'cancel' },
-                  { text: 'Tornar corrente', onPress: () => repositorio.ativarSemestre(s.id) },
-                ])
-              }
-            >
-              <Text style={{ color: tema.sutil }}>
-                {s.label} · {fmt(s.startDate)} a {fmt(s.endDate)}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-    </ScrollView>
+        {criando ? (
+          <NovoSemestre aoCriar={() => setCriando(false)} />
+        ) : (
+          <Botao
+            variante="neutro"
+            rotulo="Criar semestre novo"
+            style={{ marginTop: 4 }}
+            aoTocar={() => setCriando(true)}
+          />
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -126,33 +156,35 @@ function NovoSemestre({ aoCriar }: { aoCriar: () => void }) {
   const hoje = diaDe(new Date());
   const { ano, mes } = partesDoDia(hoje);
   const [label, setLabel] = useState(`${ano}.${mes <= 6 ? 1 : 2}`);
-  const [inicio, setInicio] = useState(hoje);
-  const [fim, setFim] = useState(`${ano}-${mes <= 6 ? '07-15' : '12-20'}`);
+  const [inicio, setInicio] = useState<Dia>(hoje);
+  const [fim, setFim] = useState<Dia>(`${ano}-${mes <= 6 ? '07-15' : '12-20'}`);
   const [erro, setErro] = useState('');
   return (
-    <View style={[estilos.bloco, estilos.cartao, { backgroundColor: tema.superficie }]}>
-      <Text style={[estilos.subtitulo, { color: tema.texto }]}>Novo semestre</Text>
-      <Text style={{ color: tema.sutil }}>
+    <View style={[estilos.painel, { backgroundColor: tema.painel, borderColor: tema.linha }]}>
+      <Secao titulo="Novo semestre" />
+      <Texto style={{ fontSize: 12, color: tema.rotulo }}>
         O novo vira o corrente; o atual fica arquivado, intacto.
-      </Text>
+      </Texto>
       <Campo rotulo="Nome" value={label} onChangeText={setLabel} />
-      <Campo
-        rotulo="Início (AAAA-MM-DD)"
-        value={inicio}
-        onChangeText={setInicio}
-        autoCapitalize="none"
+      <CampoDataHora
+        rotulo="Início"
+        somenteData
+        valor={inicioDoDia(inicio)}
+        aoMudar={(v) => setInicio(diaDe(v))}
       />
-      <Campo rotulo="Fim (AAAA-MM-DD)" value={fim} onChangeText={setFim} autoCapitalize="none" />
-      {erro ? <Text style={{ color: tema.perigo }}>{erro}</Text> : null}
+      <CampoDataHora
+        rotulo="Fim"
+        somenteData
+        valor={inicioDoDia(fim)}
+        aoMudar={(v) => setFim(diaDe(v))}
+      />
+      {erro ? <Texto style={{ color: tema.perigo, fontSize: 12.5 }}>{erro}</Texto> : null}
       <Botao
-        rotulo="Criar"
+        variante="primario"
+        rotulo="Criar semestre"
         aoTocar={() => {
           try {
-            repositorio.criarSemestre({
-              label: label.trim(),
-              startDate: inicio.trim(),
-              endDate: fim.trim(),
-            });
+            repositorio.criarSemestre({ label: label.trim(), startDate: inicio, endDate: fim });
             aoCriar();
           } catch (e) {
             setErro(e instanceof ErroDeValidacao ? e.motivos.join('; ') : (e as Error).message);
@@ -164,10 +196,34 @@ function NovoSemestre({ aoCriar }: { aoCriar: () => void }) {
 }
 
 const estilos = StyleSheet.create({
-  tela: { padding: 16, gap: 12 },
-  bloco: { gap: 6 },
-  titulo: { fontSize: 20, fontWeight: '600' },
-  subtitulo: { fontSize: 16, fontWeight: '600' },
-  nome: { fontSize: 16, fontWeight: '500' },
-  cartao: { padding: 12, borderRadius: 10, borderLeftWidth: 5, gap: 2 },
+  tela: { padding: 16, paddingBottom: 40, gap: 10 },
+  cartao: {
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 7,
+  },
+  linha: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  nova: {
+    padding: 12,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  arquivado: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  painel: { gap: 10, padding: 14, borderWidth: 1, borderRadius: 9, marginTop: 4 },
 });

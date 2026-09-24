@@ -1,6 +1,7 @@
 # Compasso — inventário de telas para redesign
 
-Levantamento do app mobile como está no código (`apps/mobile`, commit `e3f6b7e`, F0–F8 e F10).
+Levantamento do app mobile (`apps/mobile`, F0–F8 e F10), atualizado com o redesign "Compasso em
+códice" (seção 2). As seções 4 e 5 descrevem o comportamento; o visual segue a seção 2.
 Serve de briefing para redesenhar a interface: o que cada tela mostra, o que dá para fazer nela,
 os estados que precisa cobrir e as regras de produto que o design **não pode** quebrar.
 
@@ -24,59 +25,59 @@ Estas vêm da especificação (§4 e §7) e são o motivo de várias escolhas at
 7. **Quatro abas, não cinco.** Semestre fica no cabeçalho do Calendário; configurações ficam no Perfil.
 8. **Não existe nível global**, só nível por atributo.
 
-## 2. Design system atual
+## 2. Design system — "Compasso em códice" (redesign, `feat/redesign`)
 
-### Cores (`src/tema.ts`) — claro / escuro, segue o sistema
+Implementado a partir do projeto do Claude Design "Compasso - Telas RPG". Pergaminho, tinta,
+capitulares em Cinzel e dourado com avareza. **Tema único**: o tema escuro saiu (temas estão fora do
+escopo, especificação §3); `app.json` fixa `userInterfaceStyle: light`.
 
-| Token | Claro | Escuro | Uso |
-|---|---|---|---|
-| `fundo` | `#FAF8F4` | `#16140F` | fundo das telas |
-| `superficie` | `#FFFFFF` | `#221F19` | cartões, modais, barra de abas |
-| `texto` | `#1F1B16` | `#F2EEE7` | texto principal |
-| `sutil` | `#6B645A` | `#A69E92` | texto secundário, rótulos |
-| `borda` | `#DDD6CB` | `#3A352D` | contornos, divisórias |
-| `destaque` | `#2F6B8C` | `#7FB4D1` | ações, links, chip ativo, aba ativa |
-| `hoje` | `#8C4A2F` | `#E0976F` | dia atual, linha do "agora", avisos, sala trocada |
-| `perigo` | `#8C2F4A` | `#E08AA0` | excluir, erros, saldo negativo |
-| `compromisso` | `#2F6B8C` | `#7FB4D1` | contorno de item sem esforço |
-| `pontuavel` | `#4A7A3A` | `#8CC47A` | preenchimento de item com esforço |
-| `textoSobrePontuavel` | `#FFFFFF` | `#10200A` | texto sobre o verde |
-| `foraDoMes` | `#B8B0A4` | `#5A544A` | dias de outro mês na visão de mês |
+### Tipografia (`src/ui/Texto.tsx`)
 
-Cores extras fora do tema: atributos Casa `#7A3A6B` e Social `#76682A` (só no histórico de XP);
-paleta de cores de disciplina (`PALETA_DESTAQUE` no core), escolhida pelo usuário.
+- **Cinzel** (400–700): títulos, capitulares dos rótulos ("ESFORÇO", "QUANDO"), números (horas,
+  esforço, preços, saldo), abas.
+- **Archivo** (400–700 e itálico): texto corrido, campos, listas.
+- Carregadas com `expo-font` em `app/_layout.tsx`. `Texto`/`Entrada` trocam `fontWeight` pela
+  família do peso (no Android fonte própria não tem negrito sintético confiável).
 
-### Componentes reutilizados
+### Cores (`src/tema.ts`)
 
-| Componente | Onde | O que é |
-|---|---|---|
-| **Botão flutuante `+`** | todas as abas | círculo 56px, cor `destaque`, abre a Captura rápida |
-| **Aviso (snackbar)** | global | barra escura no rodapé, some em 6 s, ação opcional ("Desfazer"). Ex.: "+3,5 Mente · +5 moedas — Desfazer" |
-| **EntradaItem** | Hoje, Calendário | item da agenda em 3 variantes: `linha` (lista, com caixa de marcar), `bloco` (grade da semana), `mini` (faixa do dia / célula do mês) |
-| **LinhaAula** | Hoje | barra colorida da disciplina + horário início/fim + nome + sala; riscada se cancelada; sala trocada em `hoje` e negrito |
-| **SeletorEsforco** | Captura, Item | chips `— 1 2 3 5 8`, descrição da régua embaixo, chips de atributo principal (Corpo, Mente, Ofício, Casa, Social) e secundário opcional; modo "congelado" só leitura |
-| **EditorRecorrencia** | Item | chips de frequência, passo `− N +`, dias da semana (D S T Q Q S S), mensal por dia/por semana, fim (sem fim / até data / após N vezes), frase-resumo da regra |
-| **CampoDataHora** | Item, recorrência | rótulo + botão de data + botão de hora, abre o seletor nativo |
-| **Chip** | vários | pílula com borda; ativo = preenchido em `destaque` (ou na cor passada) |
-| **Botao** | vários | botão contornado (texto e borda em `destaque` ou `perigo`), desativado = opacidade 0,4 |
-| **Campo** | formulários | rótulo pequeno em `sutil` + input com borda |
-| **IndicadorSync** | Hoje | linha de texto 11px: "sincronizado 23/09 14:02", "sem rede · dados deste aparelho", "sessão encerrada · entre de novo no Perfil" etc. |
-| **Radar** | Perfil | SVG pentagonal com dois polígonos: acumulado (sólido, `destaque`) e últimos 30 dias (tracejado, `hoje`) |
-| **FaixasDeNivel** | Perfil | por atributo: "Mente · nível 4", pontos, barra de progresso, "faltam X para o nível 5" |
-| **HistoricoXp** | Perfil | barras empilhadas por atributo, últimos 12 meses, legenda colorida |
-| **FormularioAcesso** | Perfil | login / cadastro com convite |
-| **Alert nativo** | vários | todas as confirmações (excluir, resgatar, alcance da série, descartar alterações) usam o diálogo nativo do sistema |
+| Grupo | Tokens principais |
+|---|---|
+| Superfícies | `fundo #EFE3CC`, `cabecalho #E7D8BB`, `faixa #E9DCC2`, `folha #F3E7CC` (modais), `cartao #F7EEDC`, `campo #FBF4E4`, `painel #EBDFC0` |
+| Linhas | `borda #CDBB98`, `bordaCampo #C9B693`, `linha #D6C6A8`, `divisoria #DFD0B3`, `grade #E0D0B2` |
+| Tinta | `texto #241C12` → `texto2/3`, `sutil #6B5B45`, `rotulo #7A6647`, `apagado #8C7B60` |
+| Dourado | `ouro #96742A` (ação principal, aba ativa), `ouroEscuro`, `ouroClaro #C2A85F`, `moeda #C9A33F` |
+| Item | `pontuavel #E3CF9E` (preenchido), `compromisso #8C7B60` (contorno), `naoCumprido #A89A80` (tracejado) |
+| Avisos | `hoje #9A4B26` (dia atual, agora, sala trocada, preço pendente), `perigo #8C2F3A` (excluir, saldo negativo) |
+| Atributos (`COR_DO_ATRIBUTO`) | Corpo `#9E3B2E`, Mente `#2F4E7A`, Ofício `#8A5A2B`, Casa `#46653F`, Social `#6A4573` — escudo, radar, faixas, histórico, seletor |
+
+A paleta de cores de disciplina continua a do core (`PALETA_DESTAQUE`), que também deriva a cor do
+avatar.
+
+### Componentes
+
+| Componente | O que é |
+|---|---|
+| `Cabecalho.tsx` | `CabecalhoInterno` ("← Calendário" + título Cinzel, faixa na cor da disciplina), `CabecalhoModal` ("Fechar · TÍTULO · SALVAR"), `Folha` (folha de pergaminho sobre o véu: captura, aula, recompensa — `transparentModal`) |
+| `Campos.tsx` | `Rotulo`, `Secao` (rótulo + fio), `Campo`, `Chip`, `Botao` (`primario` / `contorno` / `perigo` / `neutro`), `Segmentado`, `LinhaDeLista` |
+| `Dialogo.tsx` | `useAlerta()` — mesma assinatura do `Alert.alert`, opções em cartões com `detalhe`, "CANCELAR" no rodapé; `{ serie: true }` põe o ícone de repetição (alcance da série). Substitui todos os `Alert` nativos |
+| `Aviso.tsx` | barra escura com ação em Cinzel dourado ("DESFAZER") |
+| `Icones.tsx` | moeda, escudo de atributo, traços de contagem do esforço, caixa de marcar, rosa dos ventos, setas |
+| `EntradaItem` | linha: compromisso (contorno + bolinha), aberta (preenchida, caixa, traços do esforço e escudo do atributo), concluída (esmaecida, riscada, uma linha), não cumprida (tracejada, "–") |
+| `SeletorEsforco` | grade `— 1 2 3 5 8`, régua em itálico com fio dourado, atributos principal/secundário com escudo |
+| `CampoDataHora` / `CampoHora` | "Início · qua, 23/09 · 18:00"; `CampoHora` só a hora, com seletor (grade da disciplina) |
 
 ### Estados de um item (EntradaItem)
 
-| Estado | Visual atual | Marcador |
+| Estado | Visual | Marcador |
 |---|---|---|
-| compromisso (sem esforço) | contorno `compromisso`, fundo transparente | bolinha vazada |
-| aberta (pontuável) | preenchido `pontuavel` | caixa vazia ☐ |
-| concluída | preenchido `pontuavel` com opacidade 0,55, título riscado | ☑ / ✓ |
-| não cumprida (ocorrência passada) | contorno tracejado `sutil`, texto `sutil` | – |
+| compromisso (sem esforço) | contorno `compromisso` 1,5 px, fundo transparente | bolinha vazada |
+| aberta (pontuável) | preenchido `pontuavel`, borda `ouroClaro` | caixa vazia |
+| concluída | preenchido com opacidade 0,55, título riscado | caixa com visto |
+| não cumprida (ocorrência passada) | contorno tracejado `naoCumprido`, texto apagado, "não cumprido" | – |
 
 Item ligado a disciplina ganha um **selo** com o código da disciplina na cor dela.
+
 
 ---
 
@@ -91,15 +92,17 @@ Barra de abas (4) + botão flutuante "+"
 └── Perfil ── Configurações → Régua de esforço
           │                 → Lixeira
           │                 → Importar calendário
-          ├── Lembretes agendados (diagnóstico)
-          └── Diagnóstico de fuso (dev)
+          │                 → Lembretes agendados (diagnóstico)
+          │                 → Fuso e IDs do aparelho (diagnóstico)
+          └── Ver agendados → Lembretes agendados
 
 De qualquer aba:  "+"            → Captura rápida (modal)
 De qualquer item: toque          → Detalhe do item (modal)
 Notificação tocada               → Detalhe do item
 ```
 
-Telas empilhadas usam o cabeçalho padrão do Stack (título + voltar), colorido pelo tema.
+Telas empilhadas desenham o próprio cabeçalho (`CabecalhoInterno`); o do Stack está desligado.
+Diagnóstico de fuso saiu do Perfil e fica em Configurações, junto de Lembretes agendados.
 
 ---
 
@@ -107,9 +110,10 @@ Telas empilhadas usam o cabeçalho padrão do Stack (título + voltar), colorido
 
 ### 4.0 Abertura do app — `app/_layout.tsx`
 
-- **Carregando:** texto centralizado "Abrindo o Compasso…" (enquanto migra o banco local).
+- **Carregando:** rosa dos ventos, "COMPASSO" e "Abrindo o Compasso…" (enquanto migra o banco
+  local e carrega as fontes).
 - **Erro:** "Falha ao migrar o banco local" + mensagem técnica.
-- Sem splash desenhada nem onboarding. Na primeira abertura a pessoa cai na aba Hoje vazia e
+- Sem onboarding. Na primeira abertura a pessoa cai na aba Hoje vazia e
   precisa ir ao Perfil para entrar (ver 4.4).
 
 ---

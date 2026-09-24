@@ -2,6 +2,9 @@ import { novoId, rodarDiagnosticoDeFuso } from '@compasso/core';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTema } from '../src/tema';
+import { CabecalhoInterno } from '../src/ui/Cabecalho';
+import { Secao } from '../src/ui/Campos';
+import { Texto } from '../src/ui/Texto';
 
 /**
  * Conferência rápida (issue #9): confere no aparelho real se o Intl do Hermes formata o mesmo
@@ -15,38 +18,43 @@ export default function Diagnostico() {
   const tema = useTema();
 
   return (
-    <ScrollView style={{ backgroundColor: tema.fundo }} contentContainerStyle={estilos.tela}>
-      <Text style={[estilos.titulo, { color: todosOk ? tema.pontuavel : tema.perigo }]}>
-        {todosOk ? 'Fusos OK' : 'Fusos com FALHA'}
-      </Text>
-      <Text style={{ color: tema.sutil }}>
-        fuso do aparelho: {intl.timeZone} · localidade: {intl.locale}
-      </Text>
-      {resultados.map((r) => (
-        <View key={`${r.instante}-${r.fuso}`} style={[estilos.linha, { borderColor: tema.borda }]}>
-          <Text style={[estilos.fuso, { color: tema.texto }]}>
-            {r.ok ? '✓' : '✗'} {r.fuso}
-          </Text>
-          <Text style={{ color: tema.texto }}>{r.instante}</Text>
-          <Text style={{ color: tema.texto }}>
-            obtido {r.obtido} · esperado {r.esperado}
-          </Text>
+    <View style={{ flex: 1, backgroundColor: tema.fundo }}>
+      <CabecalhoInterno
+        voltar="Configurações"
+        titulo={todosOk ? 'Fusos OK' : 'Fusos com FALHA'}
+        subtitulo={`fuso do aparelho: ${intl.timeZone} · localidade: ${intl.locale}`}
+      />
+      <ScrollView contentContainerStyle={estilos.tela}>
+        {resultados.map((r) => (
+          <View
+            key={`${r.instante}-${r.fuso}`}
+            style={[estilos.linha, { borderBottomColor: tema.divisoria }]}
+          >
+            <Texto style={{ fontWeight: '600', color: r.ok ? tema.texto : tema.perigo }}>
+              {r.ok ? '✓' : '✗'} {r.fuso}
+            </Texto>
+            <Texto style={{ fontSize: 12.5, color: tema.texto2 }}>{r.instante}</Texto>
+            <Texto style={{ fontSize: 12.5, color: tema.texto2 }}>
+              obtido {r.obtido} · esperado {r.esperado}
+            </Texto>
+          </View>
+        ))}
+        <View style={{ marginTop: 12, gap: 8 }}>
+          <Secao titulo="UUIDv7 gerados aqui" />
+          {ids.map((id) => (
+            <Text key={id} style={[estilos.mono, { color: tema.texto }]}>
+              {id}
+            </Text>
+          ))}
         </View>
-      ))}
-      <Text style={[estilos.titulo, { color: tema.texto }]}>UUIDv7 gerados aqui</Text>
-      {ids.map((id) => (
-        <Text key={id} style={[estilos.mono, { color: tema.texto }]}>
-          {id}
-        </Text>
-      ))}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const estilos = StyleSheet.create({
-  tela: { padding: 24, gap: 12 },
-  titulo: { fontSize: 18, fontWeight: '600' },
-  linha: { borderBottomWidth: 1, paddingVertical: 8 },
-  fuso: { fontWeight: '600' },
-  mono: { fontFamily: 'monospace' },
+  tela: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
+  linha: { borderBottomWidth: 1, paddingVertical: 8, gap: 2 },
+  // Text puro: o Texto força a família do app, e o identificador precisa de monoespaçada.
+  mono: { fontSize: 12, fontFamily: 'monospace' },
 });

@@ -221,10 +221,10 @@ Validado em 2026-09-23 (Windows, AVD Pixel 7, Android 17 com Google APIs):
 
 ### Diagnóstico
 
-Perfil → "Diagnóstico de fuso e IDs" formata o mesmo instante em UTC, São Paulo, Tóquio e Nova York
+Perfil → Configurações → "Fuso e IDs do aparelho" formata o mesmo instante em UTC, São Paulo, Tóquio e Nova York
 (nos dois lados da mudança de horário de verão) e compara com o valor esperado, e gera três
 UUIDv7 com a aleatoriedade do `expo-crypto`. Nasceu como tela temporária da F0 e ficou como
-conferência rápida num aparelho novo; segue o tema claro/escuro como as outras telas.
+conferência rápida num aparelho novo; usa o tema do app como as outras telas.
 
 ## Testes
 

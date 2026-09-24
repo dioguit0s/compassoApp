@@ -1,9 +1,12 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { enviarArquivo, lerConexao } from '../src/servidor';
 import { sincronizarAgora } from '../src/sync';
 import { useTema } from '../src/tema';
+import { CabecalhoInterno } from '../src/ui/Cabecalho';
+import { Botao, Rotulo } from '../src/ui/Campos';
+import { Texto } from '../src/ui/Texto';
 
 interface Resumo {
   criados: number;
@@ -50,80 +53,101 @@ export default function Importar() {
     }
   }
 
+  const numeros: { n: number; rotulo: string; forte: boolean }[] = resumo
+    ? [
+        { n: resumo.criados, rotulo: 'criados', forte: true },
+        { n: resumo.atualizados, rotulo: 'atualizados', forte: true },
+        { n: resumo.inalterados, rotulo: 'já estavam iguais', forte: false },
+        { n: resumo.desvios, rotulo: 'exceções de séries', forte: false },
+      ]
+    : [];
+
   return (
-    <ScrollView style={{ backgroundColor: tema.fundo }} contentContainerStyle={estilos.tela}>
-      <Text style={{ color: tema.texto }}>
-        No Google Calendar: Configurações → Importar e exportar → Exportar. Descompacte o .zip e
-        escolha o .ics do calendário aqui.
-      </Text>
-      <Text style={{ color: tema.sutil }}>
-        Precisa de rede: é a única tela do Compasso que não funciona offline. Pode importar o mesmo
-        arquivo de novo — o que já veio é atualizado, nada é duplicado. Tudo entra como compromisso,
-        sem esforço.
-      </Text>
-      <Pressable
-        onPress={escolherEEnviar}
-        disabled={estado !== 'parado'}
-        style={[
-          estilos.botao,
-          { backgroundColor: tema.destaque, opacity: estado === 'parado' ? 1 : 0.5 },
-        ]}
-      >
-        <Text style={{ color: tema.superficie, fontWeight: '600' }}>Escolher arquivo .ics</Text>
-      </Pressable>
-      {estado !== 'parado' ? (
-        <View style={estilos.linha}>
-          <ActivityIndicator />
-          <Text style={{ color: tema.texto }}>
-            {estado === 'enviando' ? 'Enviando e convertendo…' : 'Trazendo para o aparelho…'}
-          </Text>
-        </View>
-      ) : null}
-      {erro ? <Text style={{ color: tema.perigo }}>{erro}</Text> : null}
-      {resumo ? (
-        <View style={estilos.bloco}>
-          <Text style={[estilos.titulo, { color: tema.texto }]}>Resultado</Text>
-          <Text style={{ color: tema.texto }}>
-            {resumo.criados} criados · {resumo.atualizados} atualizados · {resumo.inalterados} já
-            estavam iguais · {resumo.desvios} exceções de séries
-          </Text>
-          {resumo.expandidos.length ? (
-            <View style={[estilos.aviso, { borderColor: tema.hoje }]}>
-              <Text style={{ color: tema.texto, fontWeight: '600' }}>
-                Repetições que o Compasso não sabe seguir
-              </Text>
-              <Text style={{ color: tema.sutil }}>
-                Viraram eventos avulsos de 1 ano atrás até 2 anos à frente. Depois disso, cadastre a
-                repetição de novo.
-              </Text>
-              {resumo.expandidos.map((e) => (
-                <Text key={e.titulo + e.regra} style={{ color: tema.texto }}>
-                  • {e.titulo}: {e.ocorrencias} ocorrências ({e.motivo})
-                </Text>
+    <View style={{ flex: 1, backgroundColor: tema.fundo }}>
+      <CabecalhoInterno voltar="Configurações" titulo="Importar calendário" />
+      <ScrollView contentContainerStyle={estilos.tela}>
+        <Texto style={{ fontSize: 12.5, lineHeight: 19, color: tema.texto2 }}>
+          No Google Calendar, abra Configurações › Importar e exportar › Exportar, descompacte o
+          .zip e escolha o arquivo .ics. Esta é a única tela que precisa de rede; importar de novo
+          não duplica nada. Tudo entra como compromisso, sem esforço.
+        </Texto>
+        <Botao
+          variante="primario"
+          rotulo="Escolher arquivo .ics"
+          desativado={estado !== 'parado'}
+          aoTocar={() => void escolherEEnviar()}
+        />
+        {estado !== 'parado' ? (
+          <View style={estilos.progresso}>
+            <ActivityIndicator color={tema.ouro} />
+            <Texto style={{ fontSize: 13, color: tema.texto2 }}>
+              {estado === 'enviando' ? 'Enviando e convertendo…' : 'Trazendo para o aparelho…'}
+            </Texto>
+          </View>
+        ) : null}
+        {erro ? <Texto style={{ color: tema.perigo, fontSize: 12.5 }}>{erro}</Texto> : null}
+        {resumo ? (
+          <>
+            <View style={estilos.grade}>
+              {numeros.map((x) => (
+                <View
+                  key={x.rotulo}
+                  style={[
+                    estilos.numero,
+                    { backgroundColor: tema.cartao, borderColor: tema.bordaCampo },
+                  ]}
+                >
+                  <Texto
+                    cinzel
+                    style={{
+                      fontSize: 24,
+                      fontWeight: '700',
+                      color: x.forte ? tema.moedaTexto : tema.apagado,
+                    }}
+                  >
+                    {x.n}
+                  </Texto>
+                  <Texto style={{ fontSize: 11.5, color: tema.rotulo }}>{x.rotulo}</Texto>
+                </View>
               ))}
             </View>
-          ) : null}
-          {resumo.ignorados.length ? (
-            <View style={estilos.bloco}>
-              <Text style={{ color: tema.texto, fontWeight: '600' }}>Não importados</Text>
-              {resumo.ignorados.map((i, n) => (
-                <Text key={n} style={{ color: tema.sutil }}>
-                  • {i.titulo ?? i.uid ?? '?'}: {i.motivo}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-        </View>
-      ) : null}
-    </ScrollView>
+            {resumo.expandidos.length ? (
+              <View style={[estilos.aviso, { borderColor: tema.hoje }]}>
+                <Texto style={{ fontSize: 13, fontWeight: '700', color: tema.hoje }}>
+                  Repetições que o Compasso não sabe seguir
+                </Texto>
+                <Texto style={{ fontSize: 12, lineHeight: 17, color: tema.sutil }}>
+                  Viraram eventos avulsos de 1 ano atrás até 2 anos à frente. Depois disso, cadastre
+                  a repetição de novo.
+                </Texto>
+                {resumo.expandidos.map((e) => (
+                  <Texto key={e.titulo + e.regra} style={{ fontSize: 12, color: tema.texto2 }}>
+                    {e.titulo} · {e.motivo} ({e.ocorrencias} ocorrências)
+                  </Texto>
+                ))}
+              </View>
+            ) : null}
+            {resumo.ignorados.length ? (
+              <View style={{ gap: 6 }}>
+                <Rotulo>Não importados</Rotulo>
+                {resumo.ignorados.map((i, n) => (
+                  <Texto key={n} style={{ fontSize: 12, color: tema.texto2 }}>
+                    {i.titulo ?? i.uid ?? '?'} · {i.motivo}
+                  </Texto>
+                ))}
+              </View>
+            ) : null}
+          </>
+        ) : null}
+      </ScrollView>
+    </View>
   );
 }
 
 const estilos = StyleSheet.create({
-  tela: { padding: 16, gap: 14 },
-  botao: { padding: 14, borderRadius: 10, alignItems: 'center' },
-  linha: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  bloco: { gap: 6 },
-  titulo: { fontSize: 18, fontWeight: '600' },
-  aviso: { borderWidth: 1, borderRadius: 8, padding: 10, gap: 4 },
+  tela: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40, gap: 14 },
+  progresso: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  grade: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  numero: { width: '48%', flexGrow: 1, padding: 12, borderWidth: 1, borderRadius: 8 },
+  aviso: { borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, gap: 6 },
 });

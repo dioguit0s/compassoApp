@@ -52,3 +52,22 @@ export function fusoDoAparelhoDifere(): boolean {
     return false;
   }
 }
+
+/** Título do dia em duas partes: `{ semana: 'quarta', data: '23 de setembro' }`. */
+export function partesDoTitulo(dia: Dia): { semana: string; data: string } {
+  const [semana = '', data = ''] = tituloDoDia(dia).split(', ');
+  return { semana, data };
+}
+
+/** Sala regular de um horário da grade (a do horário, senão a padrão da disciplina). */
+export function salaRegular(
+  grade: {
+    horarios: { id: string; room: string | null; courseId: string }[];
+    disciplinas: { id: string; defaultRoom: string | null }[];
+  },
+  slotId: string,
+): string | null {
+  const h = grade.horarios.find((x) => x.id === slotId);
+  if (!h) return null;
+  return h.room ?? grade.disciplinas.find((c) => c.id === h.courseId)?.defaultRoom ?? null;
+}
