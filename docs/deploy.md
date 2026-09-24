@@ -1,7 +1,8 @@
 # Deploy, backup e restauração
 
 Servidor doméstico, API atrás do Cloudflare Tunnel, deploy manual. Nada aqui é pipeline — é o
-roteiro que se segue à mão (roadmap F0, especificação §2, §6.1 e §6.7).
+roteiro que se segue à mão (roadmap F0, especificação §2, §6.1 e §6.7). Primeira vez, do zero até o
+app no celular: [`tutorial-deploy.md`](tutorial-deploy.md).
 
 ## Deploy (quatro comandos)
 
@@ -46,9 +47,10 @@ comandos.
    ```sh
    cd /opt/compasso && npm ci
    npm run db:migrate -w @compasso/api
-   npm run conta:criar -w @compasso/api -- "Seu Nome"   # guarde o token impresso
+   npm run convite:criar -w @compasso/api -- "minha conta"   # guarde o código impresso
    ```
-   Um segundo aparelho ganha token próprio: `npm run conta:token -w @compasso/api -- <userId> "tablet"`.
+   A conta nasce no app, em Perfil → Tenho um convite (F10, ADR-0008). Cada aparelho entra com
+   e-mail e senha e ganha sessão própria.
 7. **Serviços** — copiar os arquivos de [`deploy/`](../deploy) para `/etc/systemd/system/` e:
    ```sh
    sudo systemctl daemon-reload
@@ -70,8 +72,8 @@ comandos.
    # config.yml a partir de deploy/cloudflared-config.yml.example
    sudo cloudflared service install
    ```
-10. **App** — no primeiro uso, a aba Perfil pede a URL do túnel e o token; os dois ficam no
-   `expo-secure-store` do aparelho, nunca no bundle.
+10. **App** — no primeiro uso, a aba Perfil pede a URL do túnel e e-mail e senha (ou o convite);
+   a URL e o token de sessão devolvido ficam no `expo-secure-store` do aparelho, nunca no bundle.
 
 ## Backup
 
