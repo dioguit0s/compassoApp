@@ -35,6 +35,11 @@ COPY apps/api/scripts apps/api/scripts
 COPY apps/api/drizzle apps/api/drizzle
 COPY apps/api/tsconfig.json apps/api/
 
+# O COPY preserva o modo dos arquivos do checkout: com umask 077 no runner, o código chegaria
+# legível só pelo root e o usuário node não abriria nem o package.json. Leitura para todos, fora
+# do node_modules (que o npm já criou legível).
+RUN find /app -path '*/node_modules' -prune -o -exec chmod a+rX {} +
+
 # Volume das fotos de perfil: criado aqui para o volume nomeado herdar o dono.
 RUN mkdir -p "$AVATAR_DIR" && chown node:node "$AVATAR_DIR"
 
