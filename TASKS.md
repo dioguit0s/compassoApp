@@ -24,9 +24,11 @@ em push na main, hostname compasso.homelab-server.space.
       npm run verificar (API 158, core 176)
 - [x] Revisão do diff, commit (sem push)
 
-### Pendências para o usuário
-- Aprovação obrigatória para PRs de fork; registrar o runner; api.env/admin.env; push na main;
-  rota do túnel; linha do cron; convite (docs/deploy.md, instalação inicial)
+### No servidor (2026-09-24)
+- [x] Aprovação de PRs de fork (usuário); runner registrado; api.env/admin.env; 1º deploy verde
+      (4b025f6, depois de corrigir EACCES do umask); cron + backup manual; convite criado
+- [ ] Usuário: `sudo ./svc.sh install ash && sudo ./svc.sh start` (runner roda hoje via nohup)
+- [ ] Usuário: rota compasso.homelab-server.space → http://compasso-api:3000 no painel da Cloudflare
 
 ## Tarefa anterior — redesign "Compasso em códice" (2026-09-23, branch `feat/redesign`)
 
