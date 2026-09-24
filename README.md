@@ -26,7 +26,7 @@ semanas de uso.
 dois clientes, calendário e fuso fixo, recorrência, lembretes com modo avião/tela bloqueada/app
 fechado/reboot, tarefa de background, importação de ICS, grade, gamificação, economia, foto,
 lixeira, sair da conta, tema escuro e fonte grande. 15 correções em commits `fix:` (lista em
-`TASKS.md`). Falta: uso real, iOS, servidor doméstico com túnel.
+`TASKS.md`). Falta: uso real e o servidor doméstico com túnel.
 
 **F10 — abrir para os amigos (2026-09-23):** e-mail e senha, cadastro por código de convite,
 sessão revogável por aparelho, troca de senha e APK de release gerado localmente

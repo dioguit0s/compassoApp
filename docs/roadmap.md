@@ -405,7 +405,8 @@ aparelho real e antecipou a F10 em 2026-09-23, com a F9 (calibração) ainda por
   ([ADR-0009](adr/0009-atributos-e-regua-fixos-para-todas-as-contas.md)).
 - **Régua de esforço por conta.** ✅ Fixa, a mesma para todos (ADR-0009).
 - **Distribuição.** ✅ APK de release gerado localmente (`npm run apk -w @compasso/mobile`),
-  assinado com chave própria (ADR-0008).
+  assinado com chave própria (ADR-0008). No Windows o build exige CMake 3.31+ (caminho longo no
+  C++ nativo, ver [`desenvolvimento.md`](desenvolvimento.md)); o primeiro APK ainda não foi gerado.
 
 **Critério de saída:** um amigo recebe o convite e o APK, cria a conta, usa, e as duas contas não
 se enxergam. Depende de a API estar exposta pelo túnel da Cloudflare, que fica para quando o app
@@ -446,7 +447,7 @@ adiável. Uma questão fora deste mapa é uma questão que não precisa de respo
 | Curva de nível | F9 | Nada quebra; o nível fica sem significado |
 | Régua de esforço | F6 | A escala infla e o radar deixa de comparar com o passado |
 | Estorno de moeda | **resolvida** — saldo pode ficar negativo ([ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md)) | — |
-| Grade versus RRULE | F10 | Nada quebra; a duplicação se justifica enquanto aula não pontua |
+| Grade versus RRULE | F10 — **passou sem resposta**; continua em aberto | Nada quebra; a duplicação se justifica enquanto aula não pontua |
 | Backup externo | **resolvida** — sem cópia externa, risco aceito ([ADR-0010](adr/0010-backup-sem-copia-externa-com-contas-de-amigos.md)) | — |
 | Autenticação real | **resolvida** — senha própria e convite ([ADR-0008](adr/0008-senha-propria-convite-e-sessao-por-aparelho.md)) | — |
 | Atributos por conta | **resolvida** — fixos, régua fixa ([ADR-0009](adr/0009-atributos-e-regua-fixos-para-todas-as-contas.md)) | — |

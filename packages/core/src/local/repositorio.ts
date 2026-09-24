@@ -16,9 +16,11 @@ import {
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import {
   diaDe,
+  formatarDiaCurto,
   FUSO_PADRAO,
   inicioDoDia,
   instanteDeParede,
+  partesDoDia,
   somarDias,
   type Dia,
 } from '../calendario';
@@ -789,7 +791,9 @@ export class RepositorioLocal implements ArmazemLocal {
       .sort();
     if (concluidas.length) {
       throw new ErroDeValidacao([
-        `desfaça a conclusão de ${concluidas.join(', ')} antes de alterar esta e as futuras`,
+        `desfaça a conclusão de ${concluidas
+          .map((d) => formatarDiaCurto(d, partesDoDia(dataOc).ano))
+          .join(', ')} antes de alterar esta e as futuras`,
       ]);
     }
 

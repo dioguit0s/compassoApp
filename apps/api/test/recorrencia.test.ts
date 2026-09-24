@@ -374,7 +374,7 @@ describe('editar série: alcance (#44)', () => {
     );
     a.repo.concluir(s.id, '2026-09-22');
     expect(() => a.repo.alterarDaquiEmDiante(s.id, '2026-09-15', { title: 'x' })).toThrow(
-      /desfaça a conclusão de 2026-09-22/,
+      /desfaça a conclusão de 22\/09/,
     );
     a.repo.desfazerConclusao(s.id, '2026-09-22');
     expect(a.repo.alterarDaquiEmDiante(s.id, '2026-09-15', { title: 'x' }).title).toBe('x');

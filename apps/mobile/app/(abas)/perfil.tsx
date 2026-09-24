@@ -27,7 +27,7 @@ import {
 import { atualizarPerfil, enviarFoto, removerFoto } from '../../src/perfil';
 import { lerConexao } from '../../src/servidor';
 import { sincronizarAgora } from '../../src/sync';
-import { useTema } from '../../src/tema';
+import { FOLGA_DO_FAB, useTema } from '../../src/tema';
 import { FormularioAcesso } from '../../src/ui/FormularioAcesso';
 import { HistoricoXp } from '../../src/ui/HistoricoXp';
 import { FaixasDeNivel, Radar } from '../../src/ui/Radar';
@@ -238,7 +238,7 @@ export default function Perfil() {
 }
 
 const estilos = StyleSheet.create({
-  tela: { padding: 24, gap: 24 },
+  tela: { padding: 24, paddingBottom: FOLGA_DO_FAB, gap: 24 },
   cabecalho: { alignItems: 'center', gap: 8 },
   avatar: {
     width: 88,

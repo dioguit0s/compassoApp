@@ -31,7 +31,7 @@ import {
 } from 'react-native';
 import { useAgenda, useAulas } from '../hooks';
 import { repositorio } from '../sync';
-import { useTema } from '../tema';
+import { FOLGA_DO_FAB, useTema } from '../tema';
 import { useAviso } from '../ui/Aviso';
 import { EntradaItem } from '../ui/EntradaItem';
 
@@ -213,6 +213,7 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
       <View ref={grade} style={{ flex: 1 }} onLayout={medir}>
         <ScrollView
           ref={rolagem}
+          contentContainerStyle={{ paddingBottom: FOLGA_DO_FAB }}
           scrollEventThrottle={16}
           onScroll={(e) => {
             deslocamento.current = e.nativeEvent.contentOffset.y;

@@ -36,6 +36,12 @@ const escuro: typeof claro = {
 
 export type Tema = typeof claro;
 
+/**
+ * Folga no fim das listas das abas para a última linha poder rolar para cima do botão "+" da
+ * captura rápida, que flutua sobre o conteúdo (visto no Perfil: cobria os pontos).
+ */
+export const FOLGA_DO_FAB = 88;
+
 export function useTema(): Tema {
   return useColorScheme() === 'dark' ? escuro : claro;
 }

@@ -140,6 +140,11 @@ Mesmo ambiente do development build (JDK 17–23, ver [Emulador Android](#emulad
 script roda o prebuild (a pasta `android/` é regenerada) e o `assembleRelease`. O release só fala
 **HTTPS**; o `-http` aceita `http://` e não deve ser distribuído.
 
+**Windows: CMake 3.31+.** O `assembleRelease` compila o C++ do arm64-v8a, e com o CMake 3.22.1
+padrão do SDK (ninja 1.10.2) ele falha em caminhos com mais de 260 caracteres
+(`RNGestureHandlerDetectorShadowNode.cpp.o`), mesmo com `LongPathsEnabled = 1` no Windows. Instale o
+CMake 3.31 ou mais novo pelo SDK Manager do Android Studio antes de gerar o APK.
+
 **Chave de assinatura — uma vez, e guarde bem.** O Android só instala uma atualização por cima se a
 chave for a mesma; perdê-la obriga cada amigo a desinstalar (e perder os dados locais não enviados).
 
@@ -218,7 +223,8 @@ Validado em 2026-09-23 (Windows, AVD Pixel 7, Android 17 com Google APIs):
 
 Perfil → "Diagnóstico de fuso e IDs" formata o mesmo instante em UTC, São Paulo, Tóquio e Nova York
 (nos dois lados da mudança de horário de verão) e compara com o valor esperado, e gera três
-UUIDv7 com a aleatoriedade do `expo-crypto`. É temporária: sai quando a F2 tiver telas com data.
+UUIDv7 com a aleatoriedade do `expo-crypto`. Nasceu como tela temporária da F0 e ficou como
+conferência rápida num aparelho novo; segue o tema claro/escuro como as outras telas.
 
 ## Testes
 

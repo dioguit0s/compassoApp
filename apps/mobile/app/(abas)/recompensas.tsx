@@ -15,7 +15,7 @@ import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } fr
 import { useProgresso } from '../../src/hooks';
 import { chamarApi, ErroHttp, lerConexao } from '../../src/servidor';
 import { repositorio, sincronizarAgora } from '../../src/sync';
-import { useTema } from '../../src/tema';
+import { FOLGA_DO_FAB, useTema } from '../../src/tema';
 import { Botao } from '../../src/ui/Campos';
 import { moedas } from '../../src/texto';
 
@@ -185,7 +185,7 @@ export default function Recompensas() {
 }
 
 const estilos = StyleSheet.create({
-  tela: { padding: 16, gap: 10 },
+  tela: { padding: 16, paddingBottom: FOLGA_DO_FAB, gap: 10 },
   bloco: { gap: 8, marginBottom: 8 },
   saldo: { fontSize: 28, fontWeight: '700' },
   subtitulo: { fontSize: 16, fontWeight: '600', marginTop: 12 },

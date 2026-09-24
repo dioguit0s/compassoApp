@@ -1,9 +1,10 @@
 # Compasso — Especificação Técnica — v1
 
-> Documento de especificação, não de arquitetura implementada. A implementação começou (F0 e F1
-> do [roadmap](roadmap.md)); onde o código precisou decidir algo que este documento deixava em
-> aberto, a decisão está em [`adr/`](adr/) ou em [`sincronizacao.md`](sincronizacao.md). Toda
-> seção marcada com `PROPOSTA` é sugestão sujeita a revisão; `DECIDIDO` já foi acordado.
+> Documento de especificação, não de arquitetura implementada. A v1 está implementada (F0 a F8
+> do [roadmap](roadmap.md)), e a F10 também; falta a F9, a calibração com uso real. Onde o código
+> precisou decidir algo que este documento deixava em aberto, a decisão está em [`adr/`](adr/), em
+> [`sincronizacao.md`](sincronizacao.md) ou em [`notificacoes.md`](notificacoes.md). Toda seção
+> marcada com `PROPOSTA` é sugestão sujeita a revisão; `DECIDIDO` já foi acordado.
 >
 > **Nome:** Compasso. `DECIDIDO`.
 
@@ -79,7 +80,9 @@ abandono em apps de uso pessoal, e abandono é o modo de falha real aqui.
 
 ### Fora
 
-- Cadastro de conta, senha e recuperação de acesso — contas são criadas manualmente na v1
+- Cadastro de conta, senha e recuperação de acesso — na v1 as contas eram criadas manualmente.
+  Entraram depois dela, na F10: senha própria, cadastro por convite e senha temporária gerada por
+  script ([ADR-0008](adr/0008-senha-propria-convite-e-sessao-por-aparelho.md))
 - Qualquer interação entre contas, hoje ou depois
 - Sincronização contínua com calendários externos, em qualquer direção
 - Recorrências exóticas da RFC 5545: `BYSETPOS`, `BYWEEKNO`, `BYYEARDAY`, `BYHOUR`
@@ -510,7 +513,7 @@ chega. Sem isso a carência da seção 4.6 não existe.
 
 ```mermaid
 graph LR
-    User([Usuário único]) --> App[Compasso mobile]
+    User([Usuário, uma conta por pessoa]) --> App[Compasso mobile]
     App -->|HTTPS/JSON| API[API do Compasso]
     App --> Notif[Notificações locais do SO]
     API --> DB[(PostgreSQL)]
@@ -618,26 +621,6 @@ falha no meio deixa XP creditado sem moeda. No PostgreSQL a transação é o com
 engloba a conexão: não existe configuração a fazer no banco nem operação que escape dela por
 esquecimento. É um dos motivos da troca registrada no [ADR-0001](adr/0001-postgresql-em-vez-de-mongodb.md).
 
-### 6.5 Importação de ICS
-
-Existe por um motivo prático: sem ela, abandonar o Google Calendar significa redigitar anos de
-compromissos à mão, e a migração não acontece.
-
-É **importação única**, não sincronização. O usuário exporta o `.ics` do calendário atual, envia o
-arquivo, o servidor converte `VEVENT` em itens e `RRULE` em séries, e o vínculo com a origem morre
-ali. Sincronização bidirecional é um problema de ordem de grandeza diferente — conflito, exclusão
-propagada, tokens que expiram — e não paga o custo para o Compasso, que quer ser o dono do dado.
-
-Três regras que a importação precisa seguir:
-
-- Todo item importado nasce **sem `effort`**, ou seja, sem pontuar. Atribuir esforço retroativo a
-  compromissos que já aconteceram corromperia o radar com dados que nunca foram estimados antes.
-- Regras de recorrência fora do subconjunto suportado são importadas **expandidas em ocorrências
-  isoladas** dentro de uma janela, com aviso na tela ao fim da importação. Perder o evento é pior
-  que perder a regra.
-- A operação é **idempotente por `UID`**: reimportar o mesmo arquivo atualiza, não duplica. É o
-  erro mais fácil de cometer e o mais chato de limpar depois.
-
 ### 6.4 Fluxo de conclusão
 
 ```mermaid
@@ -666,6 +649,26 @@ sequenceDiagram
 A conclusão é **idempotente** por design: com sync em background e retry, a mesma requisição vai
 chegar duas vezes mais cedo ou mais tarde, e creditar XP duplicado corromperia o histórico de forma
 silenciosa.
+
+### 6.5 Importação de ICS
+
+Existe por um motivo prático: sem ela, abandonar o Google Calendar significa redigitar anos de
+compromissos à mão, e a migração não acontece.
+
+É **importação única**, não sincronização. O usuário exporta o `.ics` do calendário atual, envia o
+arquivo, o servidor converte `VEVENT` em itens e `RRULE` em séries, e o vínculo com a origem morre
+ali. Sincronização bidirecional é um problema de ordem de grandeza diferente — conflito, exclusão
+propagada, tokens que expiram — e não paga o custo para o Compasso, que quer ser o dono do dado.
+
+Três regras que a importação precisa seguir:
+
+- Todo item importado nasce **sem `effort`**, ou seja, sem pontuar. Atribuir esforço retroativo a
+  compromissos que já aconteceram corromperia o radar com dados que nunca foram estimados antes.
+- Regras de recorrência fora do subconjunto suportado são importadas **expandidas em ocorrências
+  isoladas** dentro de uma janela, com aviso na tela ao fim da importação. Perder o evento é pior
+  que perder a regra.
+- A operação é **idempotente por `UID`**: reimportar o mesmo arquivo atualiza, não duplica. É o
+  erro mais fácil de cometer e o mais chato de limpar depois.
 
 ### 6.6 Sincronização
 
@@ -859,7 +862,9 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 
 ## 9. Configuração
 
-> **TODO:** preencher com os valores reais no momento do setup.
+> Os padrões estão em `apps/api/src/config.ts` (API) e `apps/api/scripts/backup.sh` (backup). Os
+> valores do servidor ficam em `apps/api/.env`, lido por `deploy/compasso-api.service` e
+> `deploy/compasso-manutencao.service`; o passo a passo está em [`deploy.md`](deploy.md).
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
@@ -868,9 +873,9 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 | `PORT` | não | Porta da API. Padrão 3000 |
 | `SYNC_CURSOR_WINDOW_SECONDS` | não | Janela de segurança do cursor de sync (§6.6). Padrão 60 |
 | `TZ_DEFAULT` | não | Fuso padrão dos itens. Padrão `America/Sao_Paulo` |
-| `AVATAR_DIR` | sim | Volume onde as imagens de perfil são gravadas |
+| `AVATAR_DIR` | sim | Volume onde as imagens de perfil são gravadas. Padrão `./avatares`, só para desenvolvimento |
 | `AVATAR_MAX_BYTES` | não | Limite de upload antes do redimensionamento. Padrão 5 MB |
-| `BACKUP_DIR` | não | Destino dos dumps diários |
+| `BACKUP_DIR` | só backup | Destino dos dumps diários; o script de backup recusa rodar sem ela |
 | `BACKUP_KEEP_DAILY` | não | Dumps retidos. Padrão 7 |
 | `TRASH_RETENTION_DAYS` | não | Prazo da lixeira e da purga de tombstones. Padrão 30 |
 

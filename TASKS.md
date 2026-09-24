@@ -8,7 +8,20 @@ mova o registro para o PR/commit correspondente.
 
 ---
 
-## Tarefa atual — F10, abrir para os amigos (2026-09-23)
+## Tarefa atual — documentação em dia e detalhes pequenos (2026-09-23)
+
+- [x] Testes nunca feitos (aparelho físico, iOS, HEIC, avatar simultâneo, background pelo
+      sistema, captura < 3 s com gente digitando) → dados como concluídos por decisão do usuário
+- [x] Mensagem "desfaça a conclusão de …" mostra 22/09 em vez de 2026-09-22
+- [x] Botão "+" não cobre mais o fim das listas das abas (folga `FOLGA_DO_FAB`)
+- [x] Diagnóstico segue o tema (legível no escuro)
+- [x] `expo-splash-screen` instalado (log `ClassNotFoundException` do dev launcher) — só some
+      depois de reconstruir o development build
+- [x] Especificação (cabeçalho, §3 Fora, §6.1, ordem 6.4/6.5, §9), roadmap (APK, grade × RRULE),
+      desenvolvimento.md (CMake 3.31+, Diagnóstico), README
+- [x] `npm run verificar` (core 176, API 158 testes), revisão do diff, commit
+
+## Tarefa anterior — F10, abrir para os amigos (2026-09-23)
 
 **Decisões do usuário (2026-09-23):** validado no aparelho real, F10 começa agora. Senha própria;
 cadastro por código de convite; sem backup fora do servidor; atributos fixos; régua fixa; APK
@@ -159,11 +172,10 @@ um crédito só ✓.
 - evento curto que cruza a meia-noite vai para a faixa de dia inteiro — decidido: mantém
 - ~~sair do detalhe com alterações descarta sem perguntar~~ → agora pede confirmação
 - concluir ocorrência futura é permitido — decidido: mantém
-- a mensagem "desfaça a conclusão de 2026-10-13…" mostra a data em ISO
-- o FAB "+" cobre o fim de linhas alinhadas à direita (ex.: pontos no Perfil) durante a rolagem
-- Diagnóstico usa cores fixas (texto padrão some no tema escuro); é tela temporária
-- log do dev launcher: `ClassNotFoundException expo.modules.splashscreen.SplashScreenManager`
-  (não fatal; sem expo-splash-screen instalado)
+- ~~a mensagem "desfaça a conclusão de 2026-10-13…" mostra a data em ISO~~ → corrigido
+- ~~o FAB "+" cobre o fim de linhas alinhadas à direita~~ → folga no fim das listas
+- ~~Diagnóstico usa cores fixas~~ → segue o tema
+- ~~log do dev launcher: `ClassNotFoundException …SplashScreenManager`~~ → expo-splash-screen
 
 ## Tarefa anterior — roadmap F0–F8
 
@@ -196,7 +208,7 @@ de São Paulo (ADR-0003). Commits quando fizer sentido.
 - #66: escrever a régua de esforço com exemplos da própria vida (hoje é provisória, genérica)
 - F9 (#90–#93): só depois de 3–4 semanas de uso com a gamificação ligada
 
-### Não confirmado
+### Não confirmado → dados como concluídos pelo usuário (2026-09-23)
 - Aparelho físico: tudo acima foi no emulador x86_64 (Hermes igual; OEM, bateria e Doze reais não)
 - iOS inteiro (sem Xcode): modos de background, permissão, seletor de data nativo
 - Foto HEIC no `PUT /me/avatar`: o sharp pré-compilado talvez não decodifique (sem arquivo HEIC)

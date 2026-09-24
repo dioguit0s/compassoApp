@@ -4,7 +4,7 @@ import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { tituloDoDia } from '../../src/datasUi';
 import { useAgenda, useAulas, useHoje, useProgresso } from '../../src/hooks';
 import { sincronizarAgora } from '../../src/sync';
-import { useTema } from '../../src/tema';
+import { FOLGA_DO_FAB, useTema } from '../../src/tema';
 import { EntradaItem } from '../../src/ui/EntradaItem';
 import { IndicadorSync } from '../../src/ui/IndicadorSync';
 import { LinhaAula } from '../../src/ui/LinhaAula';
@@ -87,7 +87,7 @@ const estilos = StyleSheet.create({
     paddingTop: 16,
   },
   data: { fontSize: 22, fontWeight: '600' },
-  lista: { padding: 16, gap: 8, flexGrow: 1 },
+  lista: { padding: 16, paddingBottom: FOLGA_DO_FAB, gap: 8, flexGrow: 1 },
   aulas: { gap: 6, marginBottom: 8 },
   vazio: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 32 },
   vazioTitulo: { fontSize: 18, fontWeight: '600' },

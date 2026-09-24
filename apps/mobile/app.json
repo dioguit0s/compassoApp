@@ -48,7 +48,8 @@
           "photosPermission": "O Compasso usa a foto escolhida como imagem de perfil.",
           "cameraPermission": false
         }
-      ]
+      ],
+      "expo-splash-screen"
     ],
     "experiments": {
       "typedRoutes": false
