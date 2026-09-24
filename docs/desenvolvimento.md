@@ -143,7 +143,11 @@ script roda o prebuild (a pasta `android/` é regenerada) e o `assembleRelease`.
 **Windows: CMake 3.31+.** O `assembleRelease` compila o C++ do arm64-v8a, e com o CMake 3.22.1
 padrão do SDK (ninja 1.10.2) ele falha em caminhos com mais de 260 caracteres
 (`RNGestureHandlerDetectorShadowNode.cpp.o`), mesmo com `LongPathsEnabled = 1` no Windows. Instale o
-CMake 3.31 ou mais novo pelo SDK Manager do Android Studio antes de gerar o APK.
+CMake 3.31 ou mais novo pelo SDK Manager do Android Studio antes de gerar o APK. Alternativa
+conferida em 2026-09-24 (primeiro APK gerado): trocar só o `ninja.exe` de `cmake/3.22.1/bin` pelo
+1.12.1 oficial (github.com/ninja-build/ninja), que aceita caminho longo; o original ficou como
+`ninja-1.10.2.exe.bak`. Para um celular arm64, `gradlew assembleRelease
+-PreactNativeArchitectures=arm64-v8a` compila uma arquitetura só (13 min em vez de ~4×).
 
 **Chave de assinatura — uma vez, e guarde bem.** O Android só instala uma atualização por cima se a
 chave for a mesma; perdê-la obriga cada amigo a desinstalar (e perder os dados locais não enviados).
