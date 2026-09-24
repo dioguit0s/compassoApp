@@ -27,8 +27,9 @@ em push na main, hostname compasso.homelab-server.space.
 ### No servidor (2026-09-24)
 - [x] Aprovação de PRs de fork (usuário); runner registrado; api.env/admin.env; 1º deploy verde
       (4b025f6, depois de corrigir EACCES do umask); cron + backup manual; convite criado
-- [ ] Usuário: `sudo ./svc.sh install ash && sudo ./svc.sh start` (runner roda hoje via nohup)
-- [ ] Usuário: rota compasso.homelab-server.space → http://compasso-api:3000 no painel da Cloudflare
+- [x] Runner como serviço (usuário); rota compasso.homelab-server.space → http://compasso-api:3000,
+      /health 200 pelo domínio público
+- [x] APK 0.1.0 (arm64, chave própria) em apps/mobile/dist — falta instalar no celular
 
 ## Tarefa anterior — redesign "Compasso em códice" (2026-09-23, branch `feat/redesign`)
 
