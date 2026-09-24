@@ -47,7 +47,8 @@ compasso/
 │   └── mobile/                       # app Expo (development build) com SQLite local
 ├── packages/
 │   └── core/                         # lógica pura compartilhada: IDs, invariantes, sync, datas
-├── deploy/                           # units do systemd e exemplo do cloudflared
+├── deploy/                           # compose de produção, deploy.sh e manutencao.sh (ADR-0011)
+├── .github/workflows/api.yml         # esteira: verifica e faz deploy no homeserver
 ├── CLAUDE.md                         # instruções do Claude Code: quando continuar e quando parar
 ├── TASKS.md                          # checklist persistente para tarefas longas do Claude
 ├── .claude/commands/                 # comandos do projeto: /revisar-diff, /auditoria
@@ -58,7 +59,7 @@ compasso/
     ├── desenvolvimento.md            # como rodar, testar e evoluir o schema
     ├── sincronizacao.md              # como a F1 implementou o protocolo da §6.6
     ├── notificacoes.md               # lembretes locais e importação de ICS (F4)
-    ├── deploy.md                     # deploy em quatro comandos, backup e restauração
+    ├── deploy.md                     # esteira de deploy, instalação, backup e restauração
     ├── guia-opus-5-5.md              # como pedir, revisar e usar comandos com o Opus 5.5
     └── adr/                          # decisões isoladas e datadas, com as alternativas
 ```
@@ -70,7 +71,8 @@ compasso/
 - **API**: Node.js 22, Hono, zod
 - **Banco**: PostgreSQL com Drizzle, migrações versionadas e Row-Level Security
   ([ADR-0001](docs/adr/0001-postgresql-em-vez-de-mongodb.md), [ADR-0002](docs/adr/0002-ferramentas-e-convencoes-da-fundacao.md))
-- **Infra**: servidor doméstico, exposto via Cloudflare Tunnel
+- **Infra**: servidor doméstico, Docker Compose com deploy por GitHub Actions (runner
+  self-hosted), exposto via Cloudflare Tunnel ([ADR-0011](docs/adr/0011-deploy-em-docker-com-runner-self-hosted.md))
 
 ## Começar
 

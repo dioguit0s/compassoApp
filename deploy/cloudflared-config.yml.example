@@ -1,9 +1,0 @@
-# ~/.cloudflared/config.yml — named tunnel apontando para o Nginx (que serve /avatares/ e
-# repassa o resto para a API). A porta do PostgreSQL NUNCA entra aqui.
-tunnel: compasso
-credentials-file: /home/compasso/.cloudflared/<UUID-DO-TUNEL>.json
-
-ingress:
-  - hostname: compasso.<seu-dominio>
-    service: http://localhost:8080
-  - service: http_status:404

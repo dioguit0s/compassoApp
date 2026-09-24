@@ -1,308 +1,82 @@
 # Tutorial: do zero ao Compasso no dia a dia
 
-Passo a passo para ter a API rodando no seu servidor, gerar o APK e usar o app no celular. É o
-caminho completo, na ordem em que se faz. A referência curta (deploy de atualização, backup,
-restauração) continua em [`deploy.md`](deploy.md); o ambiente de build do app, em
-[`desenvolvimento.md`](desenvolvimento.md).
+Passo a passo para ter a API no homeserver, gerar o APK e usar o app no celular, na ordem em que
+se faz. A referência do servidor (esteira, instalação, administração, backup, restauração) está em
+[`deploy.md`](deploy.md); o ambiente de build do app, em [`desenvolvimento.md`](desenvolvimento.md).
 
-Tempo estimado: 1 a 2 horas na primeira vez, a maior parte esperando instalação e compilação.
+Tempo estimado: 1 a 2 horas na primeira vez, a maior parte esperando compilação.
 
 ---
 
 ## Visão geral
 
 ```
- Celular (APK)                        Cloudflare                     Seu servidor (casa)
- ┌─────────────┐   HTTPS    ┌──────────────────────┐  túnel   ┌──────────────────────────────┐
- │  Compasso   │ ─────────► │ compasso.seu-dominio │ ◄─────── │ cloudflared                  │
- │ SQLite local│            └──────────────────────┘ (saída)  │   └► Nginx :8080 (localhost) │
- └─────────────┘                                              │        ├► /avatares/ (disco) │
-                                                              │        └► API Node :3000     │
-                                                              │             └► PostgreSQL    │
-                                                              └──────────────────────────────┘
+ Celular (APK)                  Cloudflare                          homeserver (casa)
+ ┌─────────────┐  HTTPS  ┌───────────────────────────────┐ túnel  ┌─────────────────────────────┐
+ │  Compasso   │ ──────► │ compasso.homelab-server.space │ ◄───── │ cloudflared (container)     │
+ │ SQLite local│         └───────────────────────────────┘ (saída)│   └► compasso-api :3000     │
+ └─────────────┘                                                  │        └► compasso-postgres │
+                                                                  └─────────────────────────────┘
+ git push na main ─► GitHub Actions ─► runner self-hosted no homeserver ─► deploy/deploy.sh
 ```
 
-- **Nenhuma porta aberta no roteador.** O `cloudflared` abre a conexão de dentro para fora; o
-  Cloudflare entrega o HTTPS. O PostgreSQL só escuta em `localhost`.
+- **Nenhuma porta aberta no roteador.** O `cloudflared` e o runner abrem conexões de dentro para
+  fora; o Cloudflare entrega o HTTPS. O PostgreSQL não publica porta nenhuma.
+- **Deploy automático.** Todo push na `main` que toque a API é testado no GitHub e instalado no
+  servidor, com volta automática à versão anterior se o `/health` falhar
+  ([ADR-0011](adr/0011-deploy-em-docker-com-runner-self-hosted.md)).
 - **O app funciona offline.** O servidor é o ponto de encontro entre aparelhos e o dono do backup;
   sem rede, o celular continua usando o SQLite local e sincroniza depois.
-- **O APK de release só fala HTTPS.** Por isso o túnel (ou outro HTTPS) é obrigatório para uso real.
+- **O APK de release só fala HTTPS.** Por isso o túnel é obrigatório para uso real.
 
 ### O que você precisa
 
 | Item | Para quê |
 |---|---|
-| Servidor Linux sempre ligado (este tutorial assume **Debian 12 ou Ubuntu 24.04**) | API, banco, backup |
-| Um **domínio** com o DNS no Cloudflare (plano gratuito basta) | endereço HTTPS fixo do túnel |
+| O homeserver, com Docker e acesso por `ssh luna-dash` | API, banco, backup |
+| Acesso de administrador ao repositório no GitHub | runner e configuração do Actions |
+| O painel da Cloudflare do domínio `homelab-server.space` | rota do túnel |
 | PC com **Android Studio** (o seu Windows) | gerar o APK |
 | Celular Android | usar o app |
 
-Convenção: `seu-dominio` é o domínio que você tem no Cloudflare; o app vai ficar em
-`https://compasso.seu-dominio`. Comandos com `$` à frente não levam o `$`.
+---
+
+## Parte 1 — Servidor
+
+Siga a **Instalação inicial** do [`deploy.md`](deploy.md#instalação-inicial-uma-vez), nesta ordem:
+
+1. proteger o runner (aprovação obrigatória para PRs de fork, porque o repositório é público);
+2. registrar o runner `compasso` (o único passo com `sudo`);
+3. escrever `~/compasso/admin.env` e `~/compasso/api.env`;
+4. rodar o primeiro deploy pelo Actions;
+5. criar a rota `compasso.homelab-server.space` → `http://compasso-api:3000` no painel da
+   Cloudflare;
+6. pôr o backup no cron.
+
+O passo 7 (convite) é a Parte 2 abaixo.
+
+Ao final, no celular **com o Wi-Fi desligado** (4G/5G), abra
+`https://compasso.homelab-server.space/health`. Tem que aparecer `{"ok":true}`.
 
 ---
 
-## Parte 0 — Publicar o código que vai para o servidor
-
-O servidor clona o repositório do GitHub (`main`). O redesign está só no branch local
-`feat/redesign`, que ainda não foi enviado. Antes de começar, no seu PC:
-
-```sh
-git checkout main
-git merge --ff-only feat/redesign
-git push origin main
-```
-
-(Ou abra um PR de `feat/redesign` e faça o merge por lá.) O APK é gerado da sua cópia local, mas
-servidor e app devem estar na mesma versão.
-
----
-
-## Parte 1 — Preparar o servidor
-
-Tudo nesta parte roda no servidor, com um usuário que tem `sudo`.
-
-### 1.1 Pacotes do sistema
-
-```sh
-sudo apt update
-sudo apt install -y git curl nginx postgresql ufw
-```
-
-O `postgresql` do Debian 12 é o 15 e o do Ubuntu 24.04 é o 16. O projeto foi testado com 16 e 17;
-no Debian 12, instale o 17 pelo repositório oficial (apt.postgresql.org) se quiser a mesma versão
-dos testes.
-
-### 1.2 Node.js 22
-
-A unit do systemd chama `/usr/bin/npm`, que é onde o pacote do NodeSource instala:
-
-```sh
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs
-node -v    # v22.x
-```
-
-### 1.3 Usuário e código
-
-```sh
-sudo useradd --system --create-home --shell /bin/bash compasso
-sudo mkdir -p /opt/compasso && sudo chown compasso: /opt/compasso
-sudo -u compasso git clone https://github.com/dioguit0s/compassoApp.git /opt/compasso
-```
-
-Pastas que a API e o backup vão escrever:
-
-```sh
-sudo mkdir -p /var/lib/compasso/avatares /var/backups/compasso
-sudo chown compasso: /var/lib/compasso/avatares /var/backups/compasso
-```
-
-### 1.4 Firewall
-
-A API escuta em todas as interfaces na porta 3000; ninguém de fora deve alcançá-la. Libere só o
-SSH (o túnel é conexão de saída e não precisa de porta):
-
-```sh
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow OpenSSH
-sudo ufw enable
-```
-
----
-
-## Parte 2 — Banco de dados
-
-### 2.1 Duas senhas fortes
-
-```sh
-openssl rand -base64 24   # senha do compasso_owner (migrações, contas, backup)
-openssl rand -base64 24   # senha do compasso_app (a API em execução)
-```
-
-Guarde as duas num gerenciador de senhas. Evite senhas com `@`, `/` ou `:` (elas entram numa URL);
-se aparecerem, gere de novo.
-
-### 2.2 Papéis e banco
-
-```sh
-sudo -u postgres psql \
-  -v senha_dono="'<senha do owner>'" \
-  -v senha_app="'<senha do app>'" \
-  -f /opt/compasso/apps/api/scripts/bootstrap.sql
-```
-
-Cria `compasso_owner` (dono das tabelas), `compasso_app` (sujeito ao RLS) e o banco `compasso`.
-Conferir que o PostgreSQL escuta só localmente (é o padrão do pacote):
-
-```sh
-sudo ss -tlnp | grep 5432    # deve mostrar 127.0.0.1:5432 (e ::1), nunca 0.0.0.0
-```
-
----
-
-## Parte 3 — Configuração da API
-
-### 3.1 O `.env`
-
-```sh
-sudo -u compasso cp /opt/compasso/apps/api/.env.example /opt/compasso/apps/api/.env
-sudo -u compasso chmod 600 /opt/compasso/apps/api/.env
-sudo -u compasso nano /opt/compasso/apps/api/.env
-```
-
-Valores de produção:
-
-```ini
-DATABASE_URL=postgres://compasso_app:<senha do app>@localhost:5432/compasso
-DATABASE_ADMIN_URL=postgres://compasso_owner:<senha do owner>@localhost:5432/compasso
-PORT=3000
-TZ_DEFAULT=America/Sao_Paulo
-TRASH_RETENTION_DAYS=30
-SYNC_CURSOR_WINDOW_SECONDS=60
-AVATAR_DIR=/var/lib/compasso/avatares
-AVATAR_MAX_BYTES=5242880
-```
-
-### 3.2 O `.pgpass` (senha do backup)
-
-```sh
-sudo -u compasso bash -c 'echo "localhost:5432:compasso:compasso_owner:<senha do owner>" > ~/.pgpass && chmod 600 ~/.pgpass'
-```
-
----
-
-## Parte 4 — Instalar, migrar e testar na mão
-
-```sh
-sudo -u compasso bash -c 'cd /opt/compasso && npm ci'
-sudo -u compasso bash -c 'cd /opt/compasso && npm run db:migrate -w @compasso/api'
-```
-
-Teste rápido antes de virar serviço:
-
-```sh
-sudo -u compasso bash -c 'cd /opt/compasso/apps/api && npm start' &
-sleep 5 && curl localhost:3000/health    # {"ok":true}
-kill %1
-```
-
-Se o `curl` falhar, o erro aparece no terminal (quase sempre é senha errada no `.env`).
-
----
-
-## Parte 5 — Serviços (API sempre no ar + backup diário)
-
-```sh
-sudo cp /opt/compasso/deploy/compasso-api.service \
-        /opt/compasso/deploy/compasso-manutencao.service \
-        /opt/compasso/deploy/compasso-manutencao.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now compasso-api compasso-manutencao.timer
-```
-
-Conferir:
-
-```sh
-systemctl status compasso-api          # active (running)
-curl localhost:3000/health             # {"ok":true}
-journalctl -u compasso-api -n 50       # log da API
-```
-
-O timer faz o backup (`pg_dump`, mantém 7) e a purga da lixeira todo dia às 04:00. Rode uma vez
-agora para ver funcionando:
-
-```sh
-sudo systemctl start compasso-manutencao && ls -lh /var/backups/compasso
-```
-
----
-
-## Parte 6 — Nginx
-
-O túnel aponta para o Nginx (fotos de perfil servidas do disco; o resto vai para a API):
-
-```sh
-sudo cp /opt/compasso/deploy/nginx.conf.example /etc/nginx/sites-available/compasso
-sudo ln -s /etc/nginx/sites-available/compasso /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-curl localhost:8080/health             # {"ok":true}
-```
-
-O site escuta só em `127.0.0.1:8080`; não conflita com o site padrão do Nginx.
-
----
-
-## Parte 7 — Cloudflare Tunnel (o HTTPS público)
-
-### 7.1 Domínio no Cloudflare
-
-No painel do Cloudflare: **Add a site** → seu domínio → plano Free → troque os nameservers no
-registrador pelos que o Cloudflare indicar. Espere o domínio ficar **Active**.
-
-### 7.2 Instalar e criar o túnel
-
-Instale o `cloudflared` pelo repositório do Cloudflare (instruções atuais em
-<https://pkg.cloudflare.com/>, seção cloudflared). Depois, com o seu usuário:
-
-```sh
-cloudflared tunnel login                         # abre um link; escolha o domínio
-cloudflared tunnel create compasso               # imprime o UUID e cria ~/.cloudflared/<UUID>.json
-cloudflared tunnel route dns compasso compasso.seu-dominio
-```
-
-### 7.3 Configuração do serviço
-
-O serviço do sistema lê de `/etc/cloudflared/`:
-
-```sh
-sudo mkdir -p /etc/cloudflared
-sudo cp ~/.cloudflared/<UUID>.json /etc/cloudflared/
-sudo nano /etc/cloudflared/config.yml
-```
-
-```yaml
-tunnel: compasso
-credentials-file: /etc/cloudflared/<UUID>.json
-
-ingress:
-  - hostname: compasso.seu-dominio
-    service: http://localhost:8080
-  - service: http_status:404
-```
-
-(É o [`deploy/cloudflared-config.yml.example`](../deploy/cloudflared-config.yml.example) com o
-caminho do serviço.) Instalar e subir:
-
-```sh
-sudo cloudflared service install
-sudo systemctl status cloudflared      # active (running)
-```
-
-### 7.4 Teste de fora
-
-No celular, **com o Wi-Fi desligado** (4G/5G), abra `https://compasso.seu-dominio/health` no
-navegador. Tem que aparecer `{"ok":true}`. Se aparecer, o servidor está pronto.
-
----
-
-## Parte 8 — Sua conta
+## Parte 2 — Sua conta
 
 O jeito mais simples é o mesmo que os amigos vão usar: um convite.
 
 ```sh
-sudo -u compasso bash -c 'cd /opt/compasso && npm run convite:criar -w @compasso/api -- "minha conta" 7'
+ssh luna-dash
+cd ~/compasso && docker compose run --rm admin npm run convite:criar -- "minha conta" 7
 ```
 
 O código (`XXXX-XXXX-XXXX-XXXX`) aparece **uma vez**; anote. Ele vale uma conta, por 7 dias. Você
-vai usá-lo no app, na Parte 10.
+vai usá-lo no app, na Parte 4.
 
 ---
 
-## Parte 9 — Gerar o APK (no seu PC Windows)
+## Parte 3 — Gerar o APK (no seu PC Windows)
 
-### 9.1 Ambiente (uma vez)
+### 3.1 Ambiente (uma vez)
 
 1. **Android Studio** com o Android SDK.
 2. No **SDK Manager** → SDK Tools: marque **CMake 3.31 ou mais novo**. Com o 3.22 padrão o build
@@ -313,7 +87,7 @@ vai usá-lo no app, na Parte 10.
    ou onde estiver o seu — aqui é `A:\Android\Sdk`).
 5. No repositório: `npm install`.
 
-### 9.2 Chave de assinatura (uma vez — guarde bem)
+### 3.2 Chave de assinatura (uma vez — guarde bem)
 
 O Android só instala atualização por cima se a chave for a mesma. Perder a chave obriga a
 desinstalar o app (e perder o que não foi sincronizado).
@@ -333,7 +107,7 @@ COMPASSO_RELEASE_KEY_PASSWORD=<senha da chave>
 
 Faça uma cópia da `.keystore` e das senhas fora do PC (gerenciador de senhas, pendrive).
 
-### 9.3 Compilar
+### 3.3 Compilar
 
 ```sh
 npm run apk -w @compasso/mobile
@@ -351,15 +125,15 @@ caminho e os nomes das propriedades.
 
 ---
 
-## Parte 10 — Instalar e configurar no celular
+## Parte 4 — Instalar e configurar no celular
 
 1. Passe o `.apk` para o celular (cabo, Drive, mensagem para você mesmo). Com o cabo e depuração
    USB ligada: `adb install -r apps/mobile/dist/compasso-0.1.0.apk`.
 2. Abra o arquivo. O Android pede para permitir **instalar apps desconhecidos** para o app por onde
    você abriu (Arquivos, Drive…). Permita e instale.
 3. Abra o Compasso → aba **Perfil** → **Tenho um convite**:
-   - **Servidor:** `https://compasso.seu-dominio`
-   - **Convite:** o código da Parte 8
+   - **Servidor:** `https://compasso.homelab-server.space`
+   - **Convite:** o código da Parte 2
    - **Seu nome**, **e-mail** e uma **senha** (mínimo 8 caracteres)
    - **CRIAR CONTA**
 4. Ainda no Perfil, **Ativar lembretes** e aceite a permissão de notificações.
@@ -380,15 +154,13 @@ caminho e os nomes das propriedades.
 
 ---
 
-## Parte 11 — Manutenção no dia a dia
+## Parte 5 — Manutenção no dia a dia
 
-### Atualizar o servidor (a cada versão nova no `main`)
+### Atualizar o servidor
 
-```sh
-sudo -u compasso bash -c 'cd /opt/compasso && git pull --ff-only && npm ci && npm run db:migrate -w @compasso/api'
-sudo systemctl restart compasso-api
-curl https://compasso.seu-dominio/health
-```
+Não há comando: faça push na `main`. Acompanhe em Actions → **API**; o job `deploy` termina com
+`deploy: compasso-api:<commit> no ar`. Se ele falhar no `/health`, a versão anterior volta sozinha
+e o log da API aparece no próprio job.
 
 ### Atualizar o app
 
@@ -400,16 +172,16 @@ curl https://compasso.seu-dominio/health
 ### Convidar alguém
 
 ```sh
-sudo -u compasso bash -c 'cd /opt/compasso && npm run convite:criar -w @compasso/api -- "nome da pessoa"'
+ssh luna-dash 'cd ~/compasso && docker compose run --rm -T admin npm run convite:criar -- "nome da pessoa"'
 ```
 
-Mande o código, o endereço `https://compasso.seu-dominio` e o `.apk`. `convite:listar` mostra quem
-usou.
+Mande o código, o endereço `https://compasso.homelab-server.space` e o `.apk`. `convite:listar`
+mostra quem usou.
 
 ### Esqueceu a senha (você ou um amigo)
 
 ```sh
-sudo -u compasso bash -c 'cd /opt/compasso && npm run conta:acesso -w @compasso/api -- pessoa@exemplo.com'
+ssh luna-dash 'cd ~/compasso && docker compose run --rm -T admin npm run conta:acesso -- pessoa@exemplo.com'
 ```
 
 Imprime uma senha temporária; a pessoa entra com ela e troca em Perfil → Configurações → Trocar senha.
@@ -419,8 +191,7 @@ Imprime uma senha temporária; a pessoa entra com ela e troca em Perfil → Conf
 Automático às 04:00. Conferir de vez em quando:
 
 ```sh
-journalctl -u compasso-manutencao -n 20
-ls -lh /var/backups/compasso
+ssh luna-dash 'tail -n 20 ~/compasso/manutencao.log; ls -lh ~/backups/compasso'
 ```
 
 Os dumps ficam no mesmo disco do servidor (decisão do
@@ -433,10 +204,13 @@ Os dumps ficam no mesmo disco do servidor (decisão do
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
-| `curl localhost:3000/health` não responde | API caiu ou não subiu | `journalctl -u compasso-api -n 50`; quase sempre senha errada no `.env` |
-| `/health` pelo domínio dá **502** / erro do Cloudflare | Nginx ou API parados, ou `config.yml` apontando para porta errada | `curl localhost:8080/health` no servidor; `systemctl status nginx cloudflared` |
-| Domínio não resolve | DNS ainda propagando ou `route dns` não rodou | confira o registro CNAME `compasso` no painel do Cloudflare |
-| App diz "Use o endereço completo" | faltou `https://` | digite `https://compasso.seu-dominio` |
+| Job `deploy` fica em "Waiting for a runner" | runner parado ou sem o label `compasso` | Settings → Actions → Runners; no servidor, `cd ~/actions-runner-compasso && sudo ./svc.sh status` |
+| Deploy falha com "falta ~/compasso/api.env" | segredos não escritos | passo 3 da instalação no `deploy.md` |
+| Deploy falha nas migrações | senha errada no `admin.env` ou banco fora do ar | `cd ~/compasso && docker compose logs postgres` |
+| Deploy falha no `/health` e faz rollback | a versão nova não sobe | o log da API está no próprio job; `docker compose logs api` |
+| `/health` pelo domínio dá **502** / erro 1033 | rota do túnel errada ou API parada | a rota é `http://compasso-api:3000`, não `localhost`; `docker compose ps` |
+| Domínio não resolve | rota ainda não criada no painel | Public Hostname do túnel na Cloudflare |
+| App diz "Use o endereço completo" | faltou `https://` | digite `https://compasso.homelab-server.space` |
 | App não conecta com `http://…` | o APK de release só aceita HTTPS | use o endereço do túnel |
 | Indicador "sessão encerrada" | senha trocada em outro aparelho ou sessão revogada | entre de novo no Perfil |
 | APK não instala por cima | chave diferente ou `versionCode` não subiu | mesma keystore e `versionCode` maior |
@@ -448,21 +222,20 @@ Os dumps ficam no mesmo disco do servidor (decisão do
 
 ## Checklist final
 
-- [ ] Parte 0: redesign no `main` e enviado ao GitHub
-- [ ] Servidor: Node 22, PostgreSQL, usuário `compasso`, código em `/opt/compasso`
-- [ ] Banco criado, `.env` e `.pgpass` com permissão 600
-- [ ] `compasso-api` e `compasso-manutencao.timer` ativos; um backup manual feito
-- [ ] Nginx respondendo em `localhost:8080/health`
-- [ ] Túnel ativo; `https://compasso.seu-dominio/health` abre no 4G
+- [ ] Aprovação obrigatória para workflows de PRs de fork (repositório público)
+- [ ] Runner `homeserver-compasso` **Idle** com o label `compasso`
+- [ ] `~/compasso/api.env` e `admin.env` com permissão 600
+- [ ] Primeiro deploy verde; `docker compose ps` com os dois containers saudáveis
+- [ ] Rota do túnel criada; `https://compasso.homelab-server.space/health` abre no 4G
+- [ ] Linha do cron criada; um backup manual feito
 - [ ] Keystore criada, com cópia guardada fora do PC
 - [ ] APK gerado sem o aviso de chave de debug
 - [ ] Conta criada pelo convite; lembretes ativados; bateria sem restrições
 
 ---
 
-> **O que este tutorial não conseguiu confirmar** (escrito a partir do repositório, sem um servidor
-> real à mão): os comandos de instalação do NodeSource e do `cloudflared` seguem a documentação
-> pública desses projetos e podem mudar; o caminho `/etc/cloudflared/` para o serviço é o padrão do
-> `cloudflared service install`; o build do APK de release nunca terminou nesta máquina (falhou na
-> F10 por falta do CMake 3.31+). O resto — scripts, units, variáveis e comandos do Compasso — foi
-> conferido no código.
+> **O que este tutorial não conseguiu confirmar:** os nomes das opções no painel da Cloudflare
+> (Zero Trust → Networks → Tunnels → Public Hostname) e no GitHub (aprovação de PRs de fork) seguem
+> a documentação pública e podem mudar; o runner e a rota do túnel dependem do seu login e não
+> foram configurados por aqui; o build do APK de release ainda não terminou nesta máquina (falhou
+> na F10 por falta do CMake 3.31+).

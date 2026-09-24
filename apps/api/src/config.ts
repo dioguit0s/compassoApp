@@ -5,7 +5,7 @@ export interface Config {
   tzDefault: string;
   trashRetentionDays: number;
   syncCursorWindowSeconds: number;
-  /** Volume das fotos de perfil, servido pelo Nginx (especificação §7, §9). */
+  /** Volume das fotos de perfil, servido em /avatares/ (especificação §7, §9). */
   avatarDir: string;
   avatarMaxBytes: number;
 }

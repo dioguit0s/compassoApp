@@ -811,9 +811,11 @@ radar espremeria a navegação sem acrescentar informação.
 
 O avatar tem dois modos: **iniciais** sobre uma cor derivada do nome, que é o padrão e não exige
 nenhuma infraestrutura, e **foto enviada** pelo usuário. A foto é redimensionada para 256px no
-servidor, salva como um arquivo por conta em volume no disco e servida pelo Nginx que já existe na
-infra. Guardar imagem em base64 na própria tabela infla toda leitura de `users`; `bytea` e
-object storage são resposta para um volume que o Compasso não vai ter.
+servidor, salva como um arquivo por conta em volume no disco e servida pela própria API em
+`/avatares/`, com cache imutável (não há Nginx no servidor, ver
+[ADR-0011](adr/0011-deploy-em-docker-com-runner-self-hosted.md)). Guardar imagem em base64 na
+própria tabela infla toda leitura de `users`; `bytea` e object storage são resposta para um volume
+que o Compasso não vai ter.
 
 A captura rápida é o fluxo que determina se o Compasso será usado. Se registrar algo custar mais que
 poucos segundos, o registro não acontece e nada mais no sistema importa. Por isso ela é um modal
@@ -832,7 +834,7 @@ acessível de qualquer aba, não uma tela para onde é preciso navegar.
 | Sem nível global | Nível agregado | Agregar esconde o desequilíbrio que os atributos existem para revelar |
 | `userId` em tudo desde a v1 | Adicionar quando surgir o segundo usuário | Retrofitar chave de tenant exige migração e auditoria de toda query; a esquecida vaza dado alheio |
 | Filtro por `userId` na camada de repositório | Filtrar em cada endpoint | Disciplina manual falha uma vez só, e o custo dessa vez é vazamento entre contas |
-| Avatar em arquivo no disco | Base64 na tabela, `bytea`, object storage | Uma imagem por conta e poucas contas; disco e Nginx já existem na infra |
+| Avatar em arquivo no disco | Base64 na tabela, `bytea`, object storage | Uma imagem por conta e poucas contas; um volume no disco basta |
 | Progresso dentro do Perfil | Aba separada de estatísticas | Cinco abas sem ganho de informação; o cabeçalho de identidade já contextualiza o radar |
 | Grade acadêmica fora de `items` | Aulas como itens recorrentes | Evita materializar ~400 ocorrências por semestre e trazer RRULE para a v1; aula não é tarefa |
 | Horário de aula como string `HH:mm` | `Date` completo | Aula é hora de parede; timestamp desloca a grade inteira na primeira mudança de fuso |
@@ -862,9 +864,10 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 
 ## 9. Configuração
 
-> Os padrões estão em `apps/api/src/config.ts` (API) e `apps/api/scripts/backup.sh` (backup). Os
-> valores do servidor ficam em `apps/api/.env`, lido por `deploy/compasso-api.service` e
-> `deploy/compasso-manutencao.service`; o passo a passo está em [`deploy.md`](deploy.md).
+> Os padrões estão em `apps/api/src/config.ts` (API) e `deploy/manutencao.sh` (backup). Os
+> valores do servidor ficam em `~/compasso/api.env` e `~/compasso/admin.env`, lidos por
+> `deploy/compose.yml` ([ADR-0011](adr/0011-deploy-em-docker-com-runner-self-hosted.md)); o passo a
+> passo está em [`deploy.md`](deploy.md).
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
@@ -873,9 +876,9 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 | `PORT` | não | Porta da API. Padrão 3000 |
 | `SYNC_CURSOR_WINDOW_SECONDS` | não | Janela de segurança do cursor de sync (§6.6). Padrão 60 |
 | `TZ_DEFAULT` | não | Fuso padrão dos itens. Padrão `America/Sao_Paulo` |
-| `AVATAR_DIR` | sim | Volume onde as imagens de perfil são gravadas. Padrão `./avatares`, só para desenvolvimento |
+| `AVATAR_DIR` | sim | Volume onde as imagens de perfil são gravadas. Padrão `./avatares` em desenvolvimento; a imagem Docker define `/var/lib/compasso/avatares` |
 | `AVATAR_MAX_BYTES` | não | Limite de upload antes do redimensionamento. Padrão 5 MB |
-| `BACKUP_DIR` | só backup | Destino dos dumps diários; o script de backup recusa rodar sem ela |
+| `BACKUP_DIR` | não | Destino dos dumps diários. Padrão `~/backups/compasso` |
 | `BACKUP_KEEP_DAILY` | não | Dumps retidos. Padrão 7 |
 | `TRASH_RETENTION_DAYS` | não | Prazo da lixeira e da purga de tombstones. Padrão 30 |
 

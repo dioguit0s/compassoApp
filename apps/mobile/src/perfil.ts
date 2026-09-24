@@ -70,7 +70,7 @@ async function gravar(me: MeResposta, conexao: ConexaoServidor): Promise<void> {
 }
 
 /**
- * A foto é servida pelo Nginx em `/avatares/<arquivo>` (especificação §7). Baixa uma vez para o
+ * A foto é servida pela API em `/avatares/<arquivo>` (especificação §7). Baixa uma vez para o
  * armazenamento do app, para aparecer offline; o nome do arquivo muda a cada troca de foto.
  */
 async function baixarFoto(me: MeResposta, conexao: ConexaoServidor): Promise<string | null> {

@@ -103,7 +103,8 @@ sem nenhuma funcionalidade de produto.
   `userId` e filtra `deletedAt`** em toda consulta
 - Script manual de criação de conta
 - Expo com **development build** (não Expo Go), quatro abas vazias, SQLite aberto e migrado
-- Cloudflare Tunnel apontando para a API; deploy manual documentado em quatro comandos
+- Cloudflare Tunnel apontando para a API; deploy manual documentado em quatro comandos (substituído
+  pela esteira do GitHub Actions com runner self-hosted, [ADR-0011](adr/0011-deploy-em-docker-com-runner-self-hosted.md))
 - Cron de `pg_dump` diário, retenção de sete dias
 - **Uma restauração manual de dump em banco descartável, conferida à mão**
 
@@ -355,7 +356,7 @@ cooldown falha mesmo com saldo sobrando; e o histórico mostra o preço da époc
 **Entregas**
 
 - Avatar: iniciais sobre cor derivada do nome como padrão, e foto enviada redimensionada para 256px
-  no servidor, servida pelo Nginx
+  no servidor, servida pela própria API (ADR-0011)
 - Nome de exibição e configurações: fuso, lembrete padrão, régua de esforço
 - `GET /trash` e restauração — a lixeira já existe no dado desde a F1, falta a tela
 - Histórico de XP por mês na aba Perfil

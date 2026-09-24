@@ -1,0 +1,10 @@
+# Só o que o apps/api/Dockerfile copia importa; o resto fica fora do contexto de build.
+**/node_modules
+**/.env
+**/.env.*
+.git
+apps/mobile/*
+!apps/mobile/package.json
+apps/api/avatares
+apps/api/test
+docs

@@ -31,9 +31,8 @@ export function criarApp(banco: Banco, config: Config) {
   const limitePorIp = new LimiteDeTentativas(20); // por IP: 20 em 15 min, qualquer e-mail
   app.route('/', rotasPublicasDeAcesso(banco, limite, limitePorIp));
 
-  // Fotos de perfil, públicas como o Nginx as serve em produção (deploy/nginx.conf.example): o nome
-  // é aleatório e muda a cada troca. Em produção o Nginx responde antes; sem ele (desenvolvimento)
-  // o app recebia 401 e ficava nas iniciais depois de enviar a foto (visto no emulador).
+  // Fotos de perfil, públicas: o nome é aleatório e muda a cada troca, então o cache é imutável.
+  // Servidas pela própria API em desenvolvimento e em produção (não há Nginx, ADR-0011).
   app.get('/avatares/:arquivo', async (c) => {
     const arquivo = c.req.param('arquivo');
     if (!ARQUIVO_AVATAR.test(arquivo)) return c.notFound();

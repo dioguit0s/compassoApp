@@ -88,7 +88,7 @@ describe('foto de perfil (#84)', () => {
     expect(readdirSync(config.avatarDir)).not.toContain(segunda.corpo.avatarPath);
   });
 
-  it('GET /avatares/:arquivo serve a foto sem token, como o Nginx; nome fora do padrão → 404', async () => {
+  it('GET /avatares/:arquivo serve a foto sem token; nome fora do padrão → 404', async () => {
     const { token } = await doisAparelhos('Foto servida');
     const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: '#0a0' } })
       .png()

@@ -14,7 +14,7 @@ fora da máquina" como deixando de ser opcional.
 ## Decisão
 
 **Não haverá cópia fora do servidor doméstico.** Continua o dump diário local (`scripts/backup.sh`,
-sete dias retidos) no próprio servidor. Decisão do autor em 2026-09-23.
+hoje `deploy/manutencao.sh` pelo ADR-0011, sete dias retidos) no próprio servidor. Decisão do autor em 2026-09-23.
 
 ## Alternativas consideradas
 
@@ -30,4 +30,4 @@ sete dias retidos) no próprio servidor. Decisão do autor em 2026-09-23.
   perca o servidor ainda tem os dados no próprio celular, desde que não tenha saído da conta.
 - Quem recebe um convite deveria saber disso. O texto do convite é do administrador; a
   especificação registra o risco.
-- Reabrir a questão é barato: `backup.sh` já gera o arquivo, falta só copiá-lo para fora.
+- Reabrir a questão é barato: `deploy/manutencao.sh` já gera o arquivo, falta só copiá-lo para fora.

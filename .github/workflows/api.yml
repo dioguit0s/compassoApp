@@ -1,0 +1,50 @@
+# Esteira da API (ADR-0011): verifica num runner do GitHub e faz o deploy no runner self-hosted do
+# homeserver. O repositório é público, então nada aqui roda em pull_request: o runner da casa só
+# recebe push na main (quem tem escrita) ou disparo manual na main.
+name: API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'packages/core/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.base.json'
+      - '.dockerignore'
+      - 'deploy/**'
+      - '.github/workflows/api.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Um deploy por vez; um push novo espera o anterior terminar em vez de cancelá-lo no meio.
+concurrency:
+  group: api-deploy
+  cancel-in-progress: false
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck -w @compasso/core -w @compasso/api
+      - run: npm test -w @compasso/core -w @compasso/api
+
+  deploy:
+    needs: verificar
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, compasso]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash deploy/deploy.sh

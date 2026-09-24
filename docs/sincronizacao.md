@@ -13,7 +13,7 @@ lá; aqui ficam as decisões que as issues #15 a #24 pediram para registrar.
 | Schema e repositório do SQLite | `packages/core/src/local/` (`RepositorioLocal`) |
 | Endpoints | `apps/api/src/sync.ts` — `POST /sync/push`, `GET /sync/pull?cursor=` |
 | LWW e cursor no servidor | `apps/api/src/db/repositorios.ts` (`itens.aplicarPush`, `itens.alteradosDesde`) |
-| Purga no servidor | `apps/api/scripts/purgar.ts`, diária pelo `compasso-manutencao.service` |
+| Purga no servidor | `apps/api/scripts/purgar.ts`, diária pelo `deploy/manutencao.sh` |
 | Integração no app | `apps/mobile/src/sync.ts` |
 | Testes dos quatro cenários | `apps/api/test/sync-integracao.test.ts` |
 

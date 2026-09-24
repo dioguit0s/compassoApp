@@ -24,8 +24,7 @@ const FORMATOS_ACEITOS = new Set(['jpeg', 'png', 'webp', 'heif', 'avif']);
 /**
  * Perfil (especificação §6.3, §7): `PATCH /me`, `PUT`/`DELETE /me/avatar`, lixeira.
  * A foto é redimensionada para 256px no servidor, sem metadados (EXIF/GPS), e salva como um
- * arquivo em `AVATAR_DIR`, servido pelo Nginx em `/avatares/` (deploy/nginx.conf.example) — e, sem
- * Nginx (desenvolvimento), pela própria API em `app.ts`.
+ * arquivo em `AVATAR_DIR`, servido pela própria API em `/avatares/` (`app.ts`, ADR-0011).
  */
 export function rotasDePerfil(config: Config) {
   const rotas = new Hono<{ Variables: VariaveisAutenticadas }>();

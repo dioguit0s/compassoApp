@@ -8,7 +8,27 @@ mova o registro para o PR/commit correspondente.
 
 ---
 
-## Tarefa atual — redesign "Compasso em códice" (2026-09-23, branch `feat/redesign`)
+## Tarefa atual — esteira de deploy da API no homeserver (2026-09-24)
+
+Decisões do usuário: Docker Compose + runner self-hosted (ADR-0011), repo público com deploy só
+em push na main, hostname compasso.homelab-server.space.
+
+- [x] Dockerfile da API + .dockerignore (node_modules de 608 MB → 147 MB com prune de peers)
+- [x] deploy/compose.yml (API, PostgreSQL 17, admin), init do banco, deploy.sh com rollback
+- [x] deploy/manutencao.sh (backup + purga, cron do ash)
+- [x] .github/workflows/api.yml (verificar no GitHub, deploy no runner compasso)
+- [x] Remover units systemd, Nginx e cloudflared antigos; comentários do código
+- [x] ADR-0011, especificação, roadmap, deploy.md, tutorial, README
+- [x] Validar no Docker local: 1º deploy, /health pela rede do túnel, convite + cadastro + /me,
+      manutenção (retenção), restauração documentada, rollback com versão quebrada, prune de imagens;
+      npm run verificar (API 158, core 176)
+- [x] Revisão do diff, commit (sem push)
+
+### Pendências para o usuário
+- Aprovação obrigatória para PRs de fork; registrar o runner; api.env/admin.env; push na main;
+  rota do túnel; linha do cron; convite (docs/deploy.md, instalação inicial)
+
+## Tarefa anterior — redesign "Compasso em códice" (2026-09-23, branch `feat/redesign`)
 
 Fonte: projeto do Claude Design "Compasso - Telas RPG" (22 telas, importado pelo MCP).
 

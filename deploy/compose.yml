@@ -1,0 +1,70 @@
+# Produção no homeserver (ADR-0011). O deploy.sh copia este arquivo para ~/compasso/ e roda de lá.
+# Nesse diretório ficam também, só no servidor:
+#   api.env    DATABASE_URL (papel compasso_app) e demais variáveis da API
+#   admin.env  POSTGRES_PASSWORD, COMPASSO_OWNER_PASSWORD, COMPASSO_APP_PASSWORD, DATABASE_ADMIN_URL
+#   .env       COMPASSO_TAG=<commit> da versão no ar, escrito pelo deploy.sh
+#
+# Comandos à mão, de dentro de ~/compasso:
+#   docker compose ps
+#   docker compose logs -f api
+#   docker compose run --rm admin npm run convite:criar -- "nome"
+name: compasso
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: compasso-postgres
+    restart: unless-stopped
+    env_file: ./admin.env
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Só roda no primeiro `up`, com o volume vazio: cria os papéis e o banco.
+      - ./postgres-init.sh:/docker-entrypoint-initdb.d/bootstrap.sh:ro
+      - ./bootstrap.sql:/compasso/bootstrap.sql:ro
+    # Por TCP: durante o bootstrap o servidor temporário só escuta no socket, então isto só fica
+    # saudável quando o banco já está pronto de verdade.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U postgres']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    # Sem `ports`: o banco só é alcançado pela rede interna do projeto.
+
+  api:
+    image: compasso-api:${COMPASSO_TAG:?COMPASSO_TAG não definida (ver ~/compasso/.env)}
+    container_name: compasso-api
+    restart: unless-stopped
+    init: true
+    env_file: ./api.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - avatares:/var/lib/compasso/avatares
+    # Health check do deploy e diagnóstico no próprio servidor; nada de fora chega aqui.
+    ports:
+      - '127.0.0.1:${COMPASSO_PORTA:-8090}:3000'
+    # O túnel alcança a API pelo nome do container: http://compasso-api:3000.
+    networks: [default, tunel]
+
+  # Migrações, convites, contas e purga: a mesma imagem com o papel dono. Não fica no ar.
+  admin:
+    image: compasso-api:${COMPASSO_TAG:?COMPASSO_TAG não definida (ver ~/compasso/.env)}
+    profiles: [admin]
+    env_file: [./api.env, ./admin.env]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ['npm', 'run', 'db:migrate']
+
+volumes:
+  pgdata:
+  avatares:
+
+networks:
+  # Rede do container `cloudflared`, que não é deste projeto: só entramos nela.
+  tunel:
+    name: ${COMPASSO_REDE_TUNEL:-cloudflare-tunnel_default}
+    external: true

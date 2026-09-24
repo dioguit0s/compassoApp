@@ -1,6 +1,6 @@
 /**
  * Purga de tombstones mais antigos que TRASH_RETENTION_DAYS (padrão 30). Diária, pelo
- * compasso-manutencao.service, com o papel dono (DATABASE_ADMIN_URL).
+ * deploy/manutencao.sh, com o papel dono (DATABASE_ADMIN_URL).
  */
 import { Admin } from '../src/db/admin';
 
