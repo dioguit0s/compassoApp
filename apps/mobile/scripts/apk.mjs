@@ -4,6 +4,8 @@
  *   npm run apk -w @compasso/mobile                              → dist/compasso-<versão>.apk
  *   COMPASSO_PERMITIR_HTTP=1 npm run apk -w @compasso/mobile     → …-http.apk (só para teste local)
  *
+ *   COMPASSO_ABI=arm64-v8a npm run apk -w @compasso/mobile          → só essa arquitetura (~4× mais rápido)
+ *
  * Precisa do mesmo ambiente do development build (docs/desenvolvimento.md): Android SDK e
  * JAVA_HOME num JDK 17–23 (o 25 quebra o CMake).
  */
@@ -27,7 +29,10 @@ function rodar(comando, args, cwd) {
 rodar('npx', ['expo', 'prebuild', '--platform', 'android', '--no-install'], raiz);
 const android = join(raiz, 'android');
 // Caminho absoluto: o cmd do Windows não acha o gradlew.bat da pasta atual pelo nome.
-rodar(join(android, windows ? 'gradlew.bat' : 'gradlew'), ['assembleRelease'], android);
+const abi = process.env.COMPASSO_ABI
+  ? [`-PreactNativeArchitectures=${process.env.COMPASSO_ABI}`]
+  : [];
+rodar(join(android, windows ? 'gradlew.bat' : 'gradlew'), ['assembleRelease', ...abi], android);
 
 const { expo } = JSON.parse(readFileSync(join(raiz, 'app.json'), 'utf8'));
 const http = process.env.COMPASSO_PERMITIR_HTTP === '1';
