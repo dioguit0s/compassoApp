@@ -10,6 +10,7 @@ import { CabecalhoInterno } from '../src/ui/Cabecalho';
 import { CampoDataHora } from '../src/ui/CampoDataHora';
 import { Botao, Campo, Secao } from '../src/ui/Campos';
 import { useAlerta } from '../src/ui/Dialogo';
+import { useAlturaTeclado } from '../src/ui/teclado';
 import { Texto } from '../src/ui/Texto';
 
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -20,6 +21,7 @@ const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
  */
 export default function Semestre() {
   const tema = useTema();
+  const teclado = useAlturaTeclado();
   const router = useRouter();
   const alerta = useAlerta();
   const hoje = useHoje();
@@ -55,7 +57,11 @@ export default function Semestre() {
             : 'Nenhum semestre ativo: a aba Hoje não mostra aulas.'
         }
       />
-      <ScrollView contentContainerStyle={estilos.tela} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={{ marginBottom: teclado }}
+        contentContainerStyle={estilos.tela}
+        keyboardShouldPersistTaps="handled"
+      >
         {ativo
           ? disciplinas.map((c) => {
               const horarios = grade.horarios

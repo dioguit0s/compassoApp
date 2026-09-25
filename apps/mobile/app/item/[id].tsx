@@ -25,6 +25,7 @@ import { EditorRecorrencia } from '../../src/ui/EditorRecorrencia';
 import { CaixaDeMarcar, Repetir } from '../../src/ui/Icones';
 import { useGrade } from '../../src/hooks';
 import { SeletorEsforco, type Pontuacao } from '../../src/ui/SeletorEsforco';
+import { useAlturaTeclado } from '../../src/ui/teclado';
 import { Entrada, Texto } from '../../src/ui/Texto';
 import { useAviso } from '../../src/ui/Aviso';
 import { descreverEfeito } from '../../src/conclusao';
@@ -91,6 +92,7 @@ function Formulario({
   aoTerminar: () => void;
 }) {
   const tema = useTema();
+  const teclado = useAlturaTeclado();
   const alerta = useAlerta();
   const desvio = ocorrencia ? repositorio.obterDesvio(item.id, ocorrencia) : null;
   const vivo = desvio && !desvio.deletedAt ? desvio : null;
@@ -305,6 +307,7 @@ function Formulario({
       />
       <ScrollView
         ref={rolagem}
+        style={{ marginBottom: teclado }}
         contentContainerStyle={estilos.tela}
         keyboardShouldPersistTaps="handled"
       >

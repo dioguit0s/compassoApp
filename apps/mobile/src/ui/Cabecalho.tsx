@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import {
-  KeyboardAvoidingView,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTema } from '../tema';
 import { Seta } from './Icones';
+import { useAlturaTeclado } from './teclado';
 import { Texto } from './Texto';
 
 /**
@@ -125,6 +126,8 @@ export function CabecalhoModal({
 /**
  * Folha de pergaminho sobre o véu (captura, aula, recompensa). A tela precisa ser apresentada
  * como `transparentModal`; tocar no véu fecha. `topo` fixa a folha a essa distância do alto.
+ * Com o teclado aberto a folha sobe junto (margem medida, não `KeyboardAvoidingView`: o padding
+ * dele não empurra filho `absolute`).
  */
 export function Folha({
   children,
@@ -140,30 +143,36 @@ export function Folha({
   const tema = useTema();
   const router = useRouter();
   const { bottom } = useSafeAreaInsets();
+  const teclado = useAlturaTeclado();
+  // No iOS a altura do teclado já cobre a área do indicador; no Android vem sem a barra de
+  // navegação, que continua embaixo do teclado e segue precisando do respiro.
+  const respiro = teclado > 0 && Platform.OS === 'ios' ? 0 : bottom;
   return (
-    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+    <View style={{ flex: 1 }}>
       <Pressable
         style={[StyleSheet.absoluteFill, { backgroundColor: tema.veu }]}
         onPress={() => router.back()}
         accessibilityLabel="Fechar"
       />
-      <View
-        style={[
-          estilos.folha,
-          {
-            backgroundColor: tema.folha,
-            borderTopColor: tema.ouroClaro,
-            paddingBottom: bottom,
-          },
-          topo !== undefined ? { top: topo, bottom: 0 } : { bottom: 0 },
-          style,
-        ]}
-      >
-        {corFaixa ? <View style={{ height: 6, backgroundColor: corFaixa }} /> : null}
-        <View style={[estilos.alca, { backgroundColor: tema.bordaCampo }]} />
-        {children}
+      <View style={{ flex: 1, marginBottom: teclado }} pointerEvents="box-none">
+        <View
+          style={[
+            estilos.folha,
+            {
+              backgroundColor: tema.folha,
+              borderTopColor: tema.ouroClaro,
+              paddingBottom: respiro,
+            },
+            topo !== undefined ? { top: topo, bottom: 0 } : { bottom: 0 },
+            style,
+          ]}
+        >
+          {corFaixa ? <View style={{ height: 6, backgroundColor: corFaixa }} /> : null}
+          <View style={[estilos.alca, { backgroundColor: tema.bordaCampo }]} />
+          {children}
+        </View>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -10,6 +10,7 @@ import { CabecalhoInterno } from '../src/ui/Cabecalho';
 import { CampoHora } from '../src/ui/CampoDataHora';
 import { Botao, Campo, Rotulo, Secao } from '../src/ui/Campos';
 import { useAlerta } from '../src/ui/Dialogo';
+import { useAlturaTeclado } from '../src/ui/teclado';
 import { Entrada, Texto } from '../src/ui/Texto';
 
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -33,6 +34,7 @@ function Formulario({
   semestreId: string;
 }) {
   const tema = useTema();
+  const teclado = useAlturaTeclado();
   const router = useRouter();
   const alerta = useAlerta();
   const grade = useGrade();
@@ -77,7 +79,11 @@ function Formulario({
         titulo={disciplina ? disciplina.name : 'Nova disciplina'}
         corTopo={cor}
       />
-      <ScrollView contentContainerStyle={estilos.tela} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={{ marginBottom: teclado }}
+        contentContainerStyle={estilos.tela}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={estilos.dupla}>
           <View style={{ flex: 1 }}>
             <Campo
