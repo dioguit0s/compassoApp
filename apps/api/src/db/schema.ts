@@ -74,15 +74,33 @@ export const apiTokens = pgTable(
   'api_tokens',
   {
     tokenHash: text().primaryKey(),
+    /** Identificador público do token, para listar e revogar sem expor o hash (ADR-0012). */
+    id: uuid()
+      .notNull()
+      .default(sql`gen_random_uuid()`),
     userId: uuid()
       .notNull()
       .references(() => users.id),
     label: text().notNull(),
+    /**
+     * `session`: um aparelho, acesso total. `service`: integração servidor a servidor (a Luna),
+     * gerado no app, só alcança /api/v1 e só com os escopos de `scopes` (ADR-0012).
+     */
+    kind: text({ enum: ['session', 'service'] })
+      .notNull()
+      .default('session'),
+    scopes: text().array(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     revokedAt: timestamp({ withTimezone: true }),
   },
   (t) => [
     index('api_tokens_user_id_idx').on(t.userId),
+    uniqueIndex('api_tokens_id_idx').on(t.id),
+    check('api_tokens_kind_check', sql`${t.kind} in ('session', 'service')`),
+    check(
+      'api_tokens_scopes_check',
+      sql`(${t.kind} = 'service') = (${t.scopes} is not null) and (${t.scopes} is null or ${t.scopes} <@ array['agenda:read', 'agenda:write']::text[])`,
+    ),
     pgPolicy('api_tokens_dono', {
       for: 'all',
       to: papelApp,

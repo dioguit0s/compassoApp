@@ -14,6 +14,7 @@ export const config: Config = {
   syncCursorWindowSeconds: 60,
   avatarDir: join(tmpdir(), `compasso-avatares-${process.pid}`),
   avatarMaxBytes: 5 * 1024 * 1024,
+  versao: 'teste',
 };
 
 export async function ambiente() {

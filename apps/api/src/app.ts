@@ -14,6 +14,8 @@ import { rotasDeImportacao } from './importacao';
 import { rotasDeItens } from './itens';
 import { LimiteDeTentativas } from './limite';
 import { rotasDeSync } from './sync';
+import { rotasDeTokensDeServico } from './tokensDeServico';
+import { rotasV1 } from './v1/rotas';
 
 export function criarApp(banco: Banco, config: Config) {
   const app = new Hono();
@@ -47,6 +49,10 @@ export function criarApp(banco: Banco, config: Config) {
     }
   });
 
+  // A porta da Luna (ADR-0012), antes do middleware de sessão: tem autenticação, escopos e
+  // formato de erro próprios, e aceita o token de serviço que as outras rotas recusam.
+  app.route('/api/v1', rotasV1(banco, { versao: config.versao }));
+
   const autenticada = new Hono<{ Variables: VariaveisAutenticadas }>();
   autenticada.use('*', autenticacao(banco));
 
@@ -57,6 +63,7 @@ export function criarApp(banco: Banco, config: Config) {
   });
 
   autenticada.route('/', rotasDeAcesso(limite));
+  autenticada.route('/', rotasDeTokensDeServico());
   autenticada.route('/sync', rotasDeSync(config));
   autenticada.route('/', rotasDeItens());
   autenticada.route('/import', rotasDeImportacao());

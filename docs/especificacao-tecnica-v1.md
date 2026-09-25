@@ -518,6 +518,7 @@ graph LR
     App --> Notif[Notificações locais do SO]
     API --> DB[(PostgreSQL)]
     Tunnel[Cloudflare Tunnel] --- API
+    Luna([Luna, assistente de voz no homeserver]) -->|HTTP /api/v1, token de serviço| API
 ```
 
 ### 6.2 Containers
@@ -605,11 +606,27 @@ PATCH  /slots/:id
 DELETE /slots/:id
 POST   /slots/:id/exceptions         cancelamento, troca de sala ou reposição
 GET    /agenda?from=&to=             aulas projetadas + itens + ocorrências, numa resposta
+
+GET    /service-tokens               tokens de serviço ativos (sem o segredo)
+POST   /service-tokens               gera token de serviço; o segredo aparece só nesta resposta
+DELETE /service-tokens/:id           revoga
+
+# Porta da Luna, assistente de voz (ADR-0012). Contrato em apps/api/src/v1/openapi.yaml.
+GET    /api/v1/health                testar conexão; token errado → 401
+GET    /api/v1/agenda?from=&to=      eventos, aulas e tarefas, formato enxuto, ISO com -03:00
+GET    /api/v1/tasks?done=           tarefas simples, com e sem prazo
+POST   /api/v1/tasks                 title + effort + attribute; Idempotency-Key
+POST   /api/v1/tasks/:id/complete    conclui (ou a ocorrência, com occurrence_date)
+POST   /api/v1/events                title + start + (end | duration_minutes); avisa conflitos
 ```
 
 Não há `GET /items` nem `POST /items` (decidido em 2026-09-23): o app cria e lê itens no SQLite
 local e os envia por `POST /sync/push`, e a leitura por intervalo, com recorrências expandidas, é
-`GET /agenda`. Uma segunda porta de escrita duplicaria validação e LWW sem cliente que a use.
+`GET /agenda`. A segunda porta de escrita apareceu quando apareceu o cliente que a usa: a Luna,
+assistente de voz, cria eventos e tarefas por `/api/v1` (2026-09-25,
+[ADR-0012](adr/0012-api-v1-para-a-assistente-de-voz-luna.md)), com os mesmos repositórios, o
+mesmo `esquemaItem` e os mesmos CHECK do sync — a validação não é duplicada. O token de serviço
+dela só alcança `/api/v1`, com escopos de leitura e escrita; nas outras rotas, 403.
 
 `GET /agenda` existe para que as telas de calendário façam **uma** requisição por intervalo e a
 projeção aconteça no servidor. Expandir RRULE, aplicar exceções de ocorrência, cruzar com o semestre
@@ -881,6 +898,7 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 | `BACKUP_DIR` | não | Destino dos dumps diários. Padrão `~/backups/compasso` |
 | `BACKUP_KEEP_DAILY` | não | Dumps retidos. Padrão 7 |
 | `TRASH_RETENTION_DAYS` | não | Prazo da lixeira e da purga de tombstones. Padrão 30 |
+| `COMPASSO_VERSION` | não | Versão devolvida por `GET /api/v1/health`. O compose passa o commit da imagem; padrão `dev` |
 
 O token identifica a pessoa e a API resolve o `userId` a partir dele. Os tokens não ficam em
 variável de ambiente: a tabela `api_tokens` guarda o SHA-256 de cada um, um por aparelho, e o
@@ -889,7 +907,9 @@ Até a F8 só o script de criação de conta emitia tokens. Desde a F10, entrar 
 (ou criar conta com convite) emite um token de sessão para o aparelho; sair revoga o dele e trocar
 a senha revoga os dos outros ([ADR-0008](adr/0008-senha-propria-convite-e-sessao-por-aparelho.md)).
 A troca foi localizada no middleware, como previsto, porque o resto do sistema já estava escopado —
-o motivo da regra da seção 5.
+o motivo da regra da seção 5. Desde 2026-09-25 há também o **token de serviço** (`kind = 'service'`),
+gerado no app para a Luna, com escopos e restrito a `/api/v1`
+([ADR-0012](adr/0012-api-v1-para-a-assistente-de-voz-luna.md)).
 
 ## 10. Questões em aberto
 

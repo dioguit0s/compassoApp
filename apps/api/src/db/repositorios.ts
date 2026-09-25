@@ -64,7 +64,7 @@ import {
 } from './schema';
 
 export type Usuario = typeof users.$inferSelect;
-type LinhaItem = typeof items.$inferSelect;
+export type LinhaItem = typeof items.$inferSelect;
 type LinhaOcorrencia = typeof itemOccurrences.$inferSelect;
 
 const paraData = (v: string | null) => (v === null ? null : new Date(v));
@@ -367,6 +367,35 @@ export function criarRepositorios(tx: Tx, userId: string) {
         .from(items)
         .where(and(doUsuario, eq(items.id, id), isNull(items.deletedAt)));
       return l ?? null;
+    },
+
+    /**
+     * Criação pela /api/v1 (ADR-0012), com o `id` derivado da Idempotency-Key: o reenvio da
+     * mesma criação cai no conflito de chave primária e devolve a linha já gravada, excluída ou
+     * não. `criado` distingue as duas respostas (201 × 200).
+     */
+    async criarPelaApi(w: ItemWire): Promise<{ linha: LinhaItem; criado: boolean }> {
+      const [nova] = await tx
+        .insert(items)
+        .values(wireParaLinha(w, userId))
+        .onConflictDoNothing({ target: items.id })
+        .returning();
+      if (nova) return { linha: nova, criado: true };
+      const [existente] = await tx
+        .select()
+        .from(items)
+        .where(and(doUsuario, eq(items.id, w.id)));
+      if (!existente) throw new ErroDeOcorrencia(409, 'identificador já usado');
+      return { linha: existente, criado: false };
+    },
+
+    /** Tarefas simples (sem recorrência) vivas, para `GET /api/v1/tasks`: prazo primeiro. */
+    async tarefasSimples(): Promise<LinhaItem[]> {
+      return tx
+        .select()
+        .from(items)
+        .where(and(doUsuario, eq(items.kind, 'task'), isNull(items.rrule), isNull(items.deletedAt)))
+        .orderBy(sql`${items.dueAt} asc nulls last`, items.createdAt, items.id);
     },
 
     /**
@@ -1300,6 +1329,40 @@ export function criarRepositorios(tx: Tx, userId: string) {
           sql`select revogar_tokens(${tokenHashAtual}, true) as n`,
         );
         return r.rows[0]!.n;
+      },
+
+      /** Token de serviço (ADR-0012). `null`: a conta já tem 10 ativos. */
+      async emitirTokenDeServico(
+        tokenHash: string,
+        rotulo: string,
+        escopos: string[],
+      ): Promise<string | null> {
+        const r = await tx.execute<{ id: string | null }>(
+          sql`select emitir_token_de_servico(${tokenHash}, ${rotulo}, string_to_array(${escopos.join(',')}, ',')) as id`,
+        );
+        return r.rows[0]!.id;
+      },
+
+      async tokensDeServico() {
+        const r = await tx.execute<{
+          id: string;
+          label: string;
+          scopes: string[];
+          created_at: string | Date;
+        }>(sql`select id, label, scopes, created_at from listar_tokens_de_servico()`);
+        return r.rows.map((l) => ({
+          id: l.id,
+          label: l.label,
+          scopes: l.scopes,
+          createdAt: new Date(l.created_at).toISOString(),
+        }));
+      },
+
+      async revogarTokenDeServico(id: string): Promise<boolean> {
+        const r = await tx.execute<{ ok: boolean }>(
+          sql`select revogar_token_de_servico(${id}::uuid) as ok`,
+        );
+        return r.rows[0]!.ok;
       },
 
       async hashDaSenha(): Promise<string | null> {

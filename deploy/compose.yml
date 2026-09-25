@@ -38,6 +38,9 @@ services:
     restart: unless-stopped
     init: true
     env_file: ./api.env
+    environment:
+      # Devolvida por GET /api/v1/health (ADR-0012).
+      COMPASSO_VERSION: ${COMPASSO_TAG}
     depends_on:
       postgres:
         condition: service_healthy

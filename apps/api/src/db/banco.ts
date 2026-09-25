@@ -4,6 +4,13 @@ import pg from 'pg';
 import * as schema from './schema';
 import { criarRepositorios, type Repositorios } from './repositorios';
 
+export interface Sessao {
+  userId: string;
+  tipo: 'session' | 'service';
+  /** Só em token de serviço: `agenda:read`, `agenda:write`. */
+  escopos: string[] | null;
+}
+
 export type Db = NodePgDatabase<typeof schema>;
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
@@ -31,12 +38,18 @@ export class Banco {
     });
   }
 
-  /** Resolve o hash de um token para o `userId`, sem precisar de `app.user_id` definido. */
-  async resolverToken(tokenHash: string): Promise<string | null> {
-    const r = await this.db.execute<{ user_id: string | null }>(
-      sql`select resolver_token(${tokenHash}) as user_id`,
-    );
-    return r.rows[0]?.user_id ?? null;
+  /**
+   * Resolve o hash de um token para a conta, o tipo e os escopos, sem precisar de `app.user_id`
+   * definido. Token de sessão (aparelho) não tem escopos: acesso total (ADR-0012).
+   */
+  async resolverToken(tokenHash: string): Promise<Sessao | null> {
+    const r = await this.db.execute<{
+      user_id: string;
+      kind: 'session' | 'service';
+      scopes: string[] | null;
+    }>(sql`select user_id, kind, scopes from resolver_sessao(${tokenHash})`);
+    const l = r.rows[0];
+    return l ? { userId: l.user_id, tipo: l.kind, escopos: l.scopes } : null;
   }
 
   /** Entrar (F10): acha a credencial pelo e-mail, antes de existir `app.user_id`. */

@@ -8,7 +8,25 @@ mova o registro para o PR/commit correspondente.
 
 ---
 
-## Tarefa atual — esteira de deploy da API no homeserver (2026-09-24)
+## Tarefa atual — API /api/v1 para a Luna (assistente de voz) (2026-09-25)
+
+Decisões do usuário: tarefa criada por voz exige `effort` e `attribute` (§4.1 intacta);
+`priority` não é suportada agora. Default meu, mesmo critério: `location` de evento também não
+(não existe coluna; entra na lista do que não é suportado).
+
+- [x] Migração 0017/0018: api_tokens com id, kind e scopes; funções SECURITY DEFINER
+- [x] Auth: token de serviço só em /api/v1 (403 fora), escopos agenda:read / agenda:write
+- [x] Rotas /service-tokens (gerar, listar, revogar) + tela "Luna" em Configurações
+- [x] /api/v1: health, agenda, tasks, complete, events; erro único, 120 req/min, idempotência,
+      conflitos; texto fora de UTF-8 → 400 (achado ao rodar os curl no Windows)
+- [x] openapi.yaml (Redocly: válido) e docs/luna.md com curl rodados contra servidor real
+- [x] luna:exemplo (conta separada + dados + token); ADR-0012, especificação, roadmap, README
+- [x] npm run verificar (API 181, core 176); p95 local 22 ms (dia) / 49 ms (busca 60 dias)
+- [x] Revisão do diff, commit (sem push)
+- [ ] **No servidor (usuário):** push → deploy; APK novo para ter a tela Luna; gerar o token;
+      medir p95 no homeserver
+
+## Tarefa anterior — esteira de deploy da API no homeserver (2026-09-24)
 
 Decisões do usuário: Docker Compose + runner self-hosted (ADR-0011), repo público com deploy só
 em push na main, hostname compasso.homelab-server.space.

@@ -15,7 +15,8 @@
     "conta:acesso": "tsx --env-file-if-exists=.env scripts/criar-conta.ts acesso",
     "convite:criar": "tsx --env-file-if-exists=.env scripts/convite.ts criar",
     "convite:listar": "tsx --env-file-if-exists=.env scripts/convite.ts listar",
-    "db:purgar": "tsx --env-file-if-exists=.env scripts/purgar.ts"
+    "db:purgar": "tsx --env-file-if-exists=.env scripts/purgar.ts",
+    "luna:exemplo": "tsx --env-file-if-exists=.env scripts/luna-exemplo.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

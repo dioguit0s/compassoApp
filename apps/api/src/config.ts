@@ -8,6 +8,8 @@ export interface Config {
   /** Volume das fotos de perfil, servido em /avatares/ (especificação §7, §9). */
   avatarDir: string;
   avatarMaxBytes: number;
+  /** Versão no ar (commit da imagem, ADR-0011), devolvida por GET /api/v1/health. */
+  versao: string;
 }
 
 function inteiro(nome: string, padrao: number): number {
@@ -29,5 +31,6 @@ export function lerConfig(): Config {
     syncCursorWindowSeconds: inteiro('SYNC_CURSOR_WINDOW_SECONDS', 60),
     avatarDir: process.env.AVATAR_DIR || './avatares',
     avatarMaxBytes: inteiro('AVATAR_MAX_BYTES', 5 * 1024 * 1024),
+    versao: process.env.COMPASSO_VERSION || 'dev',
   };
 }

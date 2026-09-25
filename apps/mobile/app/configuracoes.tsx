@@ -122,6 +122,11 @@ export default function Configuracoes() {
             aoTocar={() => router.push('/importar')}
           />
           <LinhaDeLista
+            rotulo="Luna (assistente de voz)"
+            dica="token"
+            aoTocar={() => router.push('/luna')}
+          />
+          <LinhaDeLista
             rotulo="Lembretes agendados"
             dica="diagnóstico"
             seta={false}

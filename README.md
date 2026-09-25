@@ -60,6 +60,7 @@ compasso/
     ├── sincronizacao.md              # como a F1 implementou o protocolo da §6.6
     ├── notificacoes.md               # lembretes locais e importação de ICS (F4)
     ├── deploy.md                     # esteira de deploy, instalação, backup e restauração
+    ├── luna.md                       # integração com a assistente de voz (/api/v1, curl)
     ├── guia-opus-5-5.md              # como pedir, revisar e usar comandos com o Opus 5.5
     └── adr/                          # decisões isoladas e datadas, com as alternativas
 ```

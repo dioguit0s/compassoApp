@@ -222,3 +222,48 @@ export async function encerrarSessaoNoServidor(): Promise<boolean> {
     return false;
   }
 }
+
+/** Token de serviço da Luna (ADR-0012), como o servidor lista: sem o segredo. */
+export interface TokenDeServico {
+  id: string;
+  label: string;
+  scopes: ('agenda:read' | 'agenda:write')[];
+  createdAt: string;
+}
+
+async function comConexao<T>(acao: string, fn: (c: ConexaoServidor) => Promise<T>): Promise<T> {
+  const conexao = await lerConexao();
+  if (!conexao) throw new Error('sem sessão: entre de novo no Perfil');
+  try {
+    return await fn(conexao);
+  } catch (e) {
+    if (e instanceof ErroHttp) throw new Error(e.detalhe ?? e.message, { cause: e });
+    throw new Error(`sem resposta do servidor: ${acao} precisa de rede`, { cause: e });
+  }
+}
+
+export function listarTokensDeServico(): Promise<TokenDeServico[]> {
+  return comConexao('listar os tokens', (c) => chamarApi<TokenDeServico[]>(c, '/service-tokens'));
+}
+
+/** Gera um token de serviço. O segredo só existe nesta resposta: o servidor guarda o hash. */
+export function gerarTokenDeServico(
+  label: string,
+  somenteLeitura: boolean,
+): Promise<TokenDeServico & { token: string }> {
+  return comConexao('gerar o token', (c) =>
+    chamarApi(c, '/service-tokens', {
+      method: 'POST',
+      body: JSON.stringify({
+        label,
+        scopes: somenteLeitura ? ['agenda:read'] : ['agenda:read', 'agenda:write'],
+      }),
+    }),
+  );
+}
+
+export function revogarTokenDeServico(id: string): Promise<void> {
+  return comConexao('revogar o token', (c) =>
+    chamarApi<void>(c, `/service-tokens/${id}`, { method: 'DELETE' }),
+  );
+}

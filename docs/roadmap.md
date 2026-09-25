@@ -413,6 +413,21 @@ aparelho real e antecipou a F10 em 2026-09-23, com a F9 (calibração) ainda por
 se enxergam. Depende de a API estar exposta pelo túnel da Cloudflare, que fica para quando o app
 estiver mais pronto.
 
+### Integração com a Luna (assistente de voz) — fora das fases
+
+Pedido do autor em 2026-09-25, fora da ordem das fases e sem dependência da F9
+([ADR-0012](adr/0012-api-v1-para-a-assistente-de-voz-luna.md)). ✅ Implementada:
+
+- `/api/v1` (health, agenda agregada, tarefas, eventos) com contrato OpenAPI, erro único e
+  idempotência por `Idempotency-Key`.
+- Token de serviço com escopos, gerado e revogado no app (Configurações → Luna).
+- Decisões do autor: tarefa por voz exige esforço e atributo (§4.1 intacta); `priority` e
+  `location` de evento ficam fora — exigiriam coluna nova, migração no app e APK novo.
+
+**Critério de saída:** a Luna, no homeserver, responde "o que eu tenho amanhã?" e cria um evento
+por voz, com o evento aparecendo no celular depois do sync. Pendente: gerar o token no APK novo e
+ligar a Luna.
+
 ---
 
 ## 6. Armadilhas técnicas conhecidas

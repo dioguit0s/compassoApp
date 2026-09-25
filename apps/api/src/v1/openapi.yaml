@@ -1,0 +1,772 @@
+openapi: 3.1.0
+info:
+  title: Compasso — API da Luna
+  version: 1.0.0
+  summary: Agenda, aulas e tarefas do Compasso para a assistente de voz Luna.
+  description: |
+    Porta servidor a servidor para a Luna consultar e criar itens da agenda por voz
+    (ADR-0012). Cada chamada acontece no meio de uma resposta falada: previsibilidade vem antes
+    de recursos.
+
+    **Contrato de tempo**
+    - Todo instante, na entrada e na saída, é ISO 8601 **com deslocamento**
+      (`2026-09-26T14:00:00-03:00`). Sem deslocamento → `400 validation_error`.
+    - O fuso de referência é `America/Sao_Paulo`; toda saída vem nele.
+    - Dia inteiro usa só a data (`"2026-09-26"`) com `all_day: true`, nunca meia-noite UTC. Em
+      evento de dia inteiro, `end` é o **último dia, inclusive**.
+    - A API não interpreta linguagem natural ("amanhã", "sexta"): a Luna resolve a data antes.
+    - Recorrências já vêm expandidas: cada ocorrência é um item, com o `id` da série,
+      `recurring: true` e `occurrence_date`. O mesmo `id` pode aparecer várias vezes numa lista.
+
+    **Erros**: sempre `{"error":{"code","message","field?"}}`. Decida pelo `code` (estável); a
+    `message` é curta, em português, pronta para ser falada.
+
+    **Limites**: 120 requisições por minuto por token (`429 rate_limited` com `Retry-After`);
+    corpo até 16 KiB; intervalo da agenda até 366 dias; página padrão de 100 itens (máx. 200).
+
+    **Não suportado nesta versão**: editar, mover, remanejar ou apagar evento ou tarefa; criar
+    recorrência; desfazer conclusão; local de evento (`location` é sempre `null` em eventos e o
+    campo é recusado na criação); prioridade de tarefa; lembretes; webhooks/push;
+    compartilhamento e múltiplos usuários; aulas (a grade é só leitura, editada no app).
+servers:
+  - url: https://compasso.homelab-server.space/api/v1
+    description: HTTPS pelo túnel da Cloudflare (alcançável de qualquer lugar)
+  - url: http://127.0.0.1:8090/api/v1
+    description: HTTP no próprio homeserver, fora do Docker (porta publicada só no loopback)
+  - url: http://compasso-api:3000/api/v1
+    description: HTTP de dentro de um container na rede Docker da API
+security:
+  - bearer: []
+tags:
+  - name: saúde
+    description: Botão "testar conexão" do painel da Luna.
+  - name: agenda
+    description: A consulta principal, uma ida e volta por pergunta falada.
+  - name: tarefas
+    description: Listar, criar e concluir tarefas.
+  - name: eventos
+    description: Criar eventos simples.
+
+paths:
+  /health:
+    get:
+      tags: [saúde]
+      operationId: health
+      summary: Testar conexão
+      description: |
+        Confere o token e devolve a versão no ar. Não consulta nada além da resolução do token.
+        Token errado ou revogado dá 401, nunca 200.
+      responses:
+        '200':
+          description: Token válido.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, version]
+                properties:
+                  ok: { const: true }
+                  version:
+                    type: string
+                    description: Commit da imagem no ar (`dev` fora do deploy).
+              example: { ok: true, version: 4b025f6 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /agenda:
+    get:
+      tags: [agenda]
+      operationId: getAgenda
+      summary: Eventos, aulas e tarefas de um intervalo, numa chamada
+      description: |
+        Tudo o que cai em `[from, to)`, ordenado por início: eventos (com recorrências
+        expandidas), aulas da grade (inclusive canceladas, com `cancelled: true`) e tarefas com
+        prazo no intervalo. Tarefa sem prazo não tem lugar na agenda: use `GET /tasks`.
+
+        Ordem: instante de início (dia inteiro conta como 00:00 do dia), dia inteiro antes, depois
+        evento, aula, tarefa, e por fim o título.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+          example: '2026-09-26T00:00:00-03:00'
+        - name: to
+          in: query
+          required: true
+          description: Exclusivo. Até 366 dias depois de `from`.
+          schema: { type: string, format: date-time }
+          example: '2026-09-27T00:00:00-03:00'
+        - name: types
+          in: query
+          description: Subconjunto de `event,class,task`, separado por vírgula. Padrão, todos.
+          schema: { type: string }
+          example: event,class
+        - name: q
+          in: query
+          description: |
+            Busca por título (e nome da disciplina, nas aulas), sem diferenciar acento nem caixa.
+            Casa quando toda palavra de 3 letras ou mais aparece no título: "prova de cálculo"
+            encontra "Prova de Cálculo II". Combine com um intervalo largo para perguntas como
+            "quando é a prova?".
+          schema: { type: string, minLength: 1, maxLength: 100 }
+          example: prova de cálculo
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: Itens do intervalo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListaDeItens' }
+              examples:
+                amanha:
+                  summary: GET /agenda?from=2026-09-26T00:00:00-03:00&to=2026-09-27T00:00:00-03:00
+                  value:
+                    timezone: America/Sao_Paulo
+                    items:
+                      - id: 01a0d9ec-865a-755d-825c-1a30799cd8e7
+                        type: event
+                        title: Aniversário da Ana
+                        start: '2026-09-26'
+                        end: '2026-09-26'
+                        all_day: true
+                        location: null
+                        recurring: false
+                        occurrence_date: null
+                      - id: 01a0d9ec-864c-722c-8c33-5754b2a23524
+                        type: event
+                        title: Treino na academia
+                        start: '2026-09-26T07:00:00-03:00'
+                        end: '2026-09-26T08:00:00-03:00'
+                        all_day: false
+                        location: null
+                        recurring: true
+                        occurrence_date: '2026-09-26'
+                      - id: 01a0d9ec-8643-723b-bfb9-03d4e79dc466
+                        type: class
+                        title: Cálculo II
+                        start: '2026-09-26T08:00:00-03:00'
+                        end: '2026-09-26T10:00:00-03:00'
+                        all_day: false
+                        location: B-204
+                        recurring: true
+                        occurrence_date: '2026-09-26'
+                        subject: Cálculo II
+                        professor: Marcos Lima
+                        cancelled: false
+                      - id: 01a0d9ec-8657-7295-b5a6-3c1813e873fa
+                        type: event
+                        title: Dentista
+                        start: '2026-09-26T14:00:00-03:00'
+                        end: '2026-09-26T15:00:00-03:00'
+                        all_day: false
+                        location: null
+                        recurring: false
+                        occurrence_date: null
+                      - id: 01a0d9ec-8674-75ec-b821-046086939197
+                        type: task
+                        title: Entregar relatório de física
+                        start: '2026-09-26T23:59:00-03:00'
+                        end: null
+                        all_day: false
+                        location: null
+                        recurring: false
+                        occurrence_date: null
+                        due: '2026-09-26T23:59:00-03:00'
+                        done: false
+                    next_cursor: null
+                busca:
+                  summary: GET /agenda?from=2026-09-25T00:00:00-03:00&to=2026-11-24T00:00:00-03:00&types=event&q=prova%20de%20calculo
+                  value:
+                    timezone: America/Sao_Paulo
+                    items:
+                      - id: 01a0d9ec-8671-70f7-82c0-26475bd1c764
+                        type: event
+                        title: Prova de Cálculo II
+                        start: '2026-10-09T08:00:00-03:00'
+                        end: '2026-10-09T10:00:00-03:00'
+                        all_day: false
+                        location: null
+                        recurring: false
+                        occurrence_date: null
+                    next_cursor: null
+        '400':
+          description: Parâmetro inválido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+              example:
+                error:
+                  code: validation_error
+                  message: from precisa ser data e hora com fuso, como 2026-09-26T00:00:00-03:00
+                  field: from
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  /tasks:
+    get:
+      tags: [tarefas]
+      operationId: listTasks
+      summary: Tarefas simples, com ou sem prazo
+      description: |
+        Tarefas sem recorrência, prazo mais próximo primeiro e as sem prazo no fim. Tarefas
+        recorrentes aparecem só na agenda, por ocorrência.
+      parameters:
+        - name: done
+          in: query
+          schema: { type: string, enum: ['true', 'false'] }
+          example: 'false'
+        - name: q
+          in: query
+          description: Busca por título, com a mesma regra da agenda.
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: Tarefas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListaDeItens' }
+              example:
+                timezone: America/Sao_Paulo
+                items:
+                  - id: 01a0d9ec-8674-75ec-b821-046086939197
+                    type: task
+                    title: Entregar relatório de física
+                    start: '2026-09-26T23:59:00-03:00'
+                    end: null
+                    all_day: false
+                    location: null
+                    recurring: false
+                    occurrence_date: null
+                    due: '2026-09-26T23:59:00-03:00'
+                    done: false
+                  - id: 01a0d9ec-8675-701f-9cdc-31d4ba35fe41
+                    type: task
+                    title: Lista 3 de cálculo
+                    start: '2026-09-27'
+                    end: null
+                    all_day: true
+                    location: null
+                    recurring: false
+                    occurrence_date: null
+                    due: '2026-09-27'
+                    done: false
+                  - id: 01a0d9ec-8677-7501-a9bd-cf918809bd77
+                    type: task
+                    title: Comprar ração do gato
+                    start: null
+                    end: null
+                    all_day: false
+                    location: null
+                    recurring: false
+                    occurrence_date: null
+                    due: null
+                    done: false
+                next_cursor: null
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+    post:
+      tags: [tarefas]
+      operationId: createTask
+      summary: Criar tarefa
+      description: |
+        Toda tarefa do Compasso pontua, então esforço e atributo são obrigatórios (especificação
+        §4.1). Se a pessoa não disser, a Luna pergunta ou propõe e confirma em voz. Campo
+        desconhecido (ex.: `priority`) → `400 validation_error` com `field`.
+
+        A resposta é o que foi gravado; confirme em voz a partir dela, não do pedido.
+      parameters:
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [title, effort, attribute]
+              properties:
+                title: { $ref: '#/components/schemas/Titulo' }
+                effort:
+                  description: Escala fixa. 1 trivial … 8 muito grande.
+                  type: integer
+                  enum: [1, 2, 3, 5, 8]
+                attribute: { $ref: '#/components/schemas/Atributo' }
+                secondary_attribute:
+                  allOf: [{ $ref: '#/components/schemas/Atributo' }]
+                  description: Opcional; diferente de `attribute`. Divide o XP 70/30.
+                due:
+                  description: Prazo. Só a data (dia inteiro) ou data e hora com deslocamento.
+                  anyOf:
+                    - { type: string, format: date }
+                    - { type: string, format: date-time }
+            examples:
+              comData:
+                value:
+                  { title: Pagar a conta de luz, effort: 1, attribute: casa, due: '2026-09-28' }
+              comHora:
+                value:
+                  title: Entregar relatório de física
+                  effort: 3
+                  attribute: mente
+                  due: '2026-09-26T23:59:00-03:00'
+              semPrazo:
+                value: { title: Comprar ração do gato, effort: 1, attribute: casa }
+      responses:
+        '201':
+          description: Criada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+              example:
+                id: f9b12d32-6ee2-8199-92a1-0834e09ee17f
+                type: task
+                title: Pagar a conta de luz
+                start: '2026-09-28'
+                end: null
+                all_day: true
+                location: null
+                recurring: false
+                occurrence_date: null
+                due: '2026-09-28'
+                done: false
+        '200':
+          description: Reenvio com a mesma `Idempotency-Key` e o mesmo pedido; nada foi criado.
+          headers:
+            Idempotent-Replayed: { schema: { const: 'true' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+        '400':
+          description: Pedido inválido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+              examples:
+                semEsforco:
+                  value:
+                    error: { code: validation_error, message: effort é obrigatório, field: effort }
+                prioridade:
+                  value:
+                    error:
+                      code: validation_error
+                      message: 'campo não suportado: priority'
+                      field: priority
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  /tasks/{id}/complete:
+    post:
+      tags: [tarefas]
+      operationId: completeTask
+      summary: Marcar tarefa como feita
+      description: |
+        Credita XP e moedas como no app. Repetir é seguro: concluir a concluída não credita de
+        novo e devolve `done: true`. Em tarefa recorrente, `occurrence_date` é obrigatório (a data
+        da ocorrência, como veio na agenda); em tarefa simples, proibido. Não há desfazer por
+        aqui: é no app.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                occurrence_date: { type: string, format: date }
+            example: { occurrence_date: '2026-09-26' }
+      responses:
+        '200':
+          description: A tarefa (ou a ocorrência) como ficou.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarefa' }
+              example:
+                id: 01a0d9ec-8677-7501-a9bd-cf918809bd77
+                type: task
+                title: Comprar ração do gato
+                start: null
+                end: null
+                all_day: false
+                location: null
+                recurring: false
+                occurrence_date: null
+                due: null
+                done: true
+        '400':
+          description: Falta ou sobra `occurrence_date`, ou a tarefa não acontece nessa data.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+              example:
+                error:
+                  code: validation_error
+                  message: 'essa tarefa se repete: informe occurrence_date'
+                  field: occurrence_date
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Não existe, foi excluída ou não é tarefa (evento não se conclui por aqui).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+              example: { error: { code: not_found, message: não encontrei essa tarefa } }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  /events:
+    post:
+      tags: [eventos]
+      operationId: createEvent
+      summary: Criar evento
+      description: |
+        Evento simples (sem recorrência e sem pontuação). Sem `end` nem `duration_minutes`, dura
+        60 minutos. Recebe o lembrete padrão configurado no app.
+
+        **Conflito não bloqueia**: o evento é criado e `conflicts` lista os eventos com horário
+        e as aulas não canceladas que se sobrepõem a ele (sempre presente; vazio quando não há).
+        Dia inteiro não conflita com nada. A Luna decide o que falar.
+      parameters:
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [title, start]
+              properties:
+                title: { $ref: '#/components/schemas/Titulo' }
+                start:
+                  description: Data e hora com deslocamento; com `all_day`, só a data.
+                  anyOf:
+                    - { type: string, format: date-time }
+                    - { type: string, format: date }
+                end:
+                  description: |
+                    Exclusivo com `duration_minutes`. Com `all_day`, a data do último dia
+                    (inclusive).
+                  anyOf:
+                    - { type: string, format: date-time }
+                    - { type: string, format: date }
+                duration_minutes: { type: integer, minimum: 1, maximum: 10080, default: 60 }
+                all_day: { type: boolean, default: false }
+            examples:
+              comHora:
+                value: { title: Reunião do grupo, start: '2026-09-26T14:30:00-03:00' }
+              comDuracao:
+                value:
+                  title: Café com a Bia
+                  start: '2026-09-26T16:00:00-03:00'
+                  duration_minutes: 30
+              diaInteiro:
+                value:
+                  {
+                    title: Viagem para Campinas,
+                    start: '2026-09-30',
+                    end: '2026-10-02',
+                    all_day: true,
+                  }
+      responses:
+        '201':
+          description: Criado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventoCriado' }
+              examples:
+                comConflito:
+                  value:
+                    id: e45a2a4e-9cdb-893d-a706-14d105ee1cb8
+                    type: event
+                    title: Reunião do grupo
+                    start: '2026-09-26T14:30:00-03:00'
+                    end: '2026-09-26T15:30:00-03:00'
+                    all_day: false
+                    location: null
+                    recurring: false
+                    occurrence_date: null
+                    conflicts:
+                      - id: 01a0d9ec-8657-7295-b5a6-3c1813e873fa
+                        type: event
+                        title: Dentista
+                        start: '2026-09-26T14:00:00-03:00'
+                        end: '2026-09-26T15:00:00-03:00'
+                        all_day: false
+                        location: null
+                        recurring: false
+                        occurrence_date: null
+                diaInteiro:
+                  value:
+                    id: 01a0d9ec-87ac-7642-bb5b-753badb2a30b
+                    type: event
+                    title: Viagem para Campinas
+                    start: '2026-09-30'
+                    end: '2026-10-02'
+                    all_day: true
+                    location: null
+                    recurring: false
+                    occurrence_date: null
+                    conflicts: []
+        '200':
+          description: Reenvio com a mesma `Idempotency-Key` e o mesmo pedido; nada foi criado.
+          headers:
+            Idempotent-Replayed: { schema: { const: 'true' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventoCriado' }
+              example:
+                id: 1a2f605f-ec42-89a3-a793-3a3896c3cf0e
+                type: event
+                title: Café com a Bia
+                start: '2026-09-26T16:00:00-03:00'
+                end: '2026-09-26T16:30:00-03:00'
+                all_day: false
+                location: null
+                recurring: false
+                occurrence_date: null
+                conflicts: []
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: |
+        Token de serviço gerado no app (Perfil → Configurações → Luna), mostrado uma vez.
+        Escopos: `agenda:read` (consultas) e `agenda:write` (criar e concluir). Revogado ou
+        errado → 401; válido sem o escopo da rota → 403. O token de serviço não acessa nenhuma
+        rota fora de /api/v1. Trocar a senha no app revoga todos os tokens, inclusive o da Luna.
+
+  parameters:
+    limit:
+      name: limit
+      in: query
+      description: Itens por página, de 1 a 200. Um dia ou uma semana cabem na página padrão.
+      schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+    cursor:
+      name: cursor
+      in: query
+      description: O `next_cursor` da resposta anterior, com os mesmos filtros.
+      schema: { type: string }
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        1 a 200 caracteres ASCII visíveis, único por intenção de criação (ex.: id do turno de
+        voz). Reenviar o mesmo pedido com a mesma chave devolve o item já gravado com 200 e
+        `Idempotent-Replayed: true`, sem duplicar, mesmo depois de reinício da API. A mesma chave
+        com outro pedido → 409 `conflict`. Sem a chave, cada POST de criação cria um item.
+      schema: { type: string, minLength: 1, maxLength: 200 }
+      example: luna-turno-8f3a1c
+
+  schemas:
+    Titulo:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: Texto puro, sem quebras de linha nem caracteres de controle.
+    Atributo:
+      type: string
+      enum: [corpo, mente, oficio, casa, social]
+    Data:
+      type: string
+      format: date
+      examples: ['2026-09-26']
+    DataOuInstante:
+      description: Só a data quando `all_day`; senão data e hora com deslocamento de São Paulo.
+      anyOf:
+        - { type: string, format: date, examples: ['2026-09-26'] }
+        - { type: string, format: date-time, examples: ['2026-09-26T14:00:00-03:00'] }
+    Base:
+      type: object
+      required: [id, type, title, start, end, all_day, location, recurring, occurrence_date]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Id do item; numa recorrência, o da série (repete entre ocorrências).
+        title:
+          type: string
+          maxLength: 200
+          description: Texto puro, truncado em 200 caracteres com "…".
+        start:
+          anyOf: [{ $ref: '#/components/schemas/DataOuInstante' }, { type: 'null' }]
+        end:
+          anyOf: [{ $ref: '#/components/schemas/DataOuInstante' }, { type: 'null' }]
+        all_day: { type: boolean }
+        location:
+          type: [string, 'null']
+          description: Sala, nas aulas. Sempre `null` em eventos e tarefas nesta versão.
+        recurring: { type: boolean }
+        occurrence_date:
+          anyOf: [{ $ref: '#/components/schemas/Data' }, { type: 'null' }]
+          description: Data original da ocorrência na série; `null` em item simples.
+    Evento:
+      allOf:
+        - $ref: '#/components/schemas/Base'
+        - type: object
+          required: [type]
+          properties:
+            type: { const: event }
+            end:
+              description: |
+                Dia inteiro: a data do último dia, inclusive. Com horário: o fim, ou `null` em
+                evento sem duração.
+    Aula:
+      allOf:
+        - $ref: '#/components/schemas/Base'
+        - type: object
+          required: [type, subject, professor, cancelled]
+          properties:
+            type: { const: class }
+            id: { description: 'Id do horário semanal da disciplina (a "série").' }
+            subject: { type: string }
+            professor: { type: [string, 'null'] }
+            cancelled:
+              type: boolean
+              description: Cancelada por exceção da grade; aparece na agenda para ser dita.
+    Tarefa:
+      allOf:
+        - $ref: '#/components/schemas/Base'
+        - type: object
+          required: [type, due, done]
+          properties:
+            type: { const: task }
+            start: { description: Igual a `due` (para a agenda ordenar por um campo só). }
+            end: { type: 'null' }
+            due:
+              anyOf: [{ $ref: '#/components/schemas/DataOuInstante' }, { type: 'null' }]
+            done: { type: boolean }
+    Item:
+      oneOf:
+        - $ref: '#/components/schemas/Evento'
+        - $ref: '#/components/schemas/Aula'
+        - $ref: '#/components/schemas/Tarefa'
+      discriminator:
+        propertyName: type
+        mapping:
+          event: '#/components/schemas/Evento'
+          class: '#/components/schemas/Aula'
+          task: '#/components/schemas/Tarefa'
+    ListaDeItens:
+      type: object
+      required: [timezone, items, next_cursor]
+      properties:
+        timezone: { const: America/Sao_Paulo }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Item' }
+        next_cursor:
+          type: [string, 'null']
+          description: '`null` quando não há mais páginas.'
+    EventoCriado:
+      allOf:
+        - $ref: '#/components/schemas/Evento'
+        - type: object
+          required: [conflicts]
+          properties:
+            conflicts:
+              type: array
+              items:
+                oneOf:
+                  - $ref: '#/components/schemas/Evento'
+                  - $ref: '#/components/schemas/Aula'
+    Erro:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                [
+                  unauthorized,
+                  forbidden,
+                  not_found,
+                  validation_error,
+                  conflict,
+                  rate_limited,
+                  internal,
+                ]
+            message:
+              type: string
+              description: Curta, em português, pode ser falada.
+            field:
+              type: string
+              description: Campo, parâmetro ou cabeçalho culpado, quando há um.
+
+  responses:
+    ValidationError:
+      description: '`validation_error`: pedido inválido (400) ou corpo acima de 16 KiB (413).'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+          example:
+            error:
+              code: validation_error
+              message: start precisa ser data e hora com fuso, como 2026-09-26T14:00:00-03:00
+              field: start
+    Unauthorized:
+      description: Token ausente, errado ou revogado.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+          example: { error: { code: unauthorized, message: token ausente ou inválido } }
+    Forbidden:
+      description: Token válido sem o escopo da rota.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+          example: { error: { code: forbidden, message: este token só pode consultar a agenda } }
+    Conflict:
+      description: A `Idempotency-Key` já foi usada com outro pedido.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+          example:
+            error: { code: conflict, message: essa Idempotency-Key já foi usada com outro pedido }
+    RateLimited:
+      description: Mais de 120 requisições no último minuto com este token.
+      headers:
+        Retry-After:
+          description: Segundos até poder tentar de novo.
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+          example:
+            error: { code: rate_limited, message: muitas requisições; tente de novo em 60 s }
+    Internal:
+      description: Falha real do Compasso (banco fora do ar, bug). Só aqui há 5xx.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+          example: { error: { code: internal, message: erro interno no Compasso } }
