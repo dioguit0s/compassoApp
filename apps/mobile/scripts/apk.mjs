@@ -82,7 +82,11 @@ const android = join(raiz, 'android');
 const abi = process.env.COMPASSO_ABI
   ? [`-PreactNativeArchitectures=${process.env.COMPASSO_ABI}`]
   : [];
-rodar(join(android, windows ? 'gradlew.bat' : 'gradlew'), ['assembleRelease', ...abi], android);
+const gradlew = join(android, windows ? 'gradlew.bat' : 'gradlew');
+// Daemon de um build anterior pode ter outro JDK ou segurar arquivos abertos em node_modules (no
+// Windows, "Unable to delete file"): começa sempre do zero.
+rodar(gradlew, ['--stop'], android);
+rodar(gradlew, ['assembleRelease', ...abi], android);
 
 const { expo } = JSON.parse(readFileSync(join(raiz, 'app.json'), 'utf8'));
 const http = process.env.COMPASSO_PERMITIR_HTTP === '1';
