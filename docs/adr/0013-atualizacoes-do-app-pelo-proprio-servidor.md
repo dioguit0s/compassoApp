@@ -61,7 +61,13 @@ motivos:
 - O plugin do React Native para o Gradle reescreve o `AndroidManifest.xml` de bibliotecas dentro de
   `node_modules` durante o build: o `@react-native-masked-view` perdeu o atributo `package`.
 
-A config ignora, só dentro de `node_modules`, os `*.js`, as pastas `android/build` e os
+No primeiro `apk:publicar` apareceu um terceiro motivo. Durante o build, o daemon do Kotlin
+cria arquivos de sessão em `.kotlin/` dentro dos plugins do Gradle em `node_modules` (a lista
+padrão do fingerprint não cobre `.kotlin/`) e os apaga no fim. Assim, o runtime que o Gradle
+embute no APK saía diferente do calculado depois, e o script recusou publicar.
+
+A config ignora, só dentro de `node_modules`, os `*.js`, as saídas de build (`android/build`,
+`.cxx`, `.gradle`, e `build`, `.gradle` e `.kotlin` dos `*-gradle-plugin`) e os
 `android/src/main/AndroidManifest.xml`, com padrões sem `**` na frente, que casam nos dois
 sistemas. O que decide a compatibilidade nativa continua no hash: o código nativo e o
 `package.json` (versão) de cada pacote, a config do Expo e os plugins locais. O JS dos pacotes vai
