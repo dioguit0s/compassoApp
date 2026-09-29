@@ -164,10 +164,19 @@ e o log da API aparece no próprio job.
 
 ### Atualizar o app
 
-1. No `apps/mobile/app.json`, suba `version` (ex.: `0.1.1`) e `android.versionCode` (+1). O
-   Android recusa instalar `versionCode` menor ou igual ao instalado.
-2. `npm run apk -w @compasso/mobile` (com a **mesma** chave).
-3. Instale o novo `.apk` por cima. Os dados locais ficam.
+Desde a 0.3.0 ninguém instala nada à mão
+([ADR-0013](adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)):
+
+- **Mudou só JS** (tela, regra, texto): faça push na `main`. Em Actions → **App**, o job
+  `publicar-ota` termina com "OTA publicado", e os celulares pegam a versão nova em até duas
+  aberturas do app.
+- **Mudou algo nativo** (o job avisa "OTA não publicado: mudança nativa"):
+  1. No `apps/mobile/app.json`, suba `version` (ex.: `0.3.1`) e `android.versionCode` (+1), e
+     commite.
+  2. `npm run apk:publicar -w @compasso/mobile -- --notas "O que mudou"` (com a **mesma** chave).
+  3. Na próxima abertura, cada celular mostra "Versão 0.3.1 disponível"; um toque baixa e instala
+     por cima. Os dados locais ficam.
+- **Um OTA quebrou algo:** `npm run ota:reverter -w @compasso/mobile` volta para o anterior.
 
 ### Convidar alguém
 

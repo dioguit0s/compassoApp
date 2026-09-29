@@ -3,6 +3,7 @@
 #   api.env    DATABASE_URL (papel compasso_app) e demais variáveis da API
 #   admin.env  POSTGRES_PASSWORD, COMPASSO_OWNER_PASSWORD, COMPASSO_APP_PASSWORD, DATABASE_ADMIN_URL
 #   .env       COMPASSO_TAG=<commit> da versão no ar, escrito pelo deploy.sh
+#   releases/  APKs e bundles OTA do app (ADR-0013), servidos pela API
 #
 # Comandos à mão, de dentro de ~/compasso:
 #   docker compose ps
@@ -41,11 +42,17 @@ services:
     environment:
       # Devolvida por GET /api/v1/health (ADR-0012).
       COMPASSO_VERSION: ${COMPASSO_TAG}
+      # APK e OTA do app (ADR-0013). O túnel entrega HTTP à API: as URLs absolutas dos
+      # downloads saem desta, não da origem do pedido.
+      RELEASES_DIR: /var/lib/compasso/releases
+      URL_PUBLICA: ${COMPASSO_URL_PUBLICA:-https://compasso.homelab-server.space}
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
       - avatares:/var/lib/compasso/avatares
+      # Escrita pelo runner (OTA, ota.mjs) e pelo apk:publicar (scp); a API só lê.
+      - ./releases:/var/lib/compasso/releases:ro
     # Health check do deploy e diagnóstico no próprio servidor; nada de fora chega aqui.
     ports:
       - '127.0.0.1:${COMPASSO_PORTA:-8090}:3000'

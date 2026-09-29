@@ -49,6 +49,26 @@ migrado. Uma migração destrutiva precisa de plano próprio antes do push.
 
 Conferir de fora: `https://compasso.homelab-server.space/health` → `{"ok":true}`.
 
+## Atualizações do app
+
+A API serve o APK e o OTA a partir de `~/compasso/releases` (montada somente leitura no container,
+[ADR-0013](adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)). O `deploy.sh` cria a pasta.
+
+```
+releases/android/android.json        APK atual (versão, runtime, md5, notas, mínimo)
+releases/android/compasso-*.apk      os 3 mais recentes
+releases/ota/<runtime>/<instante-commit>/   bundles OTA: 5 do runtime atual, 1 de cada antigo
+releases/ota-revertidas/             o que o ota:reverter tirou do ar
+```
+
+- **OTA:** o workflow **App** (push na `main` que toque `apps/mobile`, o core ou o lockfile)
+  roda `ota.mjs` no runner, que escreve direto em `releases/ota`. Pula, com aviso no resumo do
+  job, se o commit mudou algo nativo em relação ao APK publicado.
+- **APK:** `npm run apk:publicar -w @compasso/mobile -- --notas "..."`, da máquina do autor, por
+  `scp` ([`desenvolvimento.md`](desenvolvimento.md#atualizações-apk-e-ota)).
+
+Conferir de fora: `https://compasso.homelab-server.space/app/android` devolve o manifesto do APK.
+
 ## Instalação inicial (uma vez)
 
 Os comandos com `ssh luna-dash` rodam do Windows; os demais, no servidor como `ash`. Só o passo 2

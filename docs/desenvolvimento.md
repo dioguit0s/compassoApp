@@ -171,8 +171,37 @@ Sem essas propriedades o APK sai assinado com a chave de debug e o script avisa.
 A cada versão distribuída, suba `version` e `android.versionCode` no `app.json`. O Android não
 instala versão com `versionCode` menor que a instalada.
 
-Instalar: mande o `.apk` (por mensagem ou link) e a pessoa permite "instalar apps desconhecidos"
-para o app por onde abriu o arquivo. Com o aparelho no cabo: `adb install -r <arquivo>.apk`.
+Primeira instalação: mande o `.apk` (por mensagem ou link) e a pessoa permite "instalar apps
+desconhecidos" para o app por onde abriu o arquivo. Com o aparelho no cabo: `adb install -r
+<arquivo>.apk`. Da 0.3.0 em diante, as versões novas chegam sozinhas (abaixo).
+
+### Atualizações (APK e OTA)
+
+Duas vias, as duas pelo servidor
+([ADR-0013](adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)):
+
+- **Mudança só de JS** (telas, regras, textos): basta o push na `main`. O workflow **App** publica
+  o bundle como OTA, e os apps baixam na abertura e aplicam na seguinte (ou na hora, em
+  "Reiniciar"). Se algo der errado: `npm run ota:reverter -w @compasso/mobile` republica a
+  publicação anterior. Não reverta para antes de uma migração do SQLite (`drizzle/`): corrija para
+  frente.
+- **Mudança nativa** (dependência com código nativo, plugin, permissão, `app.json`, versão do
+  Expo): o runner pula o OTA e avisa no resumo do job. Suba `version` e `android.versionCode` no
+  `app.json`, commite e publique o APK:
+
+```sh
+npm run apk:publicar -w @compasso/mobile -- --notas "O que mudou"
+npm run apk:publicar -w @compasso/mobile -- --notas "..." --minimo 5   # abaixo do 5, obrigatória
+```
+
+O script exige árvore limpa e a chave de release, gera só arm64-v8a e confere que o runtime do APK
+(`assets/fingerprint`) é o fingerprint do commit. Depois envia por `ssh luna-dash`
+(`COMPASSO_SSH` troca o host) para `~/compasso/releases/android/`. Os apps oferecem a versão nova
+na abertura seguinte.
+
+O runtime é o fingerprint nativo do Expo, e o `apps/mobile/fingerprint.config.js` existe para ele
+dar o mesmo hash no Windows (APK) e no Linux (runner). Para ver o hash:
+`npx expo-updates fingerprint:generate --platform android` em `apps/mobile`.
 
 ### `packages/core` no Metro
 

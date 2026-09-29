@@ -15,6 +15,8 @@ export const config: Config = {
   avatarDir: join(tmpdir(), `compasso-avatares-${process.pid}`),
   avatarMaxBytes: 5 * 1024 * 1024,
   versao: 'teste',
+  releasesDir: join(tmpdir(), `compasso-releases-${process.pid}`),
+  urlPublica: null,
 };
 
 export async function ambiente() {

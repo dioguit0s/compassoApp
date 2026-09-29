@@ -10,6 +10,14 @@ export interface Config {
   avatarMaxBytes: number;
   /** Versão no ar (commit da imagem, ADR-0011), devolvida por GET /api/v1/health. */
   versao: string;
+  /** APKs e bundles OTA publicados, servidos em /app/android e /updates (ADR-0013). */
+  releasesDir: string;
+  /**
+   * URL pública da API, para as URLs absolutas do APK e dos assets do OTA. Em produção o túnel
+   * entrega HTTP à API, então a origem do pedido não serve; sem ela (desenvolvimento), usa-se a
+   * origem do pedido.
+   */
+  urlPublica: string | null;
 }
 
 function inteiro(nome: string, padrao: number): number {
@@ -32,5 +40,7 @@ export function lerConfig(): Config {
     avatarDir: process.env.AVATAR_DIR || './avatares',
     avatarMaxBytes: inteiro('AVATAR_MAX_BYTES', 5 * 1024 * 1024),
     versao: process.env.COMPASSO_VERSION || 'dev',
+    releasesDir: process.env.RELEASES_DIR || './releases',
+    urlPublica: process.env.URL_PUBLICA?.replace(/\/+$/, '') || null,
   };
 }

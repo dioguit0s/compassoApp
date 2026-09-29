@@ -50,6 +50,8 @@ install -m 644 "$raiz/deploy/compose.yml" "$DESTINO/compose.yml"
 install -m 755 "$raiz/deploy/postgres-init.sh" "$DESTINO/postgres-init.sh"
 install -m 644 "$raiz/apps/api/scripts/bootstrap.sql" "$DESTINO/bootstrap.sql"
 install -m 755 "$raiz/deploy/manutencao.sh" "$DESTINO/manutencao.sh"
+# APK e OTA do app (ADR-0013): a API lê daqui, o runner e o apk:publicar escrevem.
+install -d -m 755 "$DESTINO/releases" "$DESTINO/releases/android" "$DESTINO/releases/ota"
 
 compose "$novo" up -d --wait postgres
 echo "deploy: migrações"

@@ -7,7 +7,8 @@
  *    senão o Android recusa instalar a atualização por cima. Sem elas, cai na chave de debug e o
  *    script avisa: serve para testar, não para distribuir.
  * 2. HTTP sem TLS. O release só fala HTTPS (o servidor de verdade fica atrás do túnel). Para testar
- *    o APK contra a API local, gere com COMPASSO_PERMITIR_HTTP=1 — e não distribua esse.
+ *    o APK contra a API local, gere com COMPASSO_PERMITIR_HTTP=1 — e não distribua esse. Esse APK
+ *    também sai com o expo-updates desligado, para nunca puxar o OTA de produção (ADR-0013).
  */
 const { withAndroidManifest, withAppBuildGradle } = require('expo/config-plugins');
 
@@ -56,4 +57,10 @@ function comHttp(config) {
   });
 }
 
-module.exports = (config) => comHttp(comAssinatura(config));
+function semOtaNoTeste(config) {
+  if (process.env.COMPASSO_PERMITIR_HTTP !== '1') return config;
+  // Muda a config antes dos mods rodarem: o plugin do expo-updates lê `updates.enabled` dela.
+  return { ...config, updates: { ...config.updates, enabled: false } };
+}
+
+module.exports = (config) => comHttp(comAssinatura(semOtaNoTeste(config)));

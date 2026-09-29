@@ -407,7 +407,16 @@ aparelho real e antecipou a F10 em 2026-09-23, com a F9 (calibração) ainda por
 - **Régua de esforço por conta.** ✅ Fixa, a mesma para todos (ADR-0009).
 - **Distribuição.** ✅ APK de release gerado localmente (`npm run apk -w @compasso/mobile`),
   assinado com chave própria (ADR-0008). No Windows o build exige CMake 3.31+ (caminho longo no
-  C++ nativo, ver [`desenvolvimento.md`](desenvolvimento.md)); o primeiro APK ainda não foi gerado.
+  C++ nativo, ver [`desenvolvimento.md`](desenvolvimento.md)). O 0.1.0 foi instalado no celular do
+  autor em 2026-09-24.
+- **Atualizações automáticas.** ✅ Implementadas em 2026-09-29, validação pendente
+  ([ADR-0013](adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)). O APK é publicado no
+  servidor (`apk:publicar`) e o app avisa e instala com um toque. O bundle JS vai por OTA própria
+  (`expo-updates`), publicada pelo runner a cada push na `main`. A compatibilidade é pelo
+  fingerprint nativo, igual no Windows e no Linux com o `fingerprint.config.js`.
+  **Critério de saída:** com o 0.3.0 instalado, um push só de JS chega ao celular em até duas
+  aberturas sem ação de ninguém; um push com mudança nativa faz o runner pular o OTA com aviso; um
+  `apk:publicar` do 0.3.1 aparece como diálogo na abertura e instala por cima.
 
 **Critério de saída:** um amigo recebe o convite e o APK, cria a conta, usa, e as duas contas não
 se enxergam. Depende de a API estar exposta pelo túnel da Cloudflare, que fica para quando o app

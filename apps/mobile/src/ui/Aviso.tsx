@@ -10,12 +10,15 @@ interface Aviso {
 }
 
 const Contexto = createContext<(a: Aviso) => void>(() => {});
+/** Altura da barra de aviso na tela (0 sem aviso), para outra barra não ficar por baixo dela. */
+const ContextoAltura = createContext(0);
 
 /** Barra de aviso temporária no rodapé (ex.: "+3,5 Mente · +5 moedas — DESFAZER"). */
 export function ProvedorDeAvisos({ children }: { children: ReactNode }) {
   const tema = useTema();
   const { bottom } = useSafeAreaInsets();
   const [aviso, setAviso] = useState<Aviso | null>(null);
+  const [altura, setAltura] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mostrar = useCallback((a: Aviso) => {
     if (timer.current) clearTimeout(timer.current);
@@ -24,9 +27,10 @@ export function ProvedorDeAvisos({ children }: { children: ReactNode }) {
   }, []);
   return (
     <Contexto.Provider value={mostrar}>
-      {children}
+      <ContextoAltura.Provider value={aviso ? altura : 0}>{children}</ContextoAltura.Provider>
       {aviso ? (
         <View
+          onLayout={(e) => setAltura(e.nativeEvent.layout.height)}
           // Logo acima da barra de abas (64 + margem de gestos), por cima do botão "+".
           style={[
             estilos.barra,
@@ -64,6 +68,10 @@ export function ProvedorDeAvisos({ children }: { children: ReactNode }) {
 
 export function useAviso() {
   return useContext(Contexto);
+}
+
+export function useAlturaDoAviso() {
+  return useContext(ContextoAltura);
 }
 
 const estilos = StyleSheet.create({

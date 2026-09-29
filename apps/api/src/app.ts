@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { rotasDeAcesso, rotasPublicasDeAcesso } from './acesso';
+import { rotasDeAtualizacao } from './atualizacoes';
 import { autenticacao, type VariaveisAutenticadas } from './auth';
 import type { Config } from './config';
 import type { Banco } from './db/banco';
@@ -26,7 +27,7 @@ export function criarApp(banco: Banco, config: Config) {
     return c.json({ erro: 'erro interno' }, 500);
   });
 
-  // Sem autenticação: /health (túnel e deploy), /avatares, cadastro e entrada.
+  // Sem autenticação: /health (túnel e deploy), /avatares, atualizações, cadastro e entrada.
   app.get('/health', (c) => c.json({ ok: true }));
 
   const limite = new LimiteDeTentativas(); // por conta: 5 em 15 min
@@ -48,6 +49,9 @@ export function criarApp(banco: Banco, config: Config) {
       return c.notFound();
     }
   });
+
+  // APK e OTA do app (ADR-0013): públicos, quem está deslogado também precisa atualizar.
+  app.route('/', rotasDeAtualizacao(config));
 
   // A porta da Luna (ADR-0012), antes do middleware de sessão: tem autenticação, escopos e
   // formato de erro próprios, e aceita o token de serviço que as outras rotas recusam.

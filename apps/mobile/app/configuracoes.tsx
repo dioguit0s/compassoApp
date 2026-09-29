@@ -4,6 +4,7 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { bundleEmUso, versaoInstalada } from '../src/atualizacao';
 import { db } from '../src/db';
 import { reagendar } from '../src/notificacoes';
 import { salvarPreferencias } from '../src/perfil';
@@ -11,6 +12,7 @@ import { encerrarSessaoNoServidor, esquecerConexao, trocarSenha } from '../src/s
 import { apagarDadosLocais, repositorio } from '../src/sync';
 import { useTema } from '../src/tema';
 import { quantas } from '../src/texto';
+import { useProcurarAtualizacao } from '../src/ui/Atualizacao';
 import { CabecalhoInterno } from '../src/ui/Cabecalho';
 import { Botao, Campo, Chip, LinhaDeLista, Rotulo } from '../src/ui/Campos';
 import { useAlerta } from '../src/ui/Dialogo';
@@ -25,6 +27,34 @@ const LEMBRETES: { rotulo: string; minutos: number | null }[] = [
 ];
 
 /** Configurações (especificação §7, issue #85). Nome e lembrete padrão funcionam offline. */
+/** Versão instalada e atualização manual (ADR-0013); a automática roda na abertura. */
+function SobreOApp() {
+  const tema = useTema();
+  const procurar = useProcurarAtualizacao();
+  const [procurando, setProcurando] = useState(false);
+  const { nome, codigo } = versaoInstalada();
+  return (
+    <View style={[estilos.bloco, { gap: 8 }]}>
+      <Rotulo>Sobre o app</Rotulo>
+      <Texto style={{ fontSize: 12.5, lineHeight: 19, color: tema.texto2 }}>
+        Versão {nome} ({codigo}) · {bundleEmUso()}
+      </Texto>
+      <Botao
+        rotulo={procurando ? 'Procurando…' : 'Procurar atualização'}
+        desativado={procurando}
+        aoTocar={async () => {
+          setProcurando(true);
+          try {
+            await procurar('manual');
+          } finally {
+            setProcurando(false);
+          }
+        }}
+      />
+    </View>
+  );
+}
+
 export default function Configuracoes() {
   const tema = useTema();
   const router = useRouter();
@@ -139,6 +169,8 @@ export default function Configuracoes() {
             aoTocar={() => router.push('/diagnostico')}
           />
         </View>
+
+        <SobreOApp />
 
         {conta ? <TrocaDeSenha /> : null}
 

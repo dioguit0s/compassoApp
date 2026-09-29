@@ -38,6 +38,11 @@ sessão revogável por aparelho, troca de senha e APK de release gerado localmen
 fixos para todos (ADR-0009); backup continua só no servidor (ADR-0010). A API ainda não está no
 túnel.
 
+**Atualizações automáticas (2026-09-29):** o bundle JS chega aos celulares por OTA própria
+(`expo-updates` contra a API), publicada pelo runner a cada push na `main`. Um APK novo, quando há
+mudança nativa, é publicado no servidor e instalado pelo próprio app com um toque
+([ADR-0013](docs/adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)).
+
 ## Estrutura
 
 ```
@@ -49,6 +54,7 @@ compasso/
 │   └── core/                         # lógica pura compartilhada: IDs, invariantes, sync, datas
 ├── deploy/                           # compose de produção, deploy.sh e manutencao.sh (ADR-0011)
 ├── .github/workflows/api.yml         # esteira: verifica e faz deploy no homeserver
+├── .github/workflows/app.yml         # esteira do app: verifica e publica o OTA (ADR-0013)
 ├── CLAUDE.md                         # instruções do Claude Code: quando continuar e quando parar
 ├── TASKS.md                          # checklist persistente para tarefas longas do Claude
 ├── .claude/commands/                 # comandos do projeto: /revisar-diff, /auditoria

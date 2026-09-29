@@ -556,6 +556,13 @@ orçamento, priorizando por proximidade, e reagendar na abertura do Compasso e e
 background. Sem push do servidor — que exigiria credenciais de FCM e APNs e uma conta de
 desenvolvedor, para resolver um problema que a janela deslizante já resolve.
 
+**Atualizações do app vêm do próprio servidor**
+([ADR-0013](adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)). O bundle JS chega sozinho
+por OTA (`expo-updates` contra a API): o runner publica a cada push na `main` e o app aplica na
+abertura seguinte. Mudança nativa só vem com APK novo, que o autor publica no servidor
+(`apk:publicar`); o app avisa e instala com um toque. A compatibilidade entre bundle e APK é o
+fingerprint nativo (`runtimeVersion`).
+
 ### 6.3 Endpoints
 
 ```
@@ -610,6 +617,14 @@ GET    /agenda?from=&to=             aulas projetadas + itens + ocorrências, nu
 GET    /service-tokens               tokens de serviço ativos (sem o segredo)
 POST   /service-tokens               gera token de serviço; o segredo aparece só nesta resposta
 DELETE /service-tokens/:id           revoga
+
+# Atualizações do app (ADR-0013), públicas. Arquivos de RELEASES_DIR.
+GET    /app/android                  APK mais recente: versionCode, notas, md5, tamanho, url,
+                                     minimoVersionCode (abaixo dele, atualização obrigatória)
+GET    /app/android/:arquivo         o APK (stream)
+GET    /updates/manifest             protocolo expo-updates v1: manifesto do bundle mais recente do
+                                     runtime pedido, noUpdateAvailable ou rollBackToEmbedded
+GET    /updates/assets/:runtime/:publicacao/*   bundle e assets de uma publicação
 
 # Porta da Luna, assistente de voz (ADR-0012). Contrato em apps/api/src/v1/openapi.yaml.
 GET    /api/v1/health                testar conexão; token errado → 401
@@ -899,6 +914,8 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 | `BACKUP_KEEP_DAILY` | não | Dumps retidos. Padrão 7 |
 | `TRASH_RETENTION_DAYS` | não | Prazo da lixeira e da purga de tombstones. Padrão 30 |
 | `COMPASSO_VERSION` | não | Versão devolvida por `GET /api/v1/health`. O compose passa o commit da imagem; padrão `dev` |
+| `RELEASES_DIR` | não | APKs e bundles OTA publicados (§6.2, ADR-0013). Padrão `./releases`; o compose monta `~/compasso/releases` somente leitura |
+| `URL_PUBLICA` | em produção | Origem das URLs absolutas do APK e dos assets do OTA. O túnel entrega HTTP à API, então a origem do pedido não serve. O compose passa `https://compasso.homelab-server.space`; sem ela, usa a origem do pedido |
 
 O token identifica a pessoa e a API resolve o `userId` a partir dele. Os tokens não ficam em
 variável de ambiente: a tabela `api_tokens` guarda o SHA-256 de cada um, um por aparelho, e o

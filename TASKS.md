@@ -8,7 +8,22 @@ mova o registro para o PR/commit correspondente.
 
 ---
 
-## Tarefa atual — API /api/v1 para a Luna (assistente de voz) (2026-09-25)
+## Tarefa atual — atualizações automáticas do app (2026-09-29)
+
+Plano: APK publicado no próprio servidor + atualizador no app (fase A) e OTA própria com
+expo-updates publicada pelo runner a cada push na main (fase B, decisão do usuário).
+
+- [x] 0. Spike: fingerprint igual no Windows e no Linux — só com `fingerprint.config.js` (bug de
+      caminho do @expo/fingerprint no Windows + Gradle reescreve AndroidManifest em node_modules)
+- [x] 1. API: config, atualizacoes.ts (/app/android, /updates/*) e testes
+- [x] 2. App: deps, app.json 0.3.0, atualizacao.ts, aviso, Configurações, plugin
+- [x] 3. Scripts publicar-apk.mjs e ota.mjs, workflow app.yml, compose.yml, deploy.sh
+- [x] 4. ADR-0013, especificação, roadmap, deploy/desenvolvimento/README; verificar; revisão; commit
+- [x] Revisão do diff: bloqueante (limpeza de runtime antigo causava rollBackToEmbedded) e
+      6 sugestões corrigidas
+- [ ] 5. **No servidor (usuário):** push, apk:publicar 0.3.0, instalar à mão, testes ponta a ponta
+
+## Tarefa anterior — API /api/v1 para a Luna (assistente de voz) (2026-09-25)
 
 Decisões do usuário: tarefa criada por voz exige `effort` e `attribute` (§4.1 intacta);
 `priority` não é suportada agora. Default meu, mesmo critério: `location` de evento também não

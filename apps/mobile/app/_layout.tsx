@@ -22,6 +22,7 @@ import { db } from '../src/db';
 import { ProvedorDeDisciplinas } from '../src/disciplinas';
 import { useHoje } from '../src/hooks';
 import { repositorio } from '../src/sync';
+import { ProvedorDeAtualizacao } from '../src/ui/Atualizacao';
 import { ProvedorDeAvisos } from '../src/ui/Aviso';
 import { ProvedorDeDialogos } from '../src/ui/Dialogo';
 import { Emblema } from '../src/ui/Icones';
@@ -118,23 +119,25 @@ export default function Raiz() {
     <ProvedorDeDisciplinas>
       <ProvedorDeDialogos>
         <ProvedorDeAvisos>
-          <StatusBar style="dark" />
-          {/* Cada tela desenha o próprio cabeçalho (códice): sem o do Stack. */}
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: tema.fundo },
-            }}
-          >
-            <Stack.Screen name="(abas)" />
-            <Stack.Screen name="captura" options={folha} />
-            <Stack.Screen
-              name="item/[id]"
-              options={{ presentation: 'modal', contentStyle: { backgroundColor: tema.folha } }}
-            />
-            <Stack.Screen name="aula" options={folha} />
-            <Stack.Screen name="recompensa" options={folha} />
-          </Stack>
+          <ProvedorDeAtualizacao>
+            <StatusBar style="dark" />
+            {/* Cada tela desenha o próprio cabeçalho (códice): sem o do Stack. */}
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: tema.fundo },
+              }}
+            >
+              <Stack.Screen name="(abas)" />
+              <Stack.Screen name="captura" options={folha} />
+              <Stack.Screen
+                name="item/[id]"
+                options={{ presentation: 'modal', contentStyle: { backgroundColor: tema.folha } }}
+              />
+              <Stack.Screen name="aula" options={folha} />
+              <Stack.Screen name="recompensa" options={folha} />
+            </Stack>
+          </ProvedorDeAtualizacao>
         </ProvedorDeAvisos>
       </ProvedorDeDialogos>
     </ProvedorDeDisciplinas>

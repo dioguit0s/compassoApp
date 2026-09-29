@@ -65,6 +65,9 @@ o build `--local` não roda no Windows): `npm run apk -w @compasso/mobile` faz o
 assinatura com a chave própria, lida do `~/.gradle/gradle.properties` — a mesma chave sempre, senão
 o Android recusa instalar a atualização por cima. O release só aceita HTTPS; um APK de teste
 contra a API local sai com `COMPASSO_PERMITIR_HTTP=1` e não deve ser distribuído.
+*Complementada em 2026-09-29 pelo [ADR-0013](0013-atualizacoes-do-app-pelo-proprio-servidor.md):
+o APK passa a ser publicado no próprio servidor, e o bundle JS chega por OTA própria, ainda sem
+loja e sem EAS.*
 
 ## Alternativas consideradas
 
