@@ -1,16 +1,19 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   diaDe,
   diferencaEmDias,
+  formatarDiaCurto,
   horaDe,
   limitesDiaInteiro,
+  partesDoDia,
   proximaHoraCheia,
   somarDias,
   type Dia,
 } from '@compasso/core';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { tituloDoDia } from '../src/datasUi';
+import { Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { doSeletor, paraSeletor, tituloDoDia } from '../src/datasUi';
 import { novoCompromisso } from '../src/novoItem';
 import { perfilLocal } from '../src/perfil';
 import { repositorio } from '../src/sync';
@@ -42,6 +45,7 @@ export default function Captura() {
     secondaryAttribute: null,
   });
   const [tarefa, setTarefa] = useState(false);
+  const [escolhendoData, setEscolhendoData] = useState(false);
 
   const salvar = () => {
     const t = titulo.trim();
@@ -82,14 +86,13 @@ export default function Captura() {
   };
 
   const mover = (ms: number) => setInicio((i) => new Date(i.getTime() + ms));
-  const paraDia = (deslocamento: number) => {
-    const hoje = diaDe(new Date());
-    const alvo = somarDias(hoje, deslocamento);
-    mover(diferencaEmDias(diaDe(inicio), alvo) * 24 * HORA_MS);
-  };
+  // Troca só o dia; a hora escolhida fica. Outros dias vêm do seletor nativo, como no detalhe.
+  const paraData = (alvo: Dia) => mover(diferencaEmDias(diaDe(inicio), alvo) * 24 * HORA_MS);
+  const paraDia = (deslocamento: number) => paraData(somarDias(diaDe(new Date()), deslocamento));
 
   const dia = diaDe(inicio);
   const hoje = diaDe(new Date());
+  const outroDia = dia !== hoje && dia !== somarDias(hoje, 1);
   const ehTarefa = tarefa && pontuacao.effort !== null;
   const quando = `${dia === hoje ? 'hoje' : dia === somarDias(hoje, 1) ? 'amanhã' : tituloDoDia(dia)}${
     diaInteiro && !ehTarefa ? ', dia inteiro' : `, ${ehTarefa ? 'até ' : ''}${horaDe(inicio)}`
@@ -117,10 +120,41 @@ export default function Captura() {
         <View style={estilos.chips}>
           <Chip rotulo="Hoje" ativo={dia === hoje} aoTocar={() => paraDia(0)} />
           <Chip rotulo="Amanhã" ativo={dia === somarDias(hoje, 1)} aoTocar={() => paraDia(1)} />
+          <Chip
+            rotulo={outroDia ? formatarDiaCurto(dia, partesDoDia(hoje).ano) : 'Outra data'}
+            dica="Escolher outra data"
+            ativo={outroDia}
+            aoTocar={() => {
+              Keyboard.dismiss();
+              setEscolhendoData(true);
+            }}
+          />
           <Chip rotulo="−1h" aoTocar={() => mover(-HORA_MS)} desativado={diaInteiro} />
           <Chip rotulo="+1h" aoTocar={() => mover(HORA_MS)} desativado={diaInteiro} />
           <Chip rotulo="Dia inteiro" ativo={diaInteiro} aoTocar={() => setDiaInteiro((v) => !v)} />
         </View>
+        {escolhendoData ? (
+          <View>
+            <DateTimePicker
+              value={paraSeletor(inicio)}
+              mode="date"
+              locale="pt-BR"
+              accentColor={tema.ouro}
+              display={Platform.OS === 'ios' ? 'inline' : 'default'}
+              onChange={(evento, data) => {
+                if (Platform.OS === 'android') setEscolhendoData(false);
+                if (evento.type === 'set' && data) paraData(diaDe(doSeletor(data)));
+              }}
+            />
+            {Platform.OS === 'ios' ? (
+              <Pressable onPress={() => setEscolhendoData(false)} style={estilos.ok}>
+                <Texto cinzel style={{ color: tema.ouro, fontWeight: '700', letterSpacing: 1.2 }}>
+                  OK
+                </Texto>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
         <SeletorEsforco valor={pontuacao} aoMudar={setPontuacao} compacto />
         {erro ? <Texto style={{ color: tema.perigo, fontSize: 12.5 }}>{erro}</Texto> : null}
         <View style={estilos.rodape}>
@@ -157,4 +191,5 @@ const estilos = StyleSheet.create({
   quando: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   rodape: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  ok: { alignSelf: 'flex-end', padding: 8 },
 });
