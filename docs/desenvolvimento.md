@@ -136,8 +136,12 @@ npm run apk -w @compasso/mobile                           # → apps/mobile/dist
 COMPASSO_PERMITIR_HTTP=1 npm run apk -w @compasso/mobile  # → …-http.apk, só para testar contra a API local
 ```
 
-Mesmo ambiente do development build (JDK 17–23, ver [Emulador Android](#emulador-android)). O
-script roda o prebuild (a pasta `android/` é regenerada) e o `assembleRelease`. O release só fala
+Mesmo ambiente do development build (JDK 17–23, ver [Emulador Android](#emulador-android)). Se o
+`JAVA_HOME` não estiver definido ou apontar para um JDK 24+, o script procura um JDK 17–23 em
+`C:\Program Files\Java` (e nas pastas do Temurin, Microsoft e Zulu) e usa esse. O script roda o
+prebuild (a pasta `android/` é regenerada) e o `assembleRelease`, com o Gradle em 4 GB de heap e
+1,5 GB de metaspace (`plugins/apk-release.js`). Com o padrão do template, o KSP do expo-updates
+estourava o metaspace e o daemon ficava pendurado. O release só fala
 **HTTPS**; o `-http` aceita `http://` e não deve ser distribuído.
 
 **Windows: CMake 3.31+.** O `assembleRelease` compila o C++ do arm64-v8a, e com o CMake 3.22.1

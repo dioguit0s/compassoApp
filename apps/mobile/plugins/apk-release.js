@@ -9,8 +9,13 @@
  * 2. HTTP sem TLS. O release só fala HTTPS (o servidor de verdade fica atrás do túnel). Para testar
  *    o APK contra a API local, gere com COMPASSO_PERMITIR_HTTP=1 — e não distribua esse. Esse APK
  *    também sai com o expo-updates desligado, para nunca puxar o OTA de produção (ADR-0013).
+ * 3. Memória do Gradle (org.gradle.jvmargs), maior que a do template.
  */
-const { withAndroidManifest, withAppBuildGradle } = require('expo/config-plugins');
+const {
+  withAndroidManifest,
+  withAppBuildGradle,
+  withGradleProperties,
+} = require('expo/config-plugins');
 
 const MARCA = '// compasso: assinatura do release';
 
@@ -57,10 +62,25 @@ function comHttp(config) {
   });
 }
 
+/**
+ * Memória do Gradle. O padrão do template (2 GB, metaspace de 512 MB) estourou o metaspace no KSP
+ * do expo-updates (2026-09-29): o daemon ficou pendurado depois do OutOfMemoryError, e o build
+ * não terminava.
+ */
+function comMemoria(config) {
+  return withGradleProperties(config, (c) => {
+    const valor = '-Xmx4096m -XX:MaxMetaspaceSize=1536m';
+    const item = c.modResults.find((p) => p.type === 'property' && p.key === 'org.gradle.jvmargs');
+    if (item) item.value = valor;
+    else c.modResults.push({ type: 'property', key: 'org.gradle.jvmargs', value: valor });
+    return c;
+  });
+}
+
 function semOtaNoTeste(config) {
   if (process.env.COMPASSO_PERMITIR_HTTP !== '1') return config;
   // Muda a config antes dos mods rodarem: o plugin do expo-updates lê `updates.enabled` dela.
   return { ...config, updates: { ...config.updates, enabled: false } };
 }
 
-module.exports = (config) => comHttp(comAssinatura(semOtaNoTeste(config)));
+module.exports = (config) => comMemoria(comHttp(comAssinatura(semOtaNoTeste(config))));

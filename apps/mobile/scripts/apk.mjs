@@ -6,17 +6,67 @@
  *
  *   COMPASSO_ABI=arm64-v8a npm run apk -w @compasso/mobile          → só essa arquitetura (~4× mais rápido)
  *
- * Precisa do mesmo ambiente do development build (docs/desenvolvimento.md): Android SDK e
- * JAVA_HOME num JDK 17–23 (o 25 quebra o CMake).
+ * Precisa do mesmo ambiente do development build (docs/desenvolvimento.md): Android SDK e um
+ * JDK 17–23 (24+ quebra o CMake). Sem JAVA_HOME nessa faixa, procura um nas pastas de instalação
+ * comuns do Windows e usa esse.
  */
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '..');
 const windows = process.platform === 'win32';
+
+/** Versão principal do Java de um JAVA_HOME (lida do arquivo `release` do JDK), ou null. */
+function versaoDoJdk(home) {
+  try {
+    const release = readFileSync(join(home, 'release'), 'utf8');
+    const v = /^JAVA_VERSION="(\d+)/m.exec(release)?.[1];
+    return v ? Number(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+const jdkServe = (v) => v !== null && v >= 17 && v <= 23;
+
+/**
+ * Com JDK 24+ o configure do CMake falha ("A restricted method in java.lang.System has been
+ * called", visto em 2026-09-29), minutos depois de começar. Melhor resolver aqui: usa o
+ * JAVA_HOME se ele serve; senão, o JDK 17–23 mais novo das pastas comuns; senão, para já.
+ */
+function escolherJdk() {
+  const atual = process.env.JAVA_HOME;
+  if (atual && jdkServe(versaoDoJdk(atual))) return atual;
+  const pastas = [
+    'C:/Program Files/Java',
+    'C:/Program Files/Eclipse Adoptium',
+    'C:/Program Files/Microsoft',
+    'C:/Program Files/Zulu',
+  ];
+  const candidatos = pastas
+    .filter((p) => existsSync(p))
+    .flatMap((p) => readdirSync(p).map((n) => join(p, n)))
+    .map((home) => ({ home, v: versaoDoJdk(home) }))
+    .filter(({ v }) => jdkServe(v))
+    .sort((a, b) => b.v - a.v);
+  if (candidatos[0]) {
+    const motivo = atual
+      ? `o JAVA_HOME atual é o JDK ${versaoDoJdk(atual) ?? '?'}`
+      : 'sem JAVA_HOME';
+    console.log(`JDK: ${motivo}; usando ${candidatos[0].home} (JDK ${candidatos[0].v}).`);
+    return candidatos[0].home;
+  }
+  console.error(
+    'ERRO: o build precisa de um JDK 17–23 (24+ quebra o CMake) e não achei nenhum. ' +
+      'Instale um (ex.: Temurin 21) e aponte JAVA_HOME para ele.',
+  );
+  process.exit(1);
+}
+
+process.env.JAVA_HOME = escolherJdk();
 
 function rodar(comando, args, cwd) {
   console.log(`\n> ${comando} ${args.join(' ')}`);
