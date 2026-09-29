@@ -23,7 +23,7 @@ const PUBLICACAO = /^(\d{14})-[0-9a-f]{7,40}$/;
 const CAMINHO_ASSET = /^(?!.*\.\.)[\w.\-/]{1,300}$/;
 
 /** O que o `apk:publicar` grava em android/android.json. */
-interface ApkPublicado {
+export interface ApkPublicado {
   versionCode: number;
   versionName: string;
   runtimeVersion: string;
@@ -82,7 +82,7 @@ function tipoDe(extensao: string): string {
 }
 
 /** URL pública da API: em produção vem do ambiente (o túnel entrega HTTP à API). */
-function base(c: Context, config: Config): string {
+export function base(c: Context, config: Config): string {
   return config.urlPublica ?? new URL(c.req.url).origin;
 }
 
@@ -93,7 +93,7 @@ function dentro(raiz: string, ...partes: string[]): string | null {
   return p.startsWith(r + sep) ? p : null;
 }
 
-async function lerApkPublicado(config: Config): Promise<ApkPublicado | null> {
+export async function lerApkPublicado(config: Config): Promise<ApkPublicado | null> {
   try {
     const bruto = await readFile(join(config.releasesDir, 'android', 'android.json'), 'utf8');
     return JSON.parse(bruto) as ApkPublicado;

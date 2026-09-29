@@ -619,6 +619,9 @@ POST   /service-tokens               gera token de serviço; o segredo aparece s
 DELETE /service-tokens/:id           revoga
 
 # Atualizações do app (ADR-0013), públicas. Arquivos de RELEASES_DIR.
+GET    /                             página de download (HTML no visual do app): versão atual,
+                                     botão do APK, como instalar e primeiro acesso
+GET    /baixar                       302 para o APK mais recente (link curto para compartilhar)
 GET    /app/android                  APK mais recente: versionCode, notas, md5, tamanho, url,
                                      minimoVersionCode (abaixo dele, atualização obrigatória)
 GET    /app/android/:arquivo         o APK (stream)

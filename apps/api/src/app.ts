@@ -10,6 +10,7 @@ import type { Banco } from './db/banco';
 import { rotasDaEconomia } from './economia';
 import { ARQUIVO_AVATAR, rotasDePerfil } from './perfil';
 import { serializarUsuario } from './serializar';
+import { rotasDoSite } from './site';
 import { rotasDaGrade } from './grade';
 import { rotasDeImportacao } from './importacao';
 import { rotasDeItens } from './itens';
@@ -27,7 +28,8 @@ export function criarApp(banco: Banco, config: Config) {
     return c.json({ erro: 'erro interno' }, 500);
   });
 
-  // Sem autenticação: /health (túnel e deploy), /avatares, atualizações, cadastro e entrada.
+  // Sem autenticação: /health (túnel e deploy), /avatares, atualizações, página de download,
+  // cadastro e entrada.
   app.get('/health', (c) => c.json({ ok: true }));
 
   const limite = new LimiteDeTentativas(); // por conta: 5 em 15 min
@@ -52,6 +54,9 @@ export function criarApp(banco: Banco, config: Config) {
 
   // APK e OTA do app (ADR-0013): públicos, quem está deslogado também precisa atualizar.
   app.route('/', rotasDeAtualizacao(config));
+
+  // Página de download (GET / e /baixar): o link que se manda aos amigos no lugar do APK.
+  app.route('/', rotasDoSite(config));
 
   // A porta da Luna (ADR-0012), antes do middleware de sessão: tem autenticação, escopos e
   // formato de erro próprios, e aceita o token de serviço que as outras rotas recusam.

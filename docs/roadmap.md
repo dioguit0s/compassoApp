@@ -414,6 +414,9 @@ aparelho real e antecipou a F10 em 2026-09-23, com a F9 (calibração) ainda por
   servidor (`apk:publicar`) e o app avisa e instala com um toque. O bundle JS vai por OTA própria
   (`expo-updates`), publicada pelo runner a cada push na `main`. A compatibilidade é pelo
   fingerprint nativo, igual no Windows e no Linux com o `fingerprint.config.js`.
+  Para instalar a primeira vez, os amigos recebem o link da API: a raiz (`/`) é uma página de
+  download no visual do app, com a versão atual, o APK e o passo a passo; `/baixar` leva direto
+  ao APK mais recente.
   **Critério de saída:** com o 0.3.0 instalado, um push só de JS chega ao celular em até duas
   aberturas sem ação de ninguém; um push com mudança nativa faz o runner pular o OTA com aviso; um
   `apk:publicar` do 0.3.1 aparece como diálogo na abertura e instala por cima.
