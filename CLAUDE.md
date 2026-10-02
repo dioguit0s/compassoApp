@@ -4,9 +4,10 @@ Instruções para o Claude Code neste repositório. Lidas no início de toda ses
 
 ## Projeto
 
-Compasso: calendário principal + registrador de esforço num único app. **F0 a F8 e F10
-implementadas** (monorepo em `apps/api`, `apps/mobile`, `packages/core`); F0–F8 validadas no
-aparelho real, F9 (calibração) pendente de uso. As fontes de verdade são:
+Compasso: calendário principal + registrador de esforço num único app. **F0 a F8, F10 e a
+integração com a Luna implementadas e validadas** no aparelho real (monorepo em `apps/api`,
+`apps/mobile`, `packages/core`); F9 (calibração) aguarda 3–4 semanas de uso, iniciado em
+2026-09-25. As fontes de verdade são:
 
 - `docs/especificacao-tecnica-v1.md` — escopo, modelo de dados, arquitetura, regras de gamificação.
 - `docs/roadmap.md` — ordem de construção, fases, critérios de saída.

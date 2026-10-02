@@ -409,7 +409,8 @@ aparelho real e antecipou a F10 em 2026-09-23, com a F9 (calibração) ainda por
   assinado com chave própria (ADR-0008). No Windows o build exige CMake 3.31+ (caminho longo no
   C++ nativo, ver [`desenvolvimento.md`](desenvolvimento.md)). O 0.1.0 foi instalado no celular do
   autor em 2026-09-24.
-- **Atualizações automáticas.** ✅ Implementadas em 2026-09-29, validação pendente
+- **Atualizações automáticas.** ✅ Implementadas em 2026-09-29 e validadas pelo autor
+  em 2026-10-02
   ([ADR-0013](adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)). O APK é publicado no
   servidor (`apk:publicar`) e o app avisa e instala com um toque. O bundle JS vai por OTA própria
   (`expo-updates`), publicada pelo runner a cada push na `main`. A compatibilidade é pelo
@@ -422,8 +423,8 @@ aparelho real e antecipou a F10 em 2026-09-23, com a F9 (calibração) ainda por
   `apk:publicar` do 0.3.1 aparece como diálogo na abertura e instala por cima.
 
 **Critério de saída:** um amigo recebe o convite e o APK, cria a conta, usa, e as duas contas não
-se enxergam. Depende de a API estar exposta pelo túnel da Cloudflare, que fica para quando o app
-estiver mais pronto.
+se enxergam. ✅ Cumprido, segundo o autor, em 2026-10-02 (API exposta pelo túnel da Cloudflare em
+`compasso.homelab-server.space`).
 
 ### Integração com a Luna (assistente de voz) — fora das fases
 
@@ -437,8 +438,8 @@ Pedido do autor em 2026-09-25, fora da ordem das fases e sem dependência da F9
   `location` de evento ficam fora — exigiriam coluna nova, migração no app e APK novo.
 
 **Critério de saída:** a Luna, no homeserver, responde "o que eu tenho amanhã?" e cria um evento
-por voz, com o evento aparecendo no celular depois do sync. Pendente: gerar o token no APK novo e
-ligar a Luna.
+por voz, com o evento aparecendo no celular depois do sync. ✅ Cumprido, segundo o autor, em
+2026-10-02.
 
 ---
 
