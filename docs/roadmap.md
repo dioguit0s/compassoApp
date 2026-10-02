@@ -388,6 +388,9 @@ três semanas de uso real são as únicas que merecem código novo.**
 
 **Estimativa:** 10-15h, quase toda de análise
 
+✅ **Concluída em 2026-10-02:** depois do uso real, o autor manteve a curva de nível, a régua de
+esforço e as definições dos atributos como estão. Nenhum código mudou.
+
 ---
 
 ### F10 — Abrir para os amigos
@@ -409,7 +412,8 @@ aparelho real e antecipou a F10 em 2026-09-23, com a F9 (calibração) ainda por
   assinado com chave própria (ADR-0008). No Windows o build exige CMake 3.31+ (caminho longo no
   C++ nativo, ver [`desenvolvimento.md`](desenvolvimento.md)). O 0.1.0 foi instalado no celular do
   autor em 2026-09-24.
-- **Atualizações automáticas.** ✅ Implementadas em 2026-09-29, validação pendente
+- **Atualizações automáticas.** ✅ Implementadas em 2026-09-29 e validadas pelo autor
+  em 2026-10-02
   ([ADR-0013](adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)). O APK é publicado no
   servidor (`apk:publicar`) e o app avisa e instala com um toque. O bundle JS vai por OTA própria
   (`expo-updates`), publicada pelo runner a cada push na `main`. A compatibilidade é pelo
@@ -422,8 +426,8 @@ aparelho real e antecipou a F10 em 2026-09-23, com a F9 (calibração) ainda por
   `apk:publicar` do 0.3.1 aparece como diálogo na abertura e instala por cima.
 
 **Critério de saída:** um amigo recebe o convite e o APK, cria a conta, usa, e as duas contas não
-se enxergam. Depende de a API estar exposta pelo túnel da Cloudflare, que fica para quando o app
-estiver mais pronto.
+se enxergam. ✅ Cumprido, segundo o autor, em 2026-10-02 (API exposta pelo túnel da Cloudflare em
+`compasso.homelab-server.space`).
 
 ### Integração com a Luna (assistente de voz) — fora das fases
 
@@ -437,8 +441,8 @@ Pedido do autor em 2026-09-25, fora da ordem das fases e sem dependência da F9
   `location` de evento ficam fora — exigiriam coluna nova, migração no app e APK novo.
 
 **Critério de saída:** a Luna, no homeserver, responde "o que eu tenho amanhã?" e cria um evento
-por voz, com o evento aparecendo no celular depois do sync. Pendente: gerar o token no APK novo e
-ligar a Luna.
+por voz, com o evento aparecendo no celular depois do sync. ✅ Cumprido, segundo o autor, em
+2026-10-02.
 
 ---
 
@@ -472,8 +476,8 @@ adiável. Uma questão fora deste mapa é uma questão que não precisa de respo
 | Offline-first | **resolvida** | — |
 | Fuso ao viajar | **resolvida** — hora de São Paulo sempre ([ADR-0003](adr/0003-fuso-fixo-de-sao-paulo.md)) | — |
 | Fim de semestre | **resolvida** — semestre corrente + datas ([ADR-0005](adr/0005-semestre-corrente-e-grade.md)) | — |
-| Curva de nível | F9 | Nada quebra; o nível fica sem significado |
-| Régua de esforço | F6 | A escala infla e o radar deixa de comparar com o passado |
+| Curva de nível | **resolvida** — mantida na F9 | — |
+| Régua de esforço | **resolvida** — mantida na F9 ([ADR-0009](adr/0009-atributos-e-regua-fixos-para-todas-as-contas.md)) | — |
 | Estorno de moeda | **resolvida** — saldo pode ficar negativo ([ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md)) | — |
 | Grade versus RRULE | F10 — **passou sem resposta**; continua em aberto | Nada quebra; a duplicação se justifica enquanto aula não pontua |
 | Backup externo | **resolvida** — sem cópia externa, risco aceito ([ADR-0010](adr/0010-backup-sem-copia-externa-com-contas-de-amigos.md)) | — |

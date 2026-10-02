@@ -141,7 +141,7 @@ os lançamentos correspondentes, o que é diferente de punição: é correção 
 Nível é por atributo. **Não existe nível global** — um número único agregando os cinco esconderia
 exatamente o que os atributos existem para mostrar.
 
-`PROPOSTA` da curva, a calibrar com dados reais: faixa 1 custa 500 décimos (50 pontos), cada faixa
+Curva mantida pelo autor depois do uso real (F9, 2026-10-02): faixa 1 custa 500 décimos (50 pontos), cada faixa
 seguinte custa 1,5x a anterior. A curva é constante de configuração, não valor gravado no banco,
 justamente para poder ser reajustada sem migração — o nível é sempre derivado do acumulado.
 
@@ -966,9 +966,9 @@ gerado no app para a Luna, com escopos e restrito a `/api/v1`
   passou a ser um segundo mecanismo de repetição no mesmo sistema. A duplicação se justifica por
   enquanto — a grade carrega sala e disciplina, e aula não pontua — mas se ela começar a divergir em
   comportamento, vale unificar sobre RRULE.
-- **Curva de nível.** Os números da seção 4.4 são chute. Só se calibram com um mês de uso real.
-- **Régua de esforço.** Os exemplos de referência precisam ser escritos pelo autor, com tarefas da
-  vida dele. Sem isso a escala não ancora.
+- **Curva de nível.** ✅ Resolvida na F9 (2026-10-02): o autor manteve os números da seção 4.4
+  depois do uso real.
+- **Régua de esforço.** ✅ Resolvida na F9 (2026-10-02): o autor manteve a régua como está.
 - **Anotações de aula.** A grade guarda um campo de notas por disciplina, o suficiente para "prova
   vale 40%" ou "professor aceita entrega atrasada". Caderno de anotações por aula é outro produto e
   está deliberadamente fora — se virar necessidade, é integração com algo existente, não uma tela

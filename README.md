@@ -16,11 +16,11 @@ horas — porque um app de tarefa que ignora a agenda mente sobre o tempo dispon
 
 ## Status
 
-🚧 **Código da v1 escrito (F0 a F8 do [roadmap](docs/roadmap.md)) e validado no aparelho real,
-ainda sem semanas de uso.** Calendário offline-first com recorrência, lembretes locais, importação
+✅ **Todas as fases do [roadmap](docs/roadmap.md) concluídas (F0 a F10 e a Luna), em uso real
+desde 2026-09-25.** Calendário offline-first com recorrência, lembretes locais, importação
 do Google Calendar, grade acadêmica, gamificação (esforço, XP, radar) e economia (moedas,
-recompensas). Falta o servidor doméstico exposto pelo túnel; a F9 (calibração) só começa depois de
-semanas de uso.
+recompensas). API no servidor doméstico, exposta pelo túnel; a F9 (calibração) manteve os números da
+especificação.
 
 **Validado no emulador Android (2026-09-23):** o mecanismo de F0 a F8 — sync offline e LWW com
 dois clientes, calendário e fuso fixo, recorrência, lembretes com modo avião/tela bloqueada/app
@@ -112,6 +112,5 @@ e a especificação divergirem, o ADR é mais recente.
 
 ## Próximos passos
 
-- Executar os critérios de saída no aparelho e no servidor, fase a fase (#14 … #89)
-- Escrever a régua de esforço com exemplos reais (#66)
-- Usar por 3–4 semanas e calibrar (F9)
+Nenhum do roadmap: todas as fases foram concluídas e validadas. Continua em aberto, sem prazo, a
+questão "grade versus RRULE" (seção 10 da especificação).

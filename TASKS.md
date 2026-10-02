@@ -21,7 +21,8 @@ expo-updates publicada pelo runner a cada push na main (fase B, decisão do usu�
 - [x] 4. ADR-0013, especificação, roadmap, deploy/desenvolvimento/README; verificar; revisão; commit
 - [x] Revisão do diff: bloqueante (limpeza de runtime antigo causava rollBackToEmbedded) e
       6 sugestões corrigidas
-- [ ] 5. **No servidor (usuário):** push, apk:publicar 0.3.0, instalar à mão, testes ponta a ponta
+- [x] 5. **No servidor (usuário):** push, apk:publicar 0.3.0, instalar à mão, testes ponta a ponta
+      (concluído, segundo o usuário, em 2026-10-02)
 
 ## Tarefa anterior — API /api/v1 para a Luna (assistente de voz) (2026-09-25)
 
@@ -38,8 +39,8 @@ Decisões do usuário: tarefa criada por voz exige `effort` e `attribute` (§4.1
 - [x] luna:exemplo (conta separada + dados + token); ADR-0012, especificação, roadmap, README
 - [x] npm run verificar (API 181, core 176); p95 local 22 ms (dia) / 49 ms (busca 60 dias)
 - [x] Revisão do diff, commit (sem push)
-- [ ] **No servidor (usuário):** push → deploy; APK novo para ter a tela Luna; gerar o token;
-      medir p95 no homeserver
+- [x] **No servidor (usuário):** push → deploy; APK novo para ter a tela Luna; gerar o token;
+      medir p95 no homeserver (concluído, segundo o usuário, em 2026-10-02)
 
 ## Tarefa anterior — esteira de deploy da API no homeserver (2026-09-24)
 
@@ -78,8 +79,8 @@ Fonte: projeto do Claude Design "Compasso - Telas RPG" (22 telas, importado pelo
 - [x] Docs: telas-e-features.md (seção 2), desenvolvimento.md, README
 - [x] `npm run verificar`; revisão do diff (2 correções: navegação antes das fontes, aviso sob a
       barra de abas)
-- [ ] **Conferir no aparelho** — não houve verificação visual: o AVD subiu mas o adb não respondia,
-      e não havia development build nem Expo Go instalados nele
+- [x] **Conferir no aparelho** — conferido pelo usuário no celular (2026-10-02); no emulador não
+      houve verificação visual (o adb não respondia)
 
 ## Tarefa anterior — documentação em dia e detalhes pequenos (2026-09-23)
 
