@@ -4,7 +4,7 @@ import { NO_EXPO_GO } from '../ambiente';
 import type * as TarefaT from './tarefa';
 
 /**
- * Porta de entrada do widget da semana (ADR-0014). A biblioteca exige o módulo nativo
+ * Porta de entrada do widget da semana (ADR-0015). A biblioteca exige o módulo nativo
  * `AndroidWidget` já no import (TurboModuleRegistry.getEnforcing) e ele não existe no Expo Go:
  * importá-la no topo derrubaria o app na abertura. Por isso ela e o desenho só são carregados
  * aqui, sob demanda, e só no development build ou no APK do Android. Os imports acima são só de

@@ -163,7 +163,7 @@ async function executarReagendamento(): Promise<number> {
 let pendente: ReturnType<typeof setTimeout> | null = null;
 let widgetPendente: ReturnType<typeof setTimeout> | null = null;
 
-/** O widget da semana (ADR-0014) também mostra as aulas: muda com a grade além da agenda. */
+/** O widget da semana (ADR-0015) também mostra as aulas: muda com a grade além da agenda. */
 const TABELAS_DO_WIDGET = new Set([
   'items',
   'item_occurrences',

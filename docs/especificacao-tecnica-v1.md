@@ -76,7 +76,7 @@ abandono em apps de uso pessoal, e abandono é o modo de falha real aqui.
 | Notificações | Lembretes locais agendados no aparelho, em janela deslizante |
 | Perfil | Nome de exibição, foto ou avatar, configurações |
 | Faculdade | Grade horária do semestre: disciplinas, dias, horários e salas |
-| Widget | Semana corrente na tela inicial do Android, entrada depois da v1 ([ADR-0014](adr/0014-widget-da-semana-no-android.md)) |
+| Widget | Semana corrente na tela inicial do Android, entrada depois da v1 ([ADR-0015](adr/0015-widget-da-semana-no-android.md)) |
 | Isolamento | `userId` em toda linha e em toda consulta |
 
 ### Fora
@@ -91,10 +91,11 @@ abandono em apps de uso pessoal, e abandono é o modo de falha real aqui.
 - Parser de linguagem natural na captura rápida
 - Registro de tempo real gasto e comparação com a estimativa
 
-As duas últimas são features desejadas, não descartadas. O widget de home screen também estava
-nesta lista e entrou depois da v1, só no Android ([ADR-0014](adr/0014-widget-da-semana-no-android.md)). Ficam fora porque a v1 já cresceu bastante
-com a decisão de substituir o calendário atual, e ela ainda precisa ser pequena o bastante para ir
-ao ar e ser usada de verdade antes de crescer mais.
+As duas últimas são features desejadas, não descartadas. Ficam fora porque a v1 já cresceu
+bastante com a decisão de substituir o calendário atual, e ela ainda precisa ser pequena o bastante
+para ir ao ar e ser usada de verdade antes de crescer mais. O widget de home screen também estava
+nesta lista e entrou depois da v1, só no Android
+([ADR-0015](adr/0015-widget-da-semana-no-android.md)).
 
 ## 4. Regras de gamificação
 
@@ -821,7 +822,7 @@ aberta: ocorrência de série passa pelo detalhe, que pergunta o alcance.
 
 ### Widget da semana
 
-Widget da tela inicial do Android ([ADR-0014](adr/0014-widget-da-semana-no-android.md)): a semana
+Widget da tela inicial do Android ([ADR-0015](adr/0015-widget-da-semana-no-android.md)): a semana
 corrente, de domingo a sábado, em 7 colunas, com eventos, tarefas e aulas na mesma ordem da visão
 de semana — faixa de dia inteiro primeiro, depois pelo horário. Cada coluna mostra quantos itens
 couberem na altura do widget e um contador de excedentes, como a visão de mês. Aula cancelada não
@@ -901,7 +902,7 @@ acessível de qualquer aba, não uma tela para onde é preciso navegar.
 | Ocorrência só vira linha ao desviar | Uma linha por ocorrência | Uma série diária de dois anos são 730 linhas que não dizem nada |
 | `effort` opcional | Esforço obrigatório em tudo | Consulta médica não tem esforço estimado; sem isso o radar mediria presença |
 | Importação ICS única | Sincronização bidirecional | Migrar é problema de uma vez; sincronizar é problema permanente |
-| Widget desenhado em JS (`react-native-android-widget`) | Widget em Kotlin | A projeção da agenda não pode existir em duas versões; ver [ADR-0014](adr/0014-widget-da-semana-no-android.md) |
+| Widget desenhado em JS (`react-native-android-widget`) | Widget em Kotlin | A projeção da agenda não pode existir em duas versões; ver [ADR-0015](adr/0015-widget-da-semana-no-android.md) |
 | Janela deslizante de notificações | Agendar tudo de uma vez | iOS limita a 64 pendentes; uma série diária estoura sozinha |
 | Exclusão lógica em tudo | `DELETE` físico | Sync exige tombstone para não ressuscitar item apagado; a lixeira vem junto |
 | IDs gerados no client | IDs atribuídos pelo servidor | Criar item offline não pode depender de rede, e retry não pode duplicar |

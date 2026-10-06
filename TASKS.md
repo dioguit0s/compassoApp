@@ -18,9 +18,13 @@ Decisões do usuário: só Android; 7 colunas domingo–sábado; eventos, tarefa
 - [x] app.json: plugin, fontes, prévia (`assets/widget-semana.png`), versão 0.4.0 / versionCode 4
 - [x] `expo prebuild` gera receiver, provider e fontes (build Gradle não roda no ambiente da nuvem:
       sem acesso ao Android SDK)
-- [x] ADR-0014, especificação, roadmap; `npm run verificar` verde
+- [x] ADR-0015, especificação, roadmap; `npm run verificar` verde
+- [x] Correção: app voltava a não abrir no Expo Go (biblioteca do widget carregada sob demanda)
+- [x] Merge da main: ADR do widget renumerado para 0015 (o 0014 é o das novidades); trailer
+      `Novidade:` no commit seguinte
 - [ ] **Usuário:** `npm run apk`, testar no emulador/aparelho, `apk:publicar 0.4.0`
-## Tarefa atual — novidades das atualizações no site e no app (2026-10-06)
+
+## Tarefa anterior — novidades das atualizações no site e no app (2026-10-06)
 
 Decisões do usuário: texto escrito à mão em cada commit (trailer `Novidade:`), cláusula no
 CLAUDE.md, as três fases (site, feed Atom, "O que há de novo" no app).

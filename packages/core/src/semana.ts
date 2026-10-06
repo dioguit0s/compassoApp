@@ -1,5 +1,5 @@
 /**
- * Resumo da semana corrente para o widget de home screen (ADR-0014): 7 colunas de domingo a
+ * Resumo da semana corrente para o widget de home screen (ADR-0015): 7 colunas de domingo a
  * sábado, cada uma com os primeiros itens do dia — entradas da agenda e aulas da grade na mesma
  * ordem da visão de semana — e quantos sobraram. Puro: quem chama traz a agenda já projetada
  * (`projetarAgenda`) e as aulas (`aulasDoDia`), e resolve cores e estados.

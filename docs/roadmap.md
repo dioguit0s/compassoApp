@@ -455,7 +455,7 @@ por voz, com o evento aparecendo no celular depois do sync. ✅ Cumprido, segund
 ### Widget da semana (Android) — fora das fases
 
 Pedido do autor em 2026-10-06, fora da ordem das fases
-([ADR-0014](adr/0014-widget-da-semana-no-android.md)). O widget estava em "Fora" na especificação
+([ADR-0015](adr/0015-widget-da-semana-no-android.md)). O widget estava em "Fora" na especificação
 como feature desejada; entrou só no Android, que é onde o app é distribuído.
 
 - Semana corrente, domingo a sábado, em 7 colunas, com eventos, tarefas e aulas no visual do

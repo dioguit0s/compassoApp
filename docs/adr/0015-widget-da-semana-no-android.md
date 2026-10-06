@@ -1,4 +1,4 @@
-# ADR-0014: Widget da semana na tela inicial do Android
+# ADR-0015: Widget da semana na tela inicial do Android
 
 - **Data:** 2026-10-06
 - **Status:** aceito
