@@ -564,6 +564,13 @@ abertura seguinte. Mudança nativa só vem com APK novo, que o autor publica no 
 (`apk:publicar`); o app avisa e instala com um toque. A compatibilidade entre bundle e APK é o
 fingerprint nativo (`runtimeVersion`).
 
+**Cada atualização diz o que mudou**
+([ADR-0014](adr/0014-novidades-das-atualizacoes-escritas-nos-commits.md)). O texto para o público
+é escrito à mão em cada commit do app, no trailer `Novidade:`. Cada publicação, OTA ou APK, grava
+as novidades dos commits desde a anterior em `releases/novidades/`. A página de download, um feed
+Atom e o app (aviso uma vez depois de atualizar, e a lista em Configurações → Novidades) mostram
+a mesma lista.
+
 ### 6.3 Endpoints
 
 ```
@@ -621,7 +628,7 @@ DELETE /service-tokens/:id           revoga
 
 # Atualizações do app (ADR-0013), públicas. Arquivos de RELEASES_DIR.
 GET    /                             página de download (HTML no visual do app): versão atual,
-                                     botão do APK, como instalar e primeiro acesso
+                                     botão do APK, novidades, como instalar e primeiro acesso
 GET    /baixar                       302 para o APK mais recente (link curto para compartilhar)
 GET    /app/android                  APK mais recente: versionCode, notas, md5, tamanho, url,
                                      minimoVersionCode (abaixo dele, atualização obrigatória)
@@ -629,6 +636,8 @@ GET    /app/android/:arquivo         o APK (stream)
 GET    /updates/manifest             protocolo expo-updates v1: manifesto do bundle mais recente do
                                      runtime pedido, noUpdateAvailable ou rollBackToEmbedded
 GET    /updates/assets/:runtime/:publicacao/*   bundle e assets de uma publicação
+GET    /novidades.json               novidades das publicações (ADR-0014), as 20 mais recentes
+GET    /novidades.xml                as mesmas, em feed Atom
 
 # Porta da Luna, assistente de voz (ADR-0012). Contrato em apps/api/src/v1/openapi.yaml.
 GET    /api/v1/health                testar conexão; token errado → 401
@@ -930,7 +939,7 @@ qualquer forma. O custo consciente da troca é não aprender Mongo neste projeto
 | `BACKUP_KEEP_DAILY` | não | Dumps retidos. Padrão 7 |
 | `TRASH_RETENTION_DAYS` | não | Prazo da lixeira e da purga de tombstones. Padrão 30 |
 | `COMPASSO_VERSION` | não | Versão devolvida por `GET /api/v1/health`. O compose passa o commit da imagem; padrão `dev` |
-| `RELEASES_DIR` | não | APKs e bundles OTA publicados (§6.2, ADR-0013). Padrão `./releases`; o compose monta `~/compasso/releases` somente leitura |
+| `RELEASES_DIR` | não | APKs, bundles OTA e novidades publicados (§6.2, ADR-0013, ADR-0014). Padrão `./releases`; o compose monta `~/compasso/releases` somente leitura |
 | `URL_PUBLICA` | em produção | Origem das URLs absolutas do APK e dos assets do OTA. O túnel entrega HTTP à API, então a origem do pedido não serve. O compose passa `https://compasso.homelab-server.space`; sem ela, usa a origem do pedido |
 
 O token identifica a pessoa e a API resolve o `userId` a partir dele. Os tokens não ficam em

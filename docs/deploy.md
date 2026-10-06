@@ -59,15 +59,20 @@ releases/android/android.json        APK atual (versão, runtime, md5, notas, m�
 releases/android/compasso-*.apk      os 3 mais recentes
 releases/ota/<runtime>/<instante-commit>/   bundles OTA: 5 do runtime atual, 1 de cada antigo
 releases/ota-revertidas/             o que o ota:reverter tirou do ar
+releases/novidades/<instante>-<ota|apk>-<id>.json   o texto de cada publicação (ADR-0014)
+releases/novidades-revertidas/       as novidades das publicações revertidas
 ```
 
 - **OTA:** o workflow **App** (push na `main` que toque `apps/mobile`, o core ou o lockfile)
   roda `ota.mjs` no runner, que escreve direto em `releases/ota`. Pula, com aviso no resumo do
   job, se o commit mudou algo nativo em relação ao APK publicado.
-- **APK:** `npm run apk:publicar -w @compasso/mobile -- --notas "..."`, da máquina do autor, por
-  `scp` ([`desenvolvimento.md`](desenvolvimento.md#atualizações-apk-e-ota)).
+- **APK:** `npm run apk:publicar -w @compasso/mobile`, da máquina do autor, por `scp`
+  ([`desenvolvimento.md`](desenvolvimento.md#atualizações-apk-e-ota)).
+- **Novidades:** as duas vias gravam em `releases/novidades/` os trailers `Novidade:` dos commits
+  desde a publicação anterior. Um texto errado se corrige editando o arquivo ali.
 
-Conferir de fora: `https://compasso.homelab-server.space/app/android` devolve o manifesto do APK.
+Conferir de fora: `https://compasso.homelab-server.space/app/android` devolve o manifesto do APK,
+e `/novidades.json` a lista de novidades.
 
 ## Instalação inicial (uma vez)
 

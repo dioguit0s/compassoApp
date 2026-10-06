@@ -424,6 +424,14 @@ aparelho real e antecipou a F10 em 2026-09-23, com a F9 (calibração) ainda por
   **Critério de saída:** com o 0.3.0 instalado, um push só de JS chega ao celular em até duas
   aberturas sem ação de ninguém; um push com mudança nativa faz o runner pular o OTA com aviso; um
   `apk:publicar` do 0.3.1 aparece como diálogo na abertura e instala por cima.
+- **Novidades das atualizações.** ✅ Implementadas em 2026-10-06
+  ([ADR-0014](adr/0014-novidades-das-atualizacoes-escritas-nos-commits.md)). Cada commit do app
+  traz o texto para o público no trailer `Novidade:`, escrito à mão. Cada publicação grava as
+  novidades em `releases/novidades/`, e a página de download, o feed Atom (`/novidades.xml`) e o
+  app mostram a mesma lista.
+  **Critério de saída:** um push com `Novidade:` aparece na página de download assim que o job
+  `publicar-ota` termina; o celular mostra o aviso "Novidades" na abertura em que o bundle novo
+  entra, uma vez só; um `apk:publicar` sem `--notas` usa os trailers no diálogo e no site.
 
 **Critério de saída:** um amigo recebe o convite e o APK, cria a conta, usa, e as duas contas não
 se enxergam. ✅ Cumprido, segundo o autor, em 2026-10-02 (API exposta pelo túnel da Cloudflare em

@@ -6,6 +6,10 @@
  *
  * Só publica para o runtime (fingerprint nativo) do APK publicado. Se o commit mudou algo nativo,
  * o bundle não roda no APK que os amigos têm: pula e avisa para gerar o APK (apk:publicar).
+ *
+ * Cada publicação grava também a novidade dela em releases/novidades/ (ADR-0014): os trailers
+ * `Novidade:` dos commits do app desde a publicação anterior. Precisa do histórico (no workflow,
+ * checkout com fetch-depth 0).
  */
 import { spawnSync } from 'node:child_process';
 import {
@@ -25,6 +29,7 @@ import {
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isoDoInstante, novidadesDosCommits, ultimaDaLista } from './novidades.mjs';
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '..');
 const releases = resolve(process.env.RELEASES_DIR || join(homedir(), 'compasso', 'releases'));
@@ -121,6 +126,12 @@ function publicar(temp) {
   const sha = process.env.GITHUB_SHA || rodar('git', ['rev-parse', 'HEAD']).trim();
   const commit = sha.slice(0, 12);
   const nome = `${instante}-${commit}`;
+
+  // Novidades antes de copiar: se o git falhar, nada vai ao ar pela metade.
+  const pastaNovidades = join(releases, 'novidades');
+  const nomesNovidades = existsSync(pastaNovidades) ? readdirSync(pastaNovidades) : [];
+  const desde = ultimaDaLista(nomesNovidades, (n) => readFileSync(join(pastaNovidades, n), 'utf8'));
+  const itens = novidadesDosCommits(raiz, desde, sha);
   mkdirSync(pastaRuntime, { recursive: true });
   // Copia com nome que a API ignora e renomeia no fim: nunca serve uma publicação pela metade.
   const provisoria = join(pastaRuntime, `.tmp-${nome}`);
@@ -129,6 +140,34 @@ function publicar(temp) {
   chmodSync(releases, statSync(releases).mode | 0o555);
   liberarLeitura(join(releases, 'ota'));
   renameSync(provisoria, join(pastaRuntime, nome));
+
+  // A novidade entra depois do bundle: o site nunca anuncia o que o app ainda não pode baixar.
+  // Grava mesmo sem itens, para a próxima publicação saber de que commit partir.
+  mkdirSync(pastaNovidades, { recursive: true });
+  for (const n of readdirSync(pastaNovidades).filter((n) => n.startsWith('.tmp-'))) {
+    rmSync(join(pastaNovidades, n), { force: true });
+  }
+  const arquivoNovidade = `${instante}-ota-${commit}.json`;
+  const novidadeProvisoria = join(pastaNovidades, `.tmp-${arquivoNovidade}`);
+  writeFileSync(
+    novidadeProvisoria,
+    `${JSON.stringify(
+      {
+        tipo: 'ota',
+        publicadoEm: isoDoInstante(instante),
+        versao: apk.versionName,
+        versionCode: apk.versionCode,
+        runtime,
+        commit: sha,
+        itens,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  chmodSync(pastaNovidades, statSync(pastaNovidades).mode | 0o555);
+  chmodSync(novidadeProvisoria, 0o644);
+  renameSync(novidadeProvisoria, join(pastaNovidades, arquivoNovidade));
 
   // --- limpeza ---
   for (const outro of readdirSync(join(releases, 'ota'))) {
@@ -148,9 +187,13 @@ function publicar(temp) {
     }
   }
 
+  const novidades = itens.length
+    ? `\n\nNovidades:\n${itens.map((i) => `- ${i}`).join('\n')}`
+    : '\n\nSem novidade para o público (nenhum trailer `Novidade:` nos commits).';
   return (
     `### OTA publicado\n\n\`${nome}\` para o APK ${apk.versionName} (runtime \`${runtime.slice(0, 12)}\`). ` +
-    'Os apps baixam na próxima abertura e aplicam na seguinte.'
+    'Os apps baixam na próxima abertura e aplicam na seguinte.' +
+    novidades
   );
 }
 

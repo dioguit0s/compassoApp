@@ -43,6 +43,11 @@ túnel.
 mudança nativa, é publicado no servidor e instalado pelo próprio app com um toque
 ([ADR-0013](docs/adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)).
 
+**Novidades das atualizações (2026-10-06):** cada commit do app traz, no trailer `Novidade:`, o
+texto para quem usa. A página de download, o feed `/novidades.xml` e o próprio app mostram o que
+mudou em cada publicação
+([ADR-0014](docs/adr/0014-novidades-das-atualizacoes-escritas-nos-commits.md)).
+
 ## Estrutura
 
 ```

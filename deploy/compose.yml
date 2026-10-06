@@ -3,7 +3,7 @@
 #   api.env    DATABASE_URL (papel compasso_app) e demais variáveis da API
 #   admin.env  POSTGRES_PASSWORD, COMPASSO_OWNER_PASSWORD, COMPASSO_APP_PASSWORD, DATABASE_ADMIN_URL
 #   .env       COMPASSO_TAG=<commit> da versão no ar, escrito pelo deploy.sh
-#   releases/  APKs e bundles OTA do app (ADR-0013), servidos pela API
+#   releases/  APKs, bundles OTA e novidades do app (ADR-0013, ADR-0014), servidos pela API
 #
 # Comandos à mão, de dentro de ~/compasso:
 #   docker compose ps
