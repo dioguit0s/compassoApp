@@ -141,6 +141,11 @@ export default function Configuracoes() {
         </View>
 
         <View style={[estilos.lista, { borderTopColor: tema.linha }]}>
+          <LinhaDeLista
+            rotulo="Novidades"
+            dica="o que mudou"
+            aoTocar={() => router.push('/novidades')}
+          />
           <LinhaDeLista rotulo="Régua de esforço" aoTocar={() => router.push('/regua')} />
           <LinhaDeLista
             rotulo="Lixeira"
