@@ -86,3 +86,10 @@ especificação (`/revisar-diff`). Reporte só achados reais — evite alarme fa
   alternativas consideradas e consequências.
 - Mudança de escopo ou arquitetura atualiza a especificação **e** o roadmap no mesmo commit.
 - Commits no formato `tipo: descrição` (`docs:`, `feat:`, `fix:`, `chore:`), em português.
+- **Todo commit que muda `apps/mobile` ou `packages/core` leva o trailer `Novidade:`** (ADR-0014),
+  no bloco final da mensagem, junto dos outros trailers. É o texto que aparece na página de
+  download, no feed e no aviso do app depois da atualização:
+  - uma linha `Novidade: <texto>` por mudança que quem usa o app percebe, escrita para essa
+    pessoa (o que mudou para ela, sem jargão de código, frase curta, sem ponto final);
+  - `Novidade: -` quando o commit não muda nada visível (refatoração, teste, build);
+  - sem o trailer, o commit some das novidades. Se não der para saber o que dizer, pergunte.

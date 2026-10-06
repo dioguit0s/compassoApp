@@ -194,8 +194,9 @@ Duas vias, as duas pelo servidor
   `app.json`, commite e publique o APK:
 
 ```sh
-npm run apk:publicar -w @compasso/mobile -- --notas "O que mudou"
-npm run apk:publicar -w @compasso/mobile -- --notas "..." --minimo 5   # abaixo do 5, obrigatória
+npm run apk:publicar -w @compasso/mobile                     # texto dos trailers Novidade:
+npm run apk:publicar -w @compasso/mobile -- --notas "O que mudou"      # substitui os trailers
+npm run apk:publicar -w @compasso/mobile -- --minimo 5   # abaixo do 5, obrigatória
 ```
 
 O script exige árvore limpa e a chave de release, gera só arm64-v8a e confere que o runtime do APK
@@ -206,6 +207,23 @@ na abertura seguinte.
 O runtime é o fingerprint nativo do Expo, e o `apps/mobile/fingerprint.config.js` existe para ele
 dar o mesmo hash no Windows (APK) e no Linux (runner). Para ver o hash:
 `npx expo-updates fingerprint:generate --platform android` em `apps/mobile`.
+
+### Novidades (texto para quem usa)
+
+Cada publicação diz o que mudou na página de download, no feed `/novidades.xml` e no próprio app
+([ADR-0014](adr/0014-novidades-das-atualizacoes-escritas-nos-commits.md)). O texto vem de linhas
+de trailer no fim da mensagem do commit, escritas à mão:
+
+```
+feat: captura rápida permite escolher qualquer data pelo seletor nativo
+
+Novidade: Na captura rápida, dá para escolher qualquer data, não só hoje e amanhã
+```
+
+Uma linha por novidade. Escreva para quem usa o app, não para quem lê o código. Commit do app sem
+nada visível leva `Novidade: -`. O `ota.mjs` e o `apk:publicar` juntam os trailers dos commits
+que mexem em `apps/mobile` ou `packages/core` desde a publicação anterior. Os testes desse
+trecho rodam com `npm test -w @compasso/mobile`.
 
 ### `packages/core` no Metro
 
