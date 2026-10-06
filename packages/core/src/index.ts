@@ -15,4 +15,5 @@ export * from './ocorrencia';
 export * from './projecao';
 export * from './rrule';
 export * from './rruleTexto';
+export * from './semana';
 export * from './sync/motor';

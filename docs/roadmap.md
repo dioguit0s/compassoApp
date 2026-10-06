@@ -444,6 +444,24 @@ Pedido do autor em 2026-09-25, fora da ordem das fases e sem dependência da F9
 por voz, com o evento aparecendo no celular depois do sync. ✅ Cumprido, segundo o autor, em
 2026-10-02.
 
+### Widget da semana (Android) — fora das fases
+
+Pedido do autor em 2026-10-06, fora da ordem das fases
+([ADR-0014](adr/0014-widget-da-semana-no-android.md)). O widget estava em "Fora" na especificação
+como feature desejada; entrou só no Android, que é onde o app é distribuído.
+
+- Semana corrente, domingo a sábado, em 7 colunas, com eventos, tarefas e aulas no visual do
+  códice; montagem pura e testada no core (`resumirSemana`).
+- Desenhado em JS pelo `react-native-android-widget`, com a mesma projeção da agenda do app.
+- Atualiza ao abrir o app, a cada escrita na agenda ou na grade, depois do sync em background e a
+  cada 30 min pelo Android.
+- Módulo nativo: chega no APK 0.4.0, não por OTA.
+
+**Critério de saída:** com o 0.4.0 instalado no aparelho real, o widget aparece no seletor com a
+prévia, mostra a semana certa (hoje em destaque, aulas incluídas), redesenha em poucos segundos
+depois de criar ou concluir um item no app, troca de semana sozinho na virada de sábado para
+domingo, e o toque abre o Calendário. ⏳ Implementado; falta a validação no aparelho.
+
 ---
 
 ## 6. Armadilhas técnicas conhecidas

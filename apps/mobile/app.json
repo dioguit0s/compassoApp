@@ -3,7 +3,7 @@
     "name": "Compasso",
     "slug": "compasso",
     "scheme": "compasso",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "runtimeVersion": {
       "policy": "fingerprint"
     },
@@ -24,7 +24,7 @@
     },
     "android": {
       "package": "com.dioguit0s.compasso",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#E7D8BB",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -59,7 +59,33 @@
         }
       ],
       "expo-splash-screen",
-      "expo-font"
+      "expo-font",
+      [
+        "react-native-android-widget",
+        {
+          "fonts": [
+            "../../node_modules/@expo-google-fonts/cinzel/600SemiBold/Cinzel_600SemiBold.ttf",
+            "../../node_modules/@expo-google-fonts/cinzel/700Bold/Cinzel_700Bold.ttf",
+            "../../node_modules/@expo-google-fonts/archivo/400Regular_Italic/Archivo_400Regular_Italic.ttf",
+            "../../node_modules/@expo-google-fonts/archivo/500Medium/Archivo_500Medium.ttf",
+            "../../node_modules/@expo-google-fonts/archivo/600SemiBold/Archivo_600SemiBold.ttf"
+          ],
+          "widgets": [
+            {
+              "name": "SemanaCompasso",
+              "label": "Semana",
+              "description": "A semana corrente do Compasso: eventos, tarefas e aulas.",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "previewImage": "./assets/widget-semana.png",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

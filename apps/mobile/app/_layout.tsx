@@ -35,6 +35,7 @@ import {
 import { atualizarPerfil } from '../src/perfil';
 import { sincronizarAgora } from '../src/sync';
 import { useTema } from '../src/tema';
+import { atualizarWidget } from '../src/widget/tarefa';
 
 export default function Raiz() {
   const { success, error } = useMigrations(db, migracoes);
@@ -68,6 +69,8 @@ export default function Raiz() {
     void atualizarPerfil();
     void sincronizarAgora();
     void reagendar();
+    // A abertura também é quando o banco acabou de migrar: o widget volta a ler a semana.
+    void atualizarWidget();
     void registrarTarefaDeBackground();
     return observarMudancas();
   }, [success]);

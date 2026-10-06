@@ -12,6 +12,7 @@ import type * as TaskManagerT from 'expo-task-manager';
 import { Linking, Platform } from 'react-native';
 import { rotuloDeHora } from './ui/EntradaItem';
 import { repositorio, sincronizarAgora } from './sync';
+import { atualizarWidget } from './widget/tarefa';
 
 /**
  * Agendador de lembretes locais (especificação §6.2, issues #47 e #49). Sem push do servidor: o
@@ -163,13 +164,29 @@ async function executarReagendamento(): Promise<number> {
 }
 
 let pendente: ReturnType<typeof setTimeout> | null = null;
+let widgetPendente: ReturnType<typeof setTimeout> | null = null;
+
+/** O widget da semana (ADR-0014) também mostra as aulas: muda com a grade além da agenda. */
+const TABELAS_DO_WIDGET = new Set([
+  'items',
+  'item_occurrences',
+  'semesters',
+  'courses',
+  'class_slots',
+  'class_exceptions',
+]);
 
 /**
  * Reagenda depois de qualquer escrita em `items` ou `item_occurrences` — edição local, conclusão
- * ou dado vindo do sync — com um pequeno atraso para agrupar escritas em sequência.
+ * ou dado vindo do sync — com um pequeno atraso para agrupar escritas em sequência. Pelo mesmo
+ * caminho, redesenha o widget da semana.
  */
 export function observarMudancas(): () => void {
   const sub = addDatabaseChangeListener((e) => {
+    if (TABELAS_DO_WIDGET.has(e.tableName)) {
+      if (widgetPendente) clearTimeout(widgetPendente);
+      widgetPendente = setTimeout(() => void atualizarWidget(), 1500);
+    }
     if (e.tableName !== 'items' && e.tableName !== 'item_occurrences') return;
     if (pendente) clearTimeout(pendente);
     pendente = setTimeout(() => void reagendar(), 1500);
@@ -184,6 +201,7 @@ if (!NO_EXPO_GO) {
     try {
       await sincronizarAgora();
       await reagendar();
+      await atualizarWidget();
       return BackgroundTask.BackgroundTaskResult.Success;
     } catch {
       return BackgroundTask.BackgroundTaskResult.Failed;
