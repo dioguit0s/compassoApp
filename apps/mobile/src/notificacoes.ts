@@ -4,7 +4,6 @@ import {
   planejarReagendamento,
   selecionarDisparos,
 } from '@compasso/core';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
 import type * as BackgroundTaskT from 'expo-background-task';
 import type * as NotificationsT from 'expo-notifications';
 import { addDatabaseChangeListener } from 'expo-sqlite';
@@ -12,7 +11,8 @@ import type * as TaskManagerT from 'expo-task-manager';
 import { Linking, Platform } from 'react-native';
 import { rotuloDeHora } from './ui/EntradaItem';
 import { repositorio, sincronizarAgora } from './sync';
-import { atualizarWidget } from './widget/tarefa';
+import { NO_EXPO_GO } from './ambiente';
+import { atualizarWidget } from './widget';
 
 /**
  * Agendador de lembretes locais (especificação §6.2, issues #47 e #49). Sem push do servidor: o
@@ -30,9 +30,6 @@ import { atualizarWidget } from './widget/tarefa';
  * os três módulos nativos só são carregados fora do Expo Go e, dentro dele, lembretes e tarefa de
  * background ficam desligados — o resto do app funciona.
  */
-
-/** true quando o app roda no Expo Go: lembretes e background indisponíveis. */
-export const NO_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const Notifications: typeof NotificationsT = NO_EXPO_GO ? null! : require('expo-notifications');

@@ -1,6 +1,5 @@
 import type { WidgetTaskHandler } from 'react-native-android-widget';
 import { requestWidgetUpdate } from 'react-native-android-widget';
-import { Platform } from 'react-native';
 import { carregarSemana } from './dados';
 import { itensPorDia, NOME_DO_WIDGET, SemanaIndisponivel, SemanaWidget } from './SemanaWidget';
 
@@ -30,13 +29,12 @@ export const tarefaDoWidget: WidgetTaskHandler = async ({
 
 /** Redesenha os widgets na tela inicial depois de a agenda, a grade ou o sync mudarem algo. */
 export async function atualizarWidget(): Promise<void> {
-  if (Platform.OS !== 'android') return;
   try {
     await requestWidgetUpdate({
       widgetName: NOME_DO_WIDGET,
       renderWidget: (info) => desenhar(info.height),
     });
   } catch {
-    // Sem widget nativo (ex.: Expo Go) ou launcher indisponível: nada a atualizar.
+    // Launcher indisponível ou banco em uso: a próxima escrita ou os 30 min redesenham.
   }
 }

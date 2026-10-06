@@ -35,7 +35,7 @@ import {
 import { atualizarPerfil } from '../src/perfil';
 import { sincronizarAgora } from '../src/sync';
 import { useTema } from '../src/tema';
-import { atualizarWidget } from '../src/widget/tarefa';
+import { atualizarWidget } from '../src/widget';
 
 export default function Raiz() {
   const { success, error } = useMigrations(db, migracoes);

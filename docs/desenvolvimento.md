@@ -97,9 +97,9 @@ O app roda em **development build**, nunca no Expo Go (alarme exato do Android 1
 background não existem no Expo Go — roadmap §6).
 
 **Atalho no Expo Go:** para mexer em telas sem compilar, `npm run start:go` (dentro de
-`apps/mobile`) serve o app para o Expo Go. Nele, lembretes e tarefa de background ficam desligados
-(`NO_EXPO_GO` em `src/notificacoes.ts`) e o Perfil avisa "Indisponíveis no Expo Go". Qualquer coisa
-que envolva notificação ou background se testa no development build.
+`apps/mobile`) serve o app para o Expo Go. Nele, lembretes, tarefa de background e o widget da
+semana ficam desligados (`NO_EXPO_GO` em `src/ambiente.ts`) e o Perfil avisa "Indisponíveis no Expo
+Go". Qualquer coisa que envolva notificação, background ou o widget se testa no development build.
 
 ### Gerar e instalar um build
 

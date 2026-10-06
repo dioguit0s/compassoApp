@@ -7,15 +7,14 @@
 // (ADR-0014) é headless pelo mesmo motivo e também é registrado aqui.
 import { configurarAleatoriedade } from '@compasso/core';
 import * as Crypto from 'expo-crypto';
-import { registerWidgetTaskHandler } from 'react-native-android-widget';
-import { tarefaDoWidget } from './src/widget/tarefa';
+import { registrarWidget } from './src/widget';
 
 // UUIDv7 do core usa a aleatoriedade nativa do expo-crypto — sem polyfill global no Hermes.
 configurarAleatoriedade((bytes) => {
   Crypto.getRandomValues(bytes);
 });
 
-registerWidgetTaskHandler(tarefaDoWidget);
+registrarWidget();
 
 import './src/notificacoes';
 import 'expo-router/entry';

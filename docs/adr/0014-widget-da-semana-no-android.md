@@ -53,6 +53,9 @@ códice (`tema.ts`).
 
 ## Consequências
 
+- **Não roda no Expo Go.** A biblioteca exige o módulo nativo já no import, então ela só é
+  carregada sob demanda (`src/widget/index.ts`) fora do Expo Go; lá o resto do app funciona e o
+  widget fica desligado. Testar o widget exige development build ou APK.
 - **Exige APK novo** (0.4.0, versionCode 4): é módulo nativo, então o fingerprint muda e a
   atualização não chega por OTA. Quem não instalar o APK continua sem o widget.
 - A virada da meia-noite pode aparecer com até 30 min de atraso se o app não for aberto — o limite
