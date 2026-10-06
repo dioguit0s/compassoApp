@@ -206,7 +206,10 @@ na abertura seguinte.
 
 O runtime é o fingerprint nativo do Expo, e o `apps/mobile/fingerprint.config.js` existe para ele
 dar o mesmo hash no Windows (APK) e no Linux (runner). Para ver o hash:
-`npx expo-updates fingerprint:generate --platform android` em `apps/mobile`.
+`npx expo-updates fingerprint:generate --platform android` em `apps/mobile`. Os `scripts` do
+`apps/mobile/package.json` entram no hash: um script novo ali muda o runtime e trava o OTA até o
+próximo APK. Scripts que não vão no APK (como os testes de `scripts/`) ficam no `package.json` da
+raiz.
 
 ### Novidades (texto para quem usa)
 
@@ -223,7 +226,7 @@ Novidade: Na captura rápida, dá para escolher qualquer data, não só hoje e a
 Uma linha por novidade. Escreva para quem usa o app, não para quem lê o código. Commit do app sem
 nada visível leva `Novidade: -`. O `ota.mjs` e o `apk:publicar` juntam os trailers dos commits
 que mexem em `apps/mobile` ou `packages/core` desde a publicação anterior. Os testes desse
-trecho rodam com `npm test -w @compasso/mobile`.
+trecho rodam com `npm run test:scripts` (na raiz).
 
 ### `packages/core` no Metro
 

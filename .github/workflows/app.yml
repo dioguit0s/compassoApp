@@ -40,7 +40,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck -w @compasso/core -w @compasso/mobile
-      - run: npm test -w @compasso/core -w @compasso/mobile
+      - run: npm test -w @compasso/core
+      - run: npm run test:scripts
 
   publicar-ota:
     needs: verificar

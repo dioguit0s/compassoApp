@@ -81,4 +81,8 @@ aparece só a mais recente. A lista inteira fica em Configurações → Novidade
 - A primeira publicação depois desta mudança não tem novidade anterior. Ela conta só o próprio
   commit (ou, no `apk:publicar`, desde o `commit` gravado no `android.json`, que passa a existir
   agora).
+- Os testes de `apps/mobile/scripts/` rodam pelo `package.json` da raiz (`npm run test:scripts`).
+  Os `scripts` do `apps/mobile/package.json` entram no fingerprint nativo. O primeiro deploy
+  desta mudança pôs ali um script `test`, o runtime mudou e o runner pulou o OTA por "mudança
+  nativa", até ele sair de lá.
 - O repositório é público. O texto da novidade não diz nada que os commits já não digam.
