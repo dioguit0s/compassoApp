@@ -21,6 +21,9 @@ CLAUDE.md, as três fases (site, feed Atom, "O que há de novo" no app).
 - [x] 6. verificar, revisar diff, commit e push
 - [x] Revisão do diff: 2 sugestões corrigidas (OTA de runtime antigo como "pendente"; reverter
       duas vezes deixava a novidade no site)
+- [x] Deploy do merge (PR #101): API ok; OTA pulado por "mudança nativa", porque o script `test`
+      no apps/mobile/package.json entra no fingerprint. Movido para a raiz (`test:scripts`); o
+      hash volta a 846e9c1…, o do APK 0.3.0
 - [ ] 7. **No servidor (usuário):** deploy da API, primeiro push com `Novidade:` e conferir a
       página, o feed e o aviso no celular
 

@@ -13,7 +13,8 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && npm run test:scripts",
+    "test:scripts": "node --test \"apps/mobile/scripts/*.test.mjs\"",
     "verificar": "npm run lint && npm run typecheck && npm test"
   },
   "devDependencies": {
