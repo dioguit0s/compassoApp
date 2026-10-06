@@ -101,3 +101,6 @@ export const FOLGA_DO_FAB = 88;
 export function useTema(): Tema {
   return codice;
 }
+
+/** O mesmo tema fora de componentes React — o widget, desenhado por tarefa headless. */
+export const CODICE: Tema = codice;
