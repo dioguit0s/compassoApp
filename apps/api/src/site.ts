@@ -1,11 +1,13 @@
 import { Hono } from 'hono';
 import { ARQUIVO_APK, base, lerApkPublicado, type ApkPublicado } from './atualizacoes';
 import type { Config } from './config';
+import { lerNovidades, tituloDaNovidade, type Novidade } from './novidades';
 
 /**
  * Página de download na raiz da API: o link que se manda aos amigos, no lugar do APK. Lê o mesmo
- * android.json do atualizador (ADR-0013) e segue o visual do app (códice, `apps/mobile/src/tema.ts`).
- * HTML montado aqui, sem JS no navegador; pública como as rotas de atualização.
+ * android.json do atualizador (ADR-0013) e as novidades de cada publicação (ADR-0014), e segue o
+ * visual do app (códice, `apps/mobile/src/tema.ts`). HTML montado aqui a cada pedido, sem JS no
+ * navegador: uma publicação nova aparece na hora. Pública como as rotas de atualização.
  */
 
 const CSP = [
@@ -98,12 +100,12 @@ h1 {
 .vazio { margin: 10px 0 0; color: var(--texto2); }
 h2 { margin: 0 0 14px; font: 700 19px/1.2 var(--cinzel); letter-spacing: 0.06em; }
 ol { list-style: none; margin: 0; padding: 0; counter-reset: passo; }
-li {
+ol li {
   counter-increment: passo; display: grid; grid-template-columns: 34px 1fr; gap: 0 12px;
   padding: 12px 0; border-top: 1px solid var(--divisoria); color: var(--texto2);
 }
-li:first-child { border-top: 0; padding-top: 0; }
-li::before {
+ol li:first-child { border-top: 0; padding-top: 0; }
+ol li::before {
   content: counter(passo, upper-roman); color: var(--ouro); font: 700 18px/1.45 var(--cinzel);
   text-align: center;
 }
@@ -114,6 +116,21 @@ code {
   overflow-x: auto; font: 500 13px/1.4 ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
 }
 section + section { margin-top: 30px; }
+.novidade { padding: 14px 0; border-top: 1px solid var(--divisoria); }
+.novidade:first-of-type { border-top: 0; padding-top: 0; }
+.novidade header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.novidade time { color: var(--texto); font-weight: 600; }
+.etiqueta {
+  padding: 3px 8px; border-radius: 999px; border: 1px solid var(--borda); background: var(--campo);
+  color: var(--rotulo); font: 600 10.5px/1.2 var(--cinzel); letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.etiqueta.apk { background: var(--ouro-fundo); border-color: var(--ouro-claro); color: var(--ouro-escuro); }
+.novidade ul { margin: 8px 0 0; padding-left: 20px; color: var(--texto2); }
+.novidade li + li { margin-top: 4px; }
+.novidade li::marker { color: var(--ouro); }
+.assinar { margin: 16px 0 0; font-size: 13.5px; color: var(--sutil); }
+a { color: var(--ouro-escuro); }
 footer {
   margin-top: 36px; color: var(--apagado); font: 500 11.5px/1.6 var(--cinzel); letter-spacing: 0.14em;
   text-align: center; text-transform: uppercase;
@@ -137,7 +154,15 @@ function megabytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}\u00a0MB`;
 }
 
-function cartaoDaVersao(apk: ApkPublicado | null, fuso: string): string {
+/** Data da última atualização automática, quando ela é mais nova que o APK. */
+function ultimaAtualizacao(apk: ApkPublicado, novidades: Novidade[], fuso: string): string | null {
+  const ota = novidades.find((n) => n.tipo === 'ota');
+  if (!ota || !(Date.parse(ota.publicadoEm) > Date.parse(apk.publicadoEm))) return null;
+  const quando = dataPublicacao(ota.publicadoEm, fuso);
+  return quando && `atualizada em ${quando}`;
+}
+
+function cartaoDaVersao(apk: ApkPublicado | null, novidades: Novidade[], fuso: string): string {
   if (!apk) {
     return `
       <div class="cartao">
@@ -146,7 +171,11 @@ function cartaoDaVersao(apk: ApkPublicado | null, fuso: string): string {
       </div>`;
   }
   const quando = dataPublicacao(apk.publicadoEm, fuso);
-  const meta = [quando && `publicada em ${quando}`, megabytes(apk.tamanho)]
+  const meta = [
+    quando && `publicada em ${quando}`,
+    ultimaAtualizacao(apk, novidades, fuso),
+    megabytes(apk.tamanho),
+  ]
     .filter(Boolean)
     .join(' · ');
   const notas = apk.notas?.trim() ? `<p class="notas">${escaparHtml(apk.notas.trim())}</p>` : '';
@@ -161,7 +190,36 @@ function cartaoDaVersao(apk: ApkPublicado | null, fuso: string): string {
       </div>`;
 }
 
-function pagina(apk: ApkPublicado | null, servidor: string, fuso: string): string {
+const MOSTRAR_NA_PAGINA = 10;
+
+function secaoDeNovidades(novidades: Novidade[], fuso: string): string {
+  if (!novidades.length) return '';
+  const entradas = novidades.slice(0, MOSTRAR_NA_PAGINA).map((n) => {
+    const quando = dataPublicacao(n.publicadoEm, fuso) ?? '';
+    const etiqueta =
+      n.tipo === 'apk'
+        ? `<span class="etiqueta apk">${escaparHtml(tituloDaNovidade(n))} · instale pelo app</span>`
+        : '<span class="etiqueta">Chega sozinha</span>';
+    const itens = n.itens.map((i) => `<li>${escaparHtml(i)}</li>`).join('');
+    return `
+      <article class="novidade" id="${escaparHtml(n.id)}">
+        <header><time datetime="${n.publicadoEm}">${escaparHtml(quando)}</time>${etiqueta}</header>
+        <ul>${itens}</ul>
+      </article>`;
+  });
+  return `
+  <section>
+    <h2>Novidades</h2>${entradas.join('')}
+    <p class="assinar">Para saber das próximas, assine o <a href="/novidades.xml">feed de novidades</a>.</p>
+  </section>`;
+}
+
+function pagina(
+  apk: ApkPublicado | null,
+  novidades: Novidade[],
+  servidor: string,
+  fuso: string,
+): string {
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -174,6 +232,7 @@ function pagina(apk: ApkPublicado | null, servidor: string, fuso: string): strin
 <meta property="og:title" content="Compasso">
 <meta property="og:description" content="Calendário e registro de esforço num lugar só. Baixe o app para Android.">
 <link rel="icon" href="${FAVICON}">
+<link rel="alternate" type="application/atom+xml" title="Compasso — novidades" href="/novidades.xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Cinzel:wght@600;700&display=swap">
@@ -188,8 +247,9 @@ function pagina(apk: ApkPublicado | null, servidor: string, fuso: string): strin
   </header>
 
   <div class="ornato" aria-hidden="true"><span></span></div>
-  ${cartaoDaVersao(apk, fuso)}
+  ${cartaoDaVersao(apk, novidades, fuso)}
   <div class="ornato" aria-hidden="true"><span></span></div>
+${secaoDeNovidades(novidades, fuso)}
 
   <section>
     <h2>Como instalar</h2>
@@ -231,7 +291,8 @@ export function rotasDoSite(config: Config) {
   const app = new Hono();
 
   app.get('/', async (c) => {
-    const html = pagina(await apkAtual(config), base(c, config), config.tzDefault);
+    const [apk, novidades] = await Promise.all([apkAtual(config), lerNovidades(config)]);
+    const html = pagina(apk, novidades, base(c, config), config.tzDefault);
     return c.html(html, 200, {
       // O APK muda sem a URL mudar: sempre revalida.
       'cache-control': 'no-cache',

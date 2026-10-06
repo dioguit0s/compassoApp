@@ -20,6 +20,21 @@ Decisões do usuário: só Android; 7 colunas domingo–sábado; eventos, tarefa
       sem acesso ao Android SDK)
 - [x] ADR-0014, especificação, roadmap; `npm run verificar` verde
 - [ ] **Usuário:** `npm run apk`, testar no emulador/aparelho, `apk:publicar 0.4.0`
+## Tarefa atual — novidades das atualizações no site e no app (2026-10-06)
+
+Decisões do usuário: texto escrito à mão em cada commit (trailer `Novidade:`), cláusula no
+CLAUDE.md, as três fases (site, feed Atom, "O que há de novo" no app).
+
+- [x] 1. scripts/novidades.mjs (trailers → itens, intervalo desde a última publicação) + testes
+- [x] 2. ota.mjs e publicar-apk.mjs gravam releases/novidades/; ota-reverter move junto
+- [x] 3. API: novidades.ts (/novidades.json, /novidades.xml) + seção no site + testes
+- [x] 4. App: aviso "Novidades" depois de atualizar + tela em Configurações
+- [x] 5. app.yml (fetch-depth 0, testes), deploy.sh, CLAUDE.md, ADR-0014, especificação, roadmap, docs
+- [x] 6. verificar, revisar diff, commit e push
+- [x] Revisão do diff: 2 sugestões corrigidas (OTA de runtime antigo como "pendente"; reverter
+      duas vezes deixava a novidade no site)
+- [ ] 7. **No servidor (usuário):** deploy da API, primeiro push com `Novidade:` e conferir a
+      página, o feed e o aviso no celular
 
 ## Tarefa anterior — atualizações automáticas do app (2026-09-29)
 

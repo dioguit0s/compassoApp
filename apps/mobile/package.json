@@ -10,6 +10,7 @@
     "ios": "expo run:ios",
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test \"scripts/*.test.mjs\"",
     "export:android": "expo export --platform android --output-dir dist",
     "apk": "node scripts/apk.mjs",
     "apk:publicar": "node scripts/publicar-apk.mjs",

@@ -2,8 +2,12 @@
  * Gera o APK de release e publica no servidor (ADR-0013): o app dos amigos vê a versão nova na
  * próxima abertura e instala com um toque.
  *
- *   npm run apk:publicar -w @compasso/mobile -- --notas "O que mudou"
- *   npm run apk:publicar -w @compasso/mobile -- --notas "..." --minimo 5
+ *   npm run apk:publicar -w @compasso/mobile
+ *   npm run apk:publicar -w @compasso/mobile -- --notas "O que mudou" --minimo 5
+ *
+ * O texto do aviso no app e da novidade no site (ADR-0014) sai dos trailers `Novidade:` dos
+ * commits do app desde a publicação anterior (OTA ou APK). --notas substitui esse texto; sem
+ * nenhum dos dois, o script recusa publicar.
  *
  * --minimo N: versionCode mínimo para continuar usando o app (atualização obrigatória). Sem ele,
  * mantém o do APK publicado antes.
@@ -17,11 +21,13 @@ import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { instanteDe, novidadesDosCommits } from './novidades.mjs';
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '..');
 const windows = process.platform === 'win32';
 const ssh = process.env.COMPASSO_SSH || 'luna-dash';
 const REMOTO = '~/compasso/releases/android';
+const NOVIDADES = '~/compasso/releases/novidades';
 
 function falhar(msg) {
   console.error(`\nERRO: ${msg}`);
@@ -52,8 +58,7 @@ const valor = (nome) => {
   const i = args.indexOf(nome);
   return i >= 0 ? args[i + 1] : undefined;
 };
-const notas = valor('--notas')?.trim();
-if (!notas) falhar('diga o que mudou: --notas "texto" (aparece no aviso do app)');
+const notasArg = valor('--notas')?.trim();
 const minimoArg = valor('--minimo');
 if (minimoArg !== undefined && !/^\d+$/.test(minimoArg)) falhar('--minimo precisa ser inteiro');
 
@@ -97,6 +102,31 @@ if (anterior && versionCode <= anterior.versionCode) {
 const minimoVersionCode = minimoArg ? Number(minimoArg) : (anterior?.minimoVersionCode ?? 1);
 if (minimoVersionCode > versionCode) falhar('--minimo maior que o próprio versionCode');
 
+// --- novidades (ADR-0014) ---
+// A publicação mais recente (OTA ou APK) diz de que commit partir. Sem nenhuma, usa o commit do
+// APK anterior, se ele tiver.
+const ultimaBruta = rodar('ssh', [
+  ssh,
+  `u=$(ls -1 ${NOVIDADES} 2>/dev/null | grep -E '^[0-9]{14}-(ota|apk)-[0-9a-z]+[.]json$' | sort | tail -n 1); ` +
+    `if [ -n "$u" ]; then cat ${NOVIDADES}/$u; fi`,
+]).trim();
+let desde = anterior?.commit;
+try {
+  if (ultimaBruta) desde = JSON.parse(ultimaBruta).commit ?? desde;
+} catch {
+  // novidade ilegível: parte do APK anterior
+}
+const sha = rodar('git', ['rev-parse', 'HEAD']).trim();
+const itens = notasArg ? [notasArg] : novidadesDosCommits(raiz, desde, sha);
+if (!itens.length) {
+  falhar(
+    'nenhum trailer `Novidade:` nos commits do app desde a última publicação; ' +
+      'diga o que mudou com --notas "texto" (aparece no aviso do app e no site)',
+  );
+}
+const notas = itens.length === 1 ? itens[0] : itens.map((i) => `• ${i}`).join('\n');
+console.log(`Novidades:\n${itens.map((i) => `  - ${i}`).join('\n')}\n`);
+
 // --- build ---
 rodar('node', [join(raiz, 'scripts', 'apk.mjs')], {
   env: { COMPASSO_ABI: 'arm64-v8a' },
@@ -133,17 +163,34 @@ const manifesto = {
   notas,
   minimoVersionCode,
   publicadoEm: new Date().toISOString(),
+  commit: sha,
 };
+const novidade = {
+  tipo: 'apk',
+  publicadoEm: manifesto.publicadoEm,
+  versao: versionName,
+  versionCode,
+  runtime: embutido,
+  commit: sha,
+  itens,
+};
+const arquivoNovidade = `${instanteDe(new Date(manifesto.publicadoEm))}-apk-${versionCode}.json`;
 const temp = mkdtempSync(join(tmpdir(), 'compasso-apk-'));
 try {
   const json = join(temp, 'android.json');
   writeFileSync(json, `${JSON.stringify(manifesto, null, 2)}\n`);
+  const jsonNovidade = join(temp, arquivoNovidade);
+  writeFileSync(jsonNovidade, `${JSON.stringify(novidade, null, 2)}\n`);
   // a+rx: se o deploy.sh ainda não criou as pastas, elas nasceriam com o umask da sessão, e o
   // container da API (outro usuário) não conseguiria ler.
-  rodar('ssh', [ssh, `mkdir -p ${REMOTO} && chmod a+rx ~/compasso/releases ${REMOTO}`]);
+  rodar('ssh', [
+    ssh,
+    `mkdir -p ${REMOTO} ${NOVIDADES} && chmod a+rx ~/compasso/releases ${REMOTO} ${NOVIDADES}`,
+  ]);
   // Nomes temporários e mv no fim: a API nunca vê um APK pela metade nem um manifesto sem APK.
   rodar('scp', ['-q', apk, `${ssh}:${REMOTO}/.${arquivo}.tmp`]);
   rodar('scp', ['-q', json, `${ssh}:${REMOTO}/.android.json.tmp`]);
+  rodar('scp', ['-q', jsonNovidade, `${ssh}:${NOVIDADES}/.tmp-${arquivoNovidade}`]);
   rodar('ssh', [
     ssh,
     [
@@ -151,6 +198,9 @@ try {
       `chmod a+r .${arquivo}.tmp .android.json.tmp`,
       `mv .${arquivo}.tmp ${arquivo}`,
       'mv .android.json.tmp android.json',
+      // A novidade por último: o site só anuncia o APK que já dá para baixar.
+      `chmod a+r ${NOVIDADES}/.tmp-${arquivoNovidade}`,
+      `mv ${NOVIDADES}/.tmp-${arquivoNovidade} ${NOVIDADES}/${arquivoNovidade}`,
       // Guarda os 3 mais recentes (pelo versionCode) para reverter à mão, se preciso.
       'ls -1 compasso-*.apk | sort -t- -k3 -n | head -n -3 | xargs -r rm -f',
     ].join(' && '),

@@ -1,7 +1,8 @@
 # Esteira do app (ADR-0013): verifica num runner do GitHub e publica o bundle JS como atualização
 # OTA no runner self-hosted do homeserver, direto na pasta que a API serve. O APK não sai daqui
 # (o build nativo é na máquina do autor, `npm run apk:publicar`); se o commit mudou algo nativo, o
-# job pula a publicação e avisa no resumo.
+# job pula a publicação e avisa no resumo. Cada publicação grava também as novidades dela
+# (trailers `Novidade:` dos commits, ADR-0014), que a página de download e o app mostram.
 #
 # Mesmo cuidado do api.yml: repositório público, nada roda em pull_request, e o runner da casa só
 # recebe push na main ou disparo manual na main.
@@ -39,7 +40,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck -w @compasso/core -w @compasso/mobile
-      - run: npm test -w @compasso/core
+      - run: npm test -w @compasso/core -w @compasso/mobile
 
   publicar-ota:
     needs: verificar
@@ -48,6 +49,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Histórico inteiro: as novidades (ADR-0014) vêm dos commits desde a última publicação.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22

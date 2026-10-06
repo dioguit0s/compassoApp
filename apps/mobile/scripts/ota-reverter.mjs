@@ -2,7 +2,9 @@
  * Tira do ar o OTA mais recente do APK publicado (ADR-0013). A publicação anterior é republicada
  * com instante novo, porque o expo-updates roda a atualização mais recente que já baixou e não
  * voltaria para uma mais velha. Sem anterior, a API manda os apps de volta ao bundle do APK. Nada
- * é apagado: a pasta revertida vai para ~/compasso/releases/ota-revertidas/.
+ * é apagado: a pasta revertida vai para ~/compasso/releases/ota-revertidas/, e a novidade dela
+ * (ADR-0014) para novidades-revertidas/, saindo do site. Os trailers `Novidade:` desses commits
+ * voltam na próxima publicação, que parte da novidade anterior.
  *
  *   npm run ota:reverter -w @compasso/mobile
  *
@@ -23,6 +25,15 @@ ultima=$(ls -1 "ota/$runtime" 2>/dev/null | grep -E '^[0-9]{14}-[0-9a-f]+$' | so
 mkdir -p "ota-revertidas/$runtime"
 mv "ota/$runtime/$ultima" "ota-revertidas/$runtime/"
 echo "revertido: $ultima"
+# Pelo commit, não pelo instante: uma publicação já republicada pelo reverter tem nome novo, e a
+# novidade dela guarda o instante original.
+novidade=$(ls -1 novidades 2>/dev/null | grep -E "^[0-9]{14}-ota-\${ultima#*-}[.]json$" | sort | tail -n 1)
+novidade="novidades/$novidade"
+if [ -f "$novidade" ]; then
+  mkdir -p novidades-revertidas
+  mv "$novidade" novidades-revertidas/
+  echo "novidade fora do site: $novidade"
+fi
 anterior=$(ls -1 "ota/$runtime" | grep -E '^[0-9]{14}-[0-9a-f]+$' | sort | tail -n 1)
 if [ -z "$anterior" ]; then
   echo "no ar agora: o bundle que veio no APK"

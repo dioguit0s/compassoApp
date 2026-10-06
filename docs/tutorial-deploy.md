@@ -169,11 +169,13 @@ Desde a 0.3.0 ninguém instala nada à mão
 
 - **Mudou só JS** (tela, regra, texto): faça push na `main`. Em Actions → **App**, o job
   `publicar-ota` termina com "OTA publicado", e os celulares pegam a versão nova em até duas
-  aberturas do app.
+  aberturas do app. As linhas `Novidade:` dos commits aparecem na página de download e, uma vez,
+  no celular quando a versão nova entra.
 - **Mudou algo nativo** (o job avisa "OTA não publicado: mudança nativa"):
   1. No `apps/mobile/app.json`, suba `version` (ex.: `0.3.1`) e `android.versionCode` (+1), e
      commite.
-  2. `npm run apk:publicar -w @compasso/mobile -- --notas "O que mudou"` (com a **mesma** chave).
+  2. `npm run apk:publicar -w @compasso/mobile` (com a **mesma** chave). O texto do aviso vem
+     dos trailers `Novidade:` dos commits; `-- --notas "O que mudou"` o substitui.
   3. Na próxima abertura, cada celular mostra "Versão 0.3.1 disponível"; um toque baixa e instala
      por cima. Os dados locais ficam.
 - **Um OTA quebrou algo:** `npm run ota:reverter -w @compasso/mobile` volta para o anterior.

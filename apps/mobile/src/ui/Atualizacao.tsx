@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
 import {
   createContext,
@@ -19,6 +20,7 @@ import {
   procurarApk,
   type ApkDisponivel,
 } from '../atualizacao';
+import { buscarNovidades, marcarVistas, novidadesNaoVistas, textoDoAviso } from '../novidades';
 import { useTema } from '../tema';
 import { useAlturaDoAviso } from './Aviso';
 import { useAlerta } from './Dialogo';
@@ -35,7 +37,8 @@ const Contexto = createContext<Procurar>(async () => {});
 /**
  * Atualizações do app (ADR-0013): na abertura e ao voltar para o app procura APK novo. O OTA o
  * expo-updates baixa sozinho; quando um fica pronto, a barra oferece reiniciar (se a pessoa não
- * tocar, ele entra na próxima abertura).
+ * tocar, ele entra na próxima abertura). Na abertura, se não houve aviso de APK, mostra uma vez
+ * as novidades das atualizações que entraram desde a última vez (ADR-0014).
  */
 export function ProvedorDeAtualizacao({ children }: { children: ReactNode }) {
   const tema = useTema();
@@ -68,9 +71,10 @@ export function ProvedorDeAtualizacao({ children }: { children: ReactNode }) {
     [alerta],
   );
 
-  const procurar = useCallback<Procurar>(
-    async (modo) => {
-      if (ocupado.current) return;
+  /** Procura APK; true se abriu algum diálogo (aí as novidades esperam a próxima abertura). */
+  const procurarApkEAvisar = useCallback(
+    async (modo: 'automatico' | 'manual'): Promise<boolean> => {
+      if (ocupado.current) return true;
       ocupado.current = true;
       try {
         let disponivel: ApkDisponivel | null;
@@ -83,7 +87,7 @@ export function ProvedorDeAtualizacao({ children }: { children: ReactNode }) {
               'Não deu para procurar atualização agora. Confira a rede e tente de novo.',
             );
           }
-          return;
+          return modo === 'manual';
         }
         if (!disponivel) {
           if (modo === 'manual') {
@@ -96,10 +100,10 @@ export function ProvedorDeAtualizacao({ children }: { children: ReactNode }) {
                 : 'Você já está na versão mais recente.',
             );
           }
-          return;
+          return modo === 'manual';
         }
         const { apk, obrigatoria } = disponivel;
-        if (modo === 'automatico' && !obrigatoria && apkAdiadoHoje(apk.versionCode)) return;
+        if (modo === 'automatico' && !obrigatoria && apkAdiadoHoje(apk.versionCode)) return false;
         const mb = (apk.tamanho / 1024 / 1024).toFixed(0);
         alerta(
           `Versão ${apk.versionName} disponível`,
@@ -123,6 +127,7 @@ export function ProvedorDeAtualizacao({ children }: { children: ReactNode }) {
                 ]),
           ],
         );
+        return true;
       } finally {
         ocupado.current = false;
       }
@@ -130,14 +135,41 @@ export function ProvedorDeAtualizacao({ children }: { children: ReactNode }) {
     [alerta, instalar],
   );
 
+  const procurar = useCallback<Procurar>(
+    async (modo) => {
+      await procurarApkEAvisar(modo);
+    },
+    [procurarApkEAvisar],
+  );
+
+  /** Uma vez por atualização que entrou: o que ela trouxe. Sem rede, fica para a próxima. */
+  const avisarNovidades = useCallback(async () => {
+    let lista;
+    try {
+      lista = await buscarNovidades();
+    } catch {
+      return;
+    }
+    if (!lista?.length) return;
+    const mostrar = novidadesNaoVistas(lista);
+    marcarVistas(lista);
+    if (!mostrar.length) return;
+    alerta('Novidades', textoDoAviso(mostrar.slice(0, 3)), [
+      { text: 'Ver todas', onPress: () => router.push('/novidades') },
+      { text: 'OK', style: 'cancel' },
+    ]);
+  }, [alerta]);
+
   useEffect(() => {
     limparApksBaixados();
-    void procurar('automatico');
+    void procurarApkEAvisar('automatico').then((avisou) => {
+      if (!avisou) void avisarNovidades();
+    });
     const sub = AppState.addEventListener('change', (estado) => {
       if (estado === 'active') void procurar('automatico');
     });
     return () => sub.remove();
-  }, [procurar]);
+  }, [procurar, procurarApkEAvisar, avisarNovidades]);
 
   const barra = progresso !== null || (isUpdatePending && !otaDispensado);
   return (
