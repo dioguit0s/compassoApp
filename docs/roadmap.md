@@ -481,6 +481,23 @@ domingo, e o toque abre o Calendário. ⏳ Implementado; falta a validação no 
 
 ---
 
+### Aulas quinzenais e quadrimestre — fora das fases
+
+Pedido do autor em 2026-10-07, extensão da F5
+([ADR-0017](adr/0017-aulas-quinzenais-e-quadrimestre.md)).
+
+- Horário da grade semanal, quinzenal 1 ou quinzenal 2 (`weekInterval`/`weekOffset`; o modelo
+  aceita até "a cada 4 semanas"). A quinzenal 1 é a semana em que o período começa.
+- Período letivo do tipo semestre ou quadrimestre (`kind`), só no rótulo e nas sugestões da tela.
+- Projeção na mesma `aulasDoDia`: Hoje, semana, widget, `/agenda` e Luna alternam sozinhos.
+- Migrações 0019 (API) e 0008 (app); exige atualização do app (`Atualizacao-obrigatoria: sim`).
+
+**Critério de saída:** um quadrimestre cadastrado com uma disciplina quinzenal 1 e outra
+quinzenal 2; a aba Hoje e a semana mostram cada uma só nas semanas certas, a partir da semana de
+início do quadrimestre. ⏳ Implementado; falta a validação no aparelho.
+
+---
+
 ## 6. Armadilhas técnicas conhecidas
 
 Coisas que custam minutos se tratadas na fase certa e dias se descobertas depois.

@@ -134,6 +134,13 @@
       "when": 1790362078540,
       "tag": "0018_tokens_de_servico_funcoes",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791391751120,
+      "tag": "0019_grade_quinzenal_quadrimestre",
+      "breakpoints": true
     }
   ]
 }

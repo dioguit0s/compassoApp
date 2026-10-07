@@ -352,6 +352,10 @@ export const semesters = pgTable(
     startDate: date({ mode: 'string' }).notNull(),
     endDate: date({ mode: 'string' }).notNull(),
     active: boolean().notNull().default(false),
+    /** 'semester' | 'quadrimester' — só rótulo (ADR-0017). */
+    kind: text({ enum: ['semester', 'quadrimester'] })
+      .notNull()
+      .default('semester'),
     ...colunasDeSync,
   },
   (t) => [
@@ -359,6 +363,7 @@ export const semesters = pgTable(
     index('semesters_user_id_server_updated_at_idx').on(t.userId, t.serverUpdatedAt),
     check('semesters_intervalo_check', sql`${t.endDate} >= ${t.startDate}`),
     check('semesters_label_check', sql`length(${t.label}) > 0`),
+    check('semesters_kind_check', sql`${t.kind} in ('semester', 'quadrimester')`),
     politica('semesters_dono', t.userId),
   ],
 );
@@ -407,6 +412,9 @@ export const classSlots = pgTable(
     startTime: text().notNull(),
     endTime: text().notNull(),
     room: text(),
+    /** A cada quantas semanas, e em qual, contando do início do período (ADR-0017). */
+    weekInterval: smallint().notNull().default(1),
+    weekOffset: smallint().notNull().default(0),
     ...colunasDeSync,
   },
   (t) => [
@@ -421,6 +429,11 @@ export const classSlots = pgTable(
     check('class_slots_start_time_check', sql`${t.startTime} ~ ${regexHora}`),
     check('class_slots_end_time_check', sql`${t.endTime} ~ ${regexHora}`),
     check('class_slots_intervalo_check', sql`${t.endTime} > ${t.startTime}`),
+    check('class_slots_week_interval_check', sql`${t.weekInterval} between 1 and 4`),
+    check(
+      'class_slots_week_offset_check',
+      sql`${t.weekOffset} >= 0 and ${t.weekOffset} < ${t.weekInterval}`,
+    ),
     politica('class_slots_dono', t.userId),
   ],
 );

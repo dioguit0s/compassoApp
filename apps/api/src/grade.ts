@@ -23,12 +23,18 @@ export function rotasDaGrade() {
 
   // Semestre novo nasce ativo e desativa os outros (ADR-0005).
   rotas.post('/semesters', async (c) => {
-    const { label, startDate, endDate } = await corpo(c);
+    const { label, startDate, endDate, kind } = await corpo(c);
     return c.json(
       await c.var.transacao(async (r) => {
         const ativos = (await r.grade.paraProjecao()).semestres.filter((s) => s.active);
         for (const s of ativos) await r.grade.editar('semestres', s.id, { active: false });
-        return r.grade.criar('semestres', { label, startDate, endDate, active: true });
+        return r.grade.criar('semestres', {
+          label,
+          startDate,
+          endDate,
+          kind: kind ?? 'semester',
+          active: true,
+        });
       }),
       201,
     );
@@ -83,12 +89,21 @@ export function rotasDaGrade() {
       startTime: b.startTime,
       endTime: b.endTime,
       room: b.room ?? null,
+      weekInterval: b.weekInterval ?? 1,
+      weekOffset: b.weekOffset ?? 0,
     };
     return c.json(await c.var.transacao((r) => r.grade.criar('horarios', dados)), 201);
   });
 
   rotas.patch('/slots/:id', async (c) => {
-    const m = campos(await corpo(c), ['weekday', 'startTime', 'endTime', 'room']);
+    const m = campos(await corpo(c), [
+      'weekday',
+      'startTime',
+      'endTime',
+      'room',
+      'weekInterval',
+      'weekOffset',
+    ]);
     return c.json(await c.var.transacao((r) => r.grade.editar('horarios', c.req.param('id'), m)));
   });
 

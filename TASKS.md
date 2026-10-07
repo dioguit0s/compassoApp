@@ -8,7 +8,23 @@ mova o registro para o PR/commit correspondente.
 
 ---
 
-## Tarefa atual — APK gerado e publicado pelo runner (2026-10-07)
+## Tarefa atual — aulas quinzenais e quadrimestre (2026-10-07)
+
+Decisões do usuário: semanas contadas do início do período (Quinzenal 1 = primeira semana);
+modelo genérico "a cada N semanas" (1–4), UI só Semanal/Quinzenal 1/Quinzenal 2; período pode
+ser semestre ou quadrimestre.
+
+- [x] 1. Core: esquemas, projeção em aulasDoDia, helpers de rótulo, schema local, repositório
+- [x] 2. Migrações: app 0008, API 0019 (+ CHECKs)
+- [x] 3. API: rotas de slot/semestre
+- [x] 4. Telas: disciplina.tsx, semestre.tsx, rótulos "Semestre"
+- [x] 5. Testes core e API
+- [x] 6. Docs: ADR-0017, especificação, roadmap
+- [x] 7. verificar, revisar diff, commit
+- [ ] 8. **Usuário:** migrar a API (0019), publicar o app (atualização obrigatória), testar no aparelho
+
+
+## Tarefa anterior — APK gerado e publicado pelo runner (2026-10-07)
 
 Decisões do usuário: chave de assinatura no servidor; publicação com aprovação de um clique
 (environment `apk`); versão do app.json com patch automático e versionCode = publicado + 1; sem

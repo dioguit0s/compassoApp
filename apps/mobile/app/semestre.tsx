@@ -1,4 +1,13 @@
-import { diaDe, formatarDiaCurto, inicioDoDia, partesDoDia, type Dia } from '@compasso/core';
+import {
+  diaDe,
+  formatarDiaCurto,
+  inicioDoDia,
+  nomeDoPeriodo,
+  partesDoDia,
+  rotuloFrequencia,
+  type Dia,
+  type TipoPeriodo,
+} from '@compasso/core';
 import { ErroDeValidacao } from '@compasso/core/local';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -14,10 +23,25 @@ import { useAlturaTeclado } from '../src/ui/teclado';
 import { Texto } from '../src/ui/Texto';
 
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const TIPOS: { kind: TipoPeriodo; rotulo: string }[] = [
+  { kind: 'semester', rotulo: 'Semestre' },
+  { kind: 'quadrimester', rotulo: 'Quadrimestre' },
+];
+
+/** Nome e fim sugeridos para um período novo que começa hoje: 2026.2 ou 2026.3. */
+function sugestao(kind: TipoPeriodo, hoje: Dia): { label: string; fim: Dia } {
+  const { ano, mes } = partesDoDia(hoje);
+  if (kind === 'quadrimester') {
+    const n = mes <= 4 ? 1 : mes <= 8 ? 2 : 3;
+    return { label: `${ano}.${n}`, fim: `${ano}-${['04-30', '08-31', '12-20'][n - 1]}` };
+  }
+  return { label: `${ano}.${mes <= 6 ? 1 : 2}`, fim: `${ano}-${mes <= 6 ? '07-15' : '12-20'}` };
+}
 
 /**
- * Tela Semestre (especificação §7, issue #59): disciplinas do semestre ativo com horários e
- * salas, criar semestre novo, consultar os arquivados. Funciona offline (grava no SQLite).
+ * Tela Semestre (especificação §7, issue #59): disciplinas do período ativo com horários e
+ * salas, criar período novo (semestre ou quadrimestre, ADR-0017), consultar os arquivados.
+ * Funciona offline (grava no SQLite).
  */
 export default function Semestre() {
   const tema = useTema();
@@ -44,7 +68,7 @@ export default function Semestre() {
     <View style={{ flex: 1, backgroundColor: tema.fundo }}>
       <CabecalhoInterno
         voltar="Calendário"
-        titulo={ativo ? `Semestre ${ativo.label}` : 'Semestre'}
+        titulo={ativo ? `${nomeDoPeriodo(ativo.kind)} ${ativo.label}` : 'Período letivo'}
         subtitulo={
           ativo
             ? `${fmt(ativo.startDate)} a ${fmt(ativo.endDate)}${
@@ -54,7 +78,7 @@ export default function Semestre() {
                     ? ' · encerrado (férias)'
                     : ''
               }`
-            : 'Nenhum semestre ativo: a aba Hoje não mostra aulas.'
+            : 'Nenhum período ativo: a aba Hoje não mostra aulas.'
         }
       />
       <ScrollView
@@ -93,7 +117,8 @@ export default function Semestre() {
                   </View>
                   {horarios.map((h) => (
                     <Texto key={h.id} style={{ fontSize: 12, color: tema.texto3 }}>
-                      {DIAS[h.weekday]} {h.startTime}–{h.endTime} · sala{' '}
+                      {DIAS[h.weekday]} {h.startTime}–{h.endTime}
+                      {rotuloFrequencia(h) ? ` · ${rotuloFrequencia(h)}` : ''} · sala{' '}
                       {h.room ?? c.defaultRoom ?? '—'}
                     </Texto>
                   ))}
@@ -126,14 +151,16 @@ export default function Semestre() {
                 key={s.id}
                 accessibilityRole="button"
                 onPress={() =>
-                  alerta(`Semestre ${s.label}`, 'Tornar este o semestre corrente?', [
+                  alerta(`${nomeDoPeriodo(s.kind)} ${s.label}`, 'Tornar este o período corrente?', [
                     { text: 'Tornar corrente', onPress: () => repositorio.ativarSemestre(s.id) },
                     { text: 'Cancelar', style: 'cancel' },
                   ])
                 }
                 style={[estilos.arquivado, { borderBottomColor: tema.divisoria }]}
               >
-                <Texto style={{ fontSize: 13.5, color: tema.texto2 }}>Semestre {s.label}</Texto>
+                <Texto style={{ fontSize: 13.5, color: tema.texto2 }}>
+                  {nomeDoPeriodo(s.kind)} {s.label}
+                </Texto>
                 <Texto style={{ fontSize: 11.5, color: tema.apagado }}>
                   {fmt(s.startDate)} a {fmt(s.endDate)}
                 </Texto>
@@ -143,11 +170,11 @@ export default function Semestre() {
         ) : null}
 
         {criando ? (
-          <NovoSemestre aoCriar={() => setCriando(false)} />
+          <NovoSemestre tipoInicial={ativo?.kind ?? 'semester'} aoCriar={() => setCriando(false)} />
         ) : (
           <Botao
             variante="neutro"
-            rotulo="Criar semestre novo"
+            rotulo="Criar período novo"
             style={{ marginTop: 4 }}
             aoTocar={() => setCriando(true)}
           />
@@ -157,20 +184,49 @@ export default function Semestre() {
   );
 }
 
-function NovoSemestre({ aoCriar }: { aoCriar: () => void }) {
+function NovoSemestre({ tipoInicial, aoCriar }: { tipoInicial: TipoPeriodo; aoCriar: () => void }) {
   const tema = useTema();
   const hoje = diaDe(new Date());
-  const { ano, mes } = partesDoDia(hoje);
-  const [label, setLabel] = useState(`${ano}.${mes <= 6 ? 1 : 2}`);
+  const [kind, setKind] = useState<TipoPeriodo>(tipoInicial);
+  const [label, setLabel] = useState(sugestao(tipoInicial, hoje).label);
   const [inicio, setInicio] = useState<Dia>(hoje);
-  const [fim, setFim] = useState<Dia>(`${ano}-${mes <= 6 ? '07-15' : '12-20'}`);
+  const [fim, setFim] = useState<Dia>(sugestao(tipoInicial, hoje).fim);
   const [erro, setErro] = useState('');
+  const escolherTipo = (k: TipoPeriodo) => {
+    setKind(k);
+    const s = sugestao(k, hoje);
+    setLabel(s.label);
+    setFim(s.fim);
+  };
   return (
     <View style={[estilos.painel, { backgroundColor: tema.painel, borderColor: tema.linha }]}>
-      <Secao titulo="Novo semestre" />
+      <Secao titulo="Novo período" />
       <Texto style={{ fontSize: 12, color: tema.rotulo }}>
         O novo vira o corrente; o atual fica arquivado, intacto.
       </Texto>
+      <View style={estilos.tipos}>
+        {TIPOS.map((t) => {
+          const ativo = kind === t.kind;
+          return (
+            <Pressable
+              key={t.kind}
+              onPress={() => escolherTipo(t.kind)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: ativo }}
+              style={[
+                estilos.tipo,
+                ativo
+                  ? { backgroundColor: tema.ouro, borderColor: tema.ouroEscuro }
+                  : { backgroundColor: tema.campo, borderColor: tema.bordaCampo },
+              ]}
+            >
+              <Texto style={{ fontSize: 12.5, color: ativo ? tema.sobreOuro : tema.sutil }}>
+                {t.rotulo}
+              </Texto>
+            </Pressable>
+          );
+        })}
+      </View>
       <Campo rotulo="Nome" value={label} onChangeText={setLabel} />
       <CampoDataHora
         rotulo="Início"
@@ -187,10 +243,15 @@ function NovoSemestre({ aoCriar }: { aoCriar: () => void }) {
       {erro ? <Texto style={{ color: tema.perigo, fontSize: 12.5 }}>{erro}</Texto> : null}
       <Botao
         variante="primario"
-        rotulo="Criar semestre"
+        rotulo={`Criar ${nomeDoPeriodo(kind).toLowerCase()}`}
         aoTocar={() => {
           try {
-            repositorio.criarSemestre({ label: label.trim(), startDate: inicio, endDate: fim });
+            repositorio.criarSemestre({
+              label: label.trim(),
+              startDate: inicio,
+              endDate: fim,
+              kind,
+            });
             aoCriar();
           } catch (e) {
             setErro(e instanceof ErroDeValidacao ? e.motivos.join('; ') : (e as Error).message);
@@ -232,4 +293,6 @@ const estilos = StyleSheet.create({
     borderBottomWidth: 1,
   },
   painel: { gap: 10, padding: 14, borderWidth: 1, borderRadius: 9, marginTop: 4 },
+  tipos: { flexDirection: 'row', gap: 6 },
+  tipo: { flex: 1, paddingVertical: 8, borderWidth: 1, borderRadius: 6, alignItems: 'center' },
 });

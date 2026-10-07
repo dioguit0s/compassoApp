@@ -3,10 +3,20 @@
  * projetado para o dia sem gravar nada — não gera XP, não é concluída, não vira ocorrência.
  *
  * Horários são strings `HH:mm` de hora de parede em São Paulo (ADR-0003): a aula das 19:00
- * acontece às 19:00 toda terça, sem timestamp para deslocar na mudança de regra de fuso.
+ * acontece às 19:00 de terça, sem timestamp para deslocar na mudança de regra de fuso. O horário
+ * vale toda semana ou a cada N semanas contadas do início do período (ADR-0017): a quinzenal 1
+ * cai na semana em que o período começa, a quinzenal 2 na seguinte.
  */
 import { z } from 'zod';
-import { diaDaSemana, FUSO_PADRAO, instanteDeParede, partesDoDia, type Dia } from './calendario';
+import {
+  diaDaSemana,
+  diferencaEmDias,
+  FUSO_PADRAO,
+  inicioDaSemana,
+  instanteDeParede,
+  partesDoDia,
+  type Dia,
+} from './calendario';
 
 export const REGEX_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 const hora = z.string().regex(REGEX_HORA, 'horário no formato HH:mm (00:00 a 23:59)');
@@ -18,6 +28,10 @@ const carimbos = {
   updatedAt: dataIso,
 };
 
+/** Tipo do período letivo (ADR-0017). Só muda rótulos e sugestões; a projeção é a mesma. */
+export const TIPOS_PERIODO = ['semester', 'quadrimester'] as const;
+export type TipoPeriodo = (typeof TIPOS_PERIODO)[number];
+
 export const esquemaSemestre = z
   .object({
     id: z.uuid(),
@@ -25,6 +39,8 @@ export const esquemaSemestre = z
     startDate: dia,
     endDate: dia,
     active: z.boolean(),
+    // Default: versões do app anteriores ao ADR-0017 não mandam o campo.
+    kind: z.enum(TIPOS_PERIODO).default('semester'),
     ...carimbos,
   })
   .refine((s) => s.endDate >= s.startDate, 'o semestre termina antes de começar');
@@ -41,6 +57,8 @@ export const esquemaDisciplina = z.object({
   ...carimbos,
 });
 
+export const MAX_INTERVALO_SEMANAS = 4;
+
 export const esquemaHorario = z
   .object({
     id: z.uuid(),
@@ -49,9 +67,14 @@ export const esquemaHorario = z
     startTime: hora,
     endTime: hora,
     room: z.string().max(100).nullable(),
+    // A cada quantas semanas (1 = semanal, 2 = quinzenal) e em qual delas, contando do início do
+    // período (ADR-0017). Default: versões do app anteriores não mandam os campos.
+    weekInterval: z.number().int().min(1).max(MAX_INTERVALO_SEMANAS).default(1),
+    weekOffset: z.number().int().min(0).default(0),
     ...carimbos,
   })
-  .refine((h) => h.endTime > h.startTime, 'a aula termina antes de começar');
+  .refine((h) => h.endTime > h.startTime, 'a aula termina antes de começar')
+  .refine((h) => h.weekOffset < h.weekInterval, 'semana do horário fora do intervalo');
 
 export const TIPOS_EXCECAO = ['cancelled', 'room_change', 'extra'] as const;
 export type TipoExcecao = (typeof TIPOS_EXCECAO)[number];
@@ -102,6 +125,7 @@ export interface GradeParaProjecao {
     startDate: Dia;
     endDate: Dia;
     active: boolean;
+    kind: TipoPeriodo;
     deletedAt: unknown;
   }[];
   disciplinas: {
@@ -121,6 +145,8 @@ export interface GradeParaProjecao {
     startTime: string;
     endTime: string;
     room: string | null;
+    weekInterval: number;
+    weekOffset: number;
     deletedAt: unknown;
   }[];
   excecoes: {
@@ -169,6 +195,31 @@ export function semestreDoDia(g: GradeParaProjecao, d: Dia) {
   return candidatos[0] ?? null;
 }
 
+/** Semana do período em que o dia cai: 0 na semana (domingo a sábado) do início. */
+export function semanaDoPeriodo(inicioDoPeriodo: Dia, d: Dia): number {
+  return diferencaEmDias(inicioDaSemana(inicioDoPeriodo), inicioDaSemana(d)) / 7;
+}
+
+/** O horário tem aula na semana `semana` do período? */
+export function horarioNaSemana(
+  h: { weekInterval: number; weekOffset: number },
+  semana: number,
+): boolean {
+  return ((semana % h.weekInterval) + h.weekInterval) % h.weekInterval === h.weekOffset;
+}
+
+/** Frequência legível do horário: '' para semanal, 'quinzenal 1', 'a cada 3 semanas (2ª)'. */
+export function rotuloFrequencia(h: { weekInterval: number; weekOffset: number }): string {
+  if (h.weekInterval <= 1) return '';
+  if (h.weekInterval === 2) return `quinzenal ${h.weekOffset + 1}`;
+  return `a cada ${h.weekInterval} semanas (${h.weekOffset + 1}ª)`;
+}
+
+/** Nome do período letivo para a interface. */
+export function nomeDoPeriodo(kind: TipoPeriodo | null | undefined): string {
+  return kind === 'quadrimester' ? 'Quadrimestre' : 'Semestre';
+}
+
 /**
  * Aulas de um dia, em ordem de horário. Exceções: cancelada (a aula aparece marcada como tal),
  * troca de sala (sala em destaque), extra (aparece mesmo fora do dia da semana do horário).
@@ -182,13 +233,14 @@ export function aulasDoDia(g: GradeParaProjecao, d: Dia): Aula[] {
   const horarios = g.horarios.filter((h) => !h.deletedAt && disciplinas.has(h.courseId));
   const excecoesDoDia = g.excecoes.filter((e) => !e.deletedAt && e.date === d);
   const semana = diaDaSemana(d);
+  const semanaPeriodo = semanaDoPeriodo(semestre.startDate, d);
   const aulas: Aula[] = [];
 
   for (const h of horarios) {
     const c = disciplinas.get(h.courseId)!;
     const doSlot = excecoesDoDia.filter((e) => e.slotId === h.id);
     const extra = doSlot.find((e) => e.type === 'extra');
-    const regular = h.weekday === semana;
+    const regular = h.weekday === semana && horarioNaSemana(h, semanaPeriodo);
     if (!regular && !extra) continue;
     const cancelada = doSlot.some((e) => e.type === 'cancelled');
     const troca = doSlot.find((e) => e.type === 'room_change');

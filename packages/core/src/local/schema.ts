@@ -142,6 +142,9 @@ export const semesters = sqliteTable('semesters', {
   startDate: text().notNull(),
   endDate: text().notNull(),
   active: integer({ mode: 'boolean' }).notNull().default(false),
+  kind: text({ enum: ['semester', 'quadrimester'] })
+    .notNull()
+    .default('semester'),
   ...sync,
 });
 
@@ -170,6 +173,8 @@ export const classSlots = sqliteTable(
     startTime: text().notNull(),
     endTime: text().notNull(),
     room: text(),
+    weekInterval: integer().notNull().default(1),
+    weekOffset: integer().notNull().default(0),
     ...sync,
   },
   (t) => [index('class_slots_course_id_idx').on(t.courseId)],
