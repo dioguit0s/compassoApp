@@ -39,7 +39,9 @@ if ! dpkg -s openjdk-21-jdk-headless >/dev/null 2>&1 || ! command -v unzip >/dev
   sudo apt-get update -qq
   sudo apt-get install -y -qq openjdk-21-jdk-headless unzip curl
 fi
-JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")"
+# Caminho do pacote, não o `javac` do PATH: se houver outro JDK (ex.: 25) ele pode ser o padrão,
+# e o Gradle do React Native não roda nele.
+JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(dpkg -L openjdk-21-jdk-headless | grep -m1 '/bin/javac$')")")")"
 echo "JAVA_HOME=$JAVA_HOME ($("$JAVA_HOME/bin/java" -version 2>&1 | head -1))"
 export JAVA_HOME
 
