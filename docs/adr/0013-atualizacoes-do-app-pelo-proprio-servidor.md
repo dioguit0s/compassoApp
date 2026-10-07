@@ -1,7 +1,8 @@
 # ADR-0013: Atualizações do app pelo próprio servidor (APK + OTA)
 
 - **Data:** 2026-09-29
-- **Status:** aceito
+- **Status:** aceito; decisão 2, na parte do APK manual, substituída pelo
+  [ADR-0016](0016-apk-gerado-no-runner-com-aprovacao.md)
 - **Envolvidos:** Diogo (autor), Claude Code (implementação)
 - **Complementa:** [ADR-0008](0008-senha-propria-convite-e-sessao-por-aparelho.md), decisão 9
 

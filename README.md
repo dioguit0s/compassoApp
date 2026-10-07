@@ -40,8 +40,10 @@ túnel.
 
 **Atualizações automáticas (2026-09-29):** o bundle JS chega aos celulares por OTA própria
 (`expo-updates` contra a API), publicada pelo runner a cada push na `main`. Um APK novo, quando há
-mudança nativa, é publicado no servidor e instalado pelo próprio app com um toque
-([ADR-0013](docs/adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)).
+mudança nativa, é instalado pelo próprio app com um toque
+([ADR-0013](docs/adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)). Desde 2026-10-07 o
+runner também gera e assina esse APK, que entra no ar com um clique de aprovação do autor
+([ADR-0016](docs/adr/0016-apk-gerado-no-runner-com-aprovacao.md)).
 
 **Novidades das atualizações (2026-10-06):** cada commit do app traz, no trailer `Novidade:`, o
 texto para quem usa. A página de download, o feed `/novidades.xml` e o próprio app mostram o que
@@ -59,7 +61,7 @@ compasso/
 │   └── core/                         # lógica pura compartilhada: IDs, invariantes, sync, datas
 ├── deploy/                           # compose de produção, deploy.sh e manutencao.sh (ADR-0011)
 ├── .github/workflows/api.yml         # esteira: verifica e faz deploy no homeserver
-├── .github/workflows/app.yml         # esteira do app: verifica e publica o OTA (ADR-0013)
+├── .github/workflows/app.yml         # esteira do app: verifica, publica o OTA ou gera o APK (ADR-0013, ADR-0016)
 ├── CLAUDE.md                         # instruções do Claude Code: quando continuar e quando parar
 ├── TASKS.md                          # checklist persistente para tarefas longas do Claude
 ├── .claude/commands/                 # comandos do projeto: /revisar-diff, /auditoria

@@ -432,6 +432,15 @@ aparelho real e antecipou a F10 em 2026-09-23, com a F9 (calibração) ainda por
   **Critério de saída:** um push com `Novidade:` aparece na página de download assim que o job
   `publicar-ota` termina; o celular mostra o aviso "Novidades" na abertura em que o bundle novo
   entra, uma vez só; um `apk:publicar` sem `--notas` usa os trailers no diálogo e no site.
+- **APK gerado pelo runner.** ⏳ Implementado em 2026-10-07
+  ([ADR-0016](adr/0016-apk-gerado-no-runner-com-aprovacao.md)); falta preparar o servidor (JDK,
+  Android SDK, chave) e validar. Quando um push muda algo nativo, o job `gerar-apk` gera e assina
+  o APK no runner, com versão automática, e o job `publicar-apk` o põe no ar depois do clique de
+  aprovação do autor. O `apk:publicar` manual fica de reserva.
+  **Critério de saída:** o `workflow_dispatch` com `simular` gera um APK assinado com a chave de
+  release sem publicar nada; o push do widget gera o 0.4.0, o autor instala o artefato, aprova, e
+  o 0.3.0 dos celulares oferece "Atualizar"; o push só de JS seguinte publica OTA para o runtime
+  novo.
 
 **Critério de saída:** um amigo recebe o convite e o APK, cria a conta, usa, e as duas contas não
 se enxergam. ✅ Cumprido, segundo o autor, em 2026-10-02 (API exposta pelo túnel da Cloudflare em

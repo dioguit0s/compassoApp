@@ -6,6 +6,9 @@
  *
  *   COMPASSO_ABI=arm64-v8a npm run apk -w @compasso/mobile          → só essa arquitetura (~4× mais rápido)
  *
+ * COMPASSO_VERSION_NAME e COMPASSO_VERSION_CODE trocam a versão do app.json (app.config.js); é
+ * assim que o publicar-apk.mjs passa a versão calculada.
+ *
  * Precisa do mesmo ambiente do development build (docs/desenvolvimento.md): Android SDK e um
  * JDK 17–23 (24+ quebra o CMake). Sem JAVA_HOME nessa faixa, procura um nas pastas de instalação
  * comuns do Windows e usa esse.
@@ -84,13 +87,17 @@ const abi = process.env.COMPASSO_ABI
   : [];
 const gradlew = join(android, windows ? 'gradlew.bat' : 'gradlew');
 // Daemon de um build anterior pode ter outro JDK ou segurar arquivos abertos em node_modules (no
-// Windows, "Unable to delete file"): começa sempre do zero.
+// Windows, "Unable to delete file"): começa sempre do zero. No runner (CI) nem sobe daemon: ele
+// ficaria com 4 GB de heap parado no servidor entre um build e outro (ADR-0016).
 rodar(gradlew, ['--stop'], android);
-rodar(gradlew, ['assembleRelease', ...abi], android);
+const semDaemon = process.env.CI ? ['--no-daemon'] : [];
+rodar(gradlew, ['assembleRelease', ...abi, ...semDaemon], android);
 
+// A versão pode vir do ambiente (publicar-apk.mjs, app.config.js); senão, a do app.json.
 const { expo } = JSON.parse(readFileSync(join(raiz, 'app.json'), 'utf8'));
+const versao = process.env.COMPASSO_VERSION_NAME || expo.version;
 const http = process.env.COMPASSO_PERMITIR_HTTP === '1';
-const destino = join(raiz, 'dist', `compasso-${expo.version}${http ? '-http' : ''}.apk`);
+const destino = join(raiz, 'dist', `compasso-${versao}${http ? '-http' : ''}.apk`);
 mkdirSync(dirname(destino), { recursive: true });
 copyFileSync(join(raiz, 'android/app/build/outputs/apk/release/app-release.apk'), destino);
 

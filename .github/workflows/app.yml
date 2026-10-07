@@ -1,8 +1,14 @@
-# Esteira do app (ADR-0013): verifica num runner do GitHub e publica o bundle JS como atualização
-# OTA no runner self-hosted do homeserver, direto na pasta que a API serve. O APK não sai daqui
-# (o build nativo é na máquina do autor, `npm run apk:publicar`); se o commit mudou algo nativo, o
-# job pula a publicação e avisa no resumo. Cada publicação grava também as novidades dela
-# (trailers `Novidade:` dos commits, ADR-0014), que a página de download e o app mostram.
+# Esteira do app (ADR-0013, ADR-0016): verifica num runner do GitHub e, no runner self-hosted do
+# homeserver, publica o que o commit pede.
+#
+# - Sem mudança nativa: o bundle JS sai como atualização OTA, direto na pasta que a API serve.
+# - Com mudança nativa (fingerprint diferente do APK publicado): o runner gera, assina e confere o
+#   APK novo (job gerar-apk) e ele só entra no ar quando o autor aprova o job publicar-apk
+#   (environment `apk`, com revisor obrigatório). O APK também fica como artefato do run por 3 dias,
+#   para instalar e testar antes de aprovar.
+#
+# Cada publicação grava também as novidades dela (trailers `Novidade:` dos commits, ADR-0014), que
+# a página de download e o app mostram.
 #
 # Mesmo cuidado do api.yml: repositório público, nada roda em pull_request, e o runner da casa só
 # recebe push na main ou disparo manual na main.
@@ -18,14 +24,14 @@ on:
       - 'package-lock.json'
       - '.github/workflows/app.yml'
   workflow_dispatch:
+    inputs:
+      simular:
+        description: 'Gerar o APK mesmo sem mudança nativa, sem publicar nada (testa o runner)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
-
-# Uma publicação por vez; um push novo espera a anterior terminar.
-concurrency:
-  group: app-ota
-  cancel-in-progress: false
 
 jobs:
   verificar:
@@ -43,11 +49,93 @@ jobs:
       - run: npm test -w @compasso/core
       - run: npm run test:scripts
 
-  publicar-ota:
+  gerar-apk:
     needs: verificar
     if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, compasso]
+    # Prebuild + Gradle do zero (o checkout limpa android/); o cache do Gradle fica em ~/.gradle.
+    timeout-minutes: 60
+    # Um build por vez no runner; um push novo espera em vez de matar o build no meio.
+    concurrency:
+      group: app-gerar-apk
+      cancel-in-progress: false
+    outputs:
+      nativo: ${{ steps.gerar.outputs.nativo }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Histórico inteiro: as novidades (ADR-0014) vêm dos commits desde a última publicação.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Sem mudança nativa, termina em segundos com nativo=false. JAVA_HOME e ANDROID_HOME vêm do
+      # .env do runner, e a chave do ~/.gradle/gradle.properties (docs/deploy.md).
+      - id: gerar
+        run: >-
+          node apps/mobile/scripts/publicar-apk.mjs
+          --gerar "$HOME/compasso/apk-pendente/$GITHUB_SHA"
+          ${{ inputs.simular && '--forcar' || '' }}
+      - if: steps.gerar.outputs.nativo == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ github.sha }}
+          path: ${{ steps.gerar.outputs.pasta }}/*.apk
+          retention-days: 3
+          if-no-files-found: error
+
+  publicar-apk:
+    needs: gerar-apk
+    if: needs.gerar-apk.outputs.nativo == 'true' && !inputs.simular
+    runs-on: [self-hosted, compasso]
+    timeout-minutes: 10
+    # Aqui o job para e espera o "Approve" do autor (Settings → Environments → apk).
+    environment: apk
+    # Um APK mais novo aguardando aprovação cancela o anterior, que ficou velho. A cópia é por
+    # rename atômico, então cancelar no meio não deixa nada pela metade no ar.
+    concurrency:
+      group: app-publicar-apk
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      # Sem revisor obrigatório no environment (ou se ele sumir), o GitHub não pararia para
+      # aprovação e o APK iria direto para os amigos: melhor falhar.
+      - name: Conferir que o environment exige aprovação
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/environments/apk" \
+          | node -e '
+              let d = "";
+              process.stdin.on("data", (c) => (d += c)).on("end", () => {
+                const regras = JSON.parse(d).protection_rules ?? [];
+                if (!regras.some((r) => r.type === "required_reviewers")) {
+                  console.error("O environment apk não exige revisor: configure em Settings → Environments.");
+                  process.exit(1);
+                }
+              });
+            '
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # O pendente foi gravado por gerar-apk neste mesmo runner; o script só usa módulos do Node.
+      - run: node apps/mobile/scripts/publicar-apk.mjs --publicar "$HOME/compasso/apk-pendente/$GITHUB_SHA"
+
+  publicar-ota:
+    needs: gerar-apk
+    if: needs.gerar-apk.outputs.nativo == 'false'
+    runs-on: [self-hosted, compasso]
     timeout-minutes: 30
+    # Uma publicação por vez; um push novo espera a anterior terminar.
+    concurrency:
+      group: app-ota
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:

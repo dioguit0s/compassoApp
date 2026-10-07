@@ -93,3 +93,6 @@ especificação (`/revisar-diff`). Reporte só achados reais — evite alarme fa
     pessoa (o que mudou para ela, sem jargão de código, frase curta, sem ponto final);
   - `Novidade: -` quando o commit não muda nada visível (refatoração, teste, build);
   - sem o trailer, o commit some das novidades. Se não der para saber o que dizer, pergunte.
+- **`Atualizacao-obrigatoria: sim`** (ADR-0016), no mesmo bloco de trailers, só quando o commit
+  quebra versões antigas do app (ex.: a API deixa de aceitar algo que elas mandam). O próximo APK
+  passa a ser o mínimo para usar o app. Na dúvida, pergunte.
