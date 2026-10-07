@@ -215,6 +215,12 @@ function fingerprintDoCommit() {
  * precisa. Devolve o pendente, ou null se não há mudança nativa (só com `pularSemMudanca`).
  */
 function gerar(destino, pasta, { notasArg, minimoArg, pularSemMudanca }) {
+  // Primeiro a comparação, que não precisa de chave nem de SDK: sem mudança nativa o job termina
+  // aqui, e a OTA segue mesmo num runner ainda sem o ambiente de build.
+  const anterior = destino.lerManifesto();
+  const runtime = fingerprintDoCommit();
+  if (pularSemMudanca && anterior?.runtimeVersion === runtime) return null;
+
   if (process.env.COMPASSO_PERMITIR_HTTP === '1') {
     falhar('COMPASSO_PERMITIR_HTTP=1 gera APK de teste; não se publica esse');
   }
@@ -232,10 +238,6 @@ function gerar(destino, pasta, { notasArg, minimoArg, pularSemMudanca }) {
   if (rodar('git', ['status', '--porcelain'])?.trim()) {
     falhar('há mudanças não commitadas; o APK precisa sair de um commit');
   }
-
-  const anterior = destino.lerManifesto();
-  const runtime = fingerprintDoCommit();
-  if (pularSemMudanca && anterior?.runtimeVersion === runtime) return null;
 
   const { expo } = JSON.parse(readFileSync(join(raiz, 'app.json'), 'utf8'));
   const { versionName, versionCode } = proximaVersao(
