@@ -182,8 +182,13 @@ A conta nasce no app, em Perfil → Tenho um convite (F10, ADR-0008).
 ### 8. Build do APK no runner
 
 Para o job `gerar-apk` gerar e assinar o APK sozinho
-([ADR-0016](adr/0016-apk-gerado-no-runner-com-aprovacao.md)). Conferir antes: `free -h` (o build
-usa até ~6–8 GB de RAM) e `df -h ~` (~10 GB para SDK, NDK e cache do Gradle).
+([ADR-0016](adr/0016-apk-gerado-no-runner-com-aprovacao.md)). O
+[`deploy/preparar-build-apk.sh`](../deploy/preparar-build-apk.sh) faz tudo o que vem abaixo, menos
+o environment no GitHub: copie a chave para `~/compasso/chave/` e rode `bash
+deploy/preparar-build-apk.sh` como `ash` (pede o sudo e as senhas da chave). Os passos à mão
+ficam aqui como referência. Conferir antes: `free -h` (no runner o build fica em ~3–4 GB de RAM:
+2 GB de heap e 2 tarefas por vez, ver `apps/mobile/scripts/apk.mjs`) e `df -h ~` (~10 GB para
+SDK, NDK e cache do Gradle).
 
 **JDK e Android SDK**, como `ash` (o JDK precisa ser 17–23; 24+ quebra o CMake):
 

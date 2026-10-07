@@ -90,8 +90,18 @@ const gradlew = join(android, windows ? 'gradlew.bat' : 'gradlew');
 // Windows, "Unable to delete file"): começa sempre do zero. No runner (CI) nem sobe daemon: ele
 // ficaria com 4 GB de heap parado no servidor entre um build e outro (ADR-0016).
 rodar(gradlew, ['--stop'], android);
-const semDaemon = process.env.CI ? ['--no-daemon'] : [];
-rodar(gradlew, ['assembleRelease', ...abi, ...semDaemon], android);
+// No runner o build divide 7 GB com os outros serviços do servidor. Com os 4 GB do plugin e uma
+// tarefa por núcleo, o primeiro build (2026-10-07) esgotou RAM e swap e não terminou em 1 h.
+// Menos heap e 2 tarefas por vez: mais lento, mas não derruba o resto.
+const runner = process.env.CI
+  ? [
+      '--no-daemon',
+      '--max-workers=2',
+      '-Dorg.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=768m',
+      '-Dkotlin.compiler.execution.strategy=in-process',
+    ]
+  : [];
+rodar(gradlew, ['assembleRelease', ...abi, ...runner], android);
 
 // A versão pode vir do ambiente (publicar-apk.mjs, app.config.js); senão, a do app.json.
 const { expo } = JSON.parse(readFileSync(join(raiz, 'app.json'), 'utf8'));
