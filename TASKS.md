@@ -19,7 +19,7 @@ trailer, texto "Melhorias e correções". Default meu: trailer `Atualizacao-obri
 - [x] 3. publicar-apk.mjs: --gerar / --publicar / manual; apk.mjs com versão do ambiente e --no-daemon no CI
 - [x] 4. ota.mjs: mensagem de mudança nativa; app.yml com gerar-apk, publicar-apk (environment), simular
 - [x] 5. ADR-0016, ADR-0013, especificação, roadmap, deploy.md, desenvolvimento.md, CLAUDE.md
-- [ ] 6. verificar, revisar diff, commit, push, PR
+- [x] 6. verificar, revisar diff, commit, push, PR
 - [ ] 7. **Usuário:** preparar o servidor (JDK, SDK, chave), environment `apk`, rodar `simular`
 
 
