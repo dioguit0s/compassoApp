@@ -106,9 +106,12 @@ que serve os arquivos, assinar o bundle ali não protegeria contra quem já est�
   aceitam como atualização legítima (com o toque de quem usa). Antes, isso exigia a máquina do
   autor.
 - O servidor precisa de JDK 17–23, Android SDK (platform 36, build-tools 36.0.0, NDK
-  27.1.12297006, CMake) e uns 10 GB de disco. O build usa até ~6–8 GB de RAM (`-Xmx4096m` mais
-  metaspace e CMake). O passo a passo está no `docs/deploy.md`.
-- O runner é um só. Um build de APK (~15–25 min) atrasa o deploy da API que vier atrás.
+  27.1.12297006, CMake) e uns 10 GB de disco. No runner o build roda com 2 GB de heap e 2 tarefas
+  por vez (~3–4 GB de RAM no total): com os 4 GB do plugin e uma tarefa por núcleo, o primeiro
+  build (2026-10-07) esgotou RAM e swap do servidor e não terminou em 1 h. O passo a passo está
+  no `docs/deploy.md`.
+- O runner é um só. Um build de APK (estimativa: 30–60 min com o limite, a confirmar) atrasa o
+  deploy da API que vier atrás.
 - O APK assinado fica como artefato do run por 3 dias, visível para quem acessa o repositório
   público. É o mesmo arquivo que vai para os amigos, sem segredo dentro.
 - Tirar a versão do fingerprint mudou o hash uma vez; essa mudança vai no mesmo APK do widget.

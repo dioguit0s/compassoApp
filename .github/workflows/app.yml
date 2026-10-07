@@ -54,7 +54,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, compasso]
     # Prebuild + Gradle do zero (o checkout limpa android/); o cache do Gradle fica em ~/.gradle.
-    timeout-minutes: 60
+    # Com o build limitado a 2 tarefas (apk.mjs), o primeiro, de cache frio, passa de 1 h.
+    timeout-minutes: 90
     # Um build por vez no runner; um push novo espera em vez de matar o build no meio.
     concurrency:
       group: app-gerar-apk
@@ -85,6 +86,13 @@ jobs:
           path: ${{ steps.gerar.outputs.pasta }}/*.apk
           retention-days: 3
           if-no-files-found: error
+      # Cancelar ou estourar o tempo mata o node, mas o daemon do Gradle, o do Kotlin e os
+      # compiladores do NDK ficavam rodando sozinhos e ocupando a RAM do servidor (2026-10-07).
+      - if: always()
+        run: |
+          for p in GradleDaemon GradleWorkerMain KotlinCompileDaemon 'android-sdk/(ndk|cmake)/'; do
+            pkill -u "$(id -un)" -f "$p" || true
+          done
 
   publicar-apk:
     needs: gerar-apk

@@ -31,7 +31,7 @@ passo "Recursos"
 livre_gb=$(awk '/MemAvailable/ {printf "%d", $2/1024/1024}' /proc/meminfo)
 disco_gb=$(df -BG --output=avail "$HOME" | tail -1 | tr -dc '0-9')
 echo "RAM disponível: ${livre_gb} GB · disco livre em ~: ${disco_gb} GB"
-((livre_gb >= 6)) || aviso "o build usa até ~6–8 GB de RAM; com ${livre_gb} GB livres ele pode falhar ou travar o servidor"
+((livre_gb >= 4)) || aviso "o build usa ~3–4 GB de RAM; com ${livre_gb} GB livres ele pode falhar ou travar o servidor"
 ((disco_gb >= 12)) || aviso "SDK, NDK e cache do Gradle ocupam ~10 GB; há ${disco_gb} GB livres"
 
 passo "JDK 21 e unzip"
