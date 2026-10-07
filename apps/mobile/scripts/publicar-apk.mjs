@@ -280,13 +280,15 @@ function gerar(destino, pasta, { notasArg, minimoArg, pularSemMudanca }) {
   const gerado = join(raiz, 'dist', `compasso-${versionName}.apk`);
 
   // O runtime que o APK leva (assets/fingerprint) tem que ser o que o runner vai calcular. No
-  // Windows o tar do sistema (bsdtar) lê zip; o do Git Bash não.
-  const tar = windows
-    ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
-    : 'tar';
-  const embutido = rodar(tar, ['-xOf', gerado, 'assets/fingerprint'], {
-    permitirFalha: true,
-  })?.trim();
+  // Windows o tar do sistema (bsdtar) lê zip; o do Git Bash não. No Linux (runner) o tar é o GNU,
+  // que não lê zip: lá vai o unzip, que o preparar-build-apk.sh instala.
+  const [leitor, argsLeitor] = windows
+    ? [
+        join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe'),
+        ['-xOf', gerado, 'assets/fingerprint'],
+      ]
+    : ['unzip', ['-p', gerado, 'assets/fingerprint']];
+  const embutido = rodar(leitor, argsLeitor, { permitirFalha: true })?.trim();
   if (!embutido) falhar('não achei assets/fingerprint no APK: o expo-updates está no build?');
   if (embutido !== runtime) {
     falhar(
