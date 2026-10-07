@@ -29,6 +29,10 @@ const ignorados = [
 const config = {
   // node_modules da raiz do monorepo e o do próprio app.
   ignorePaths: ignorados.flatMap((p) => [`../../node_modules/${p}`, `node_modules/${p}`]),
+  // A versão (version, android.versionCode) não decide compatibilidade nativa: o runner a injeta
+  // no build (app.config.js, ADR-0016) e o OTA é calculado sem ela. O segundo item é o padrão do
+  // @expo/fingerprint, que esta lista substitui.
+  sourceSkips: ['ExpoConfigVersions', 'PackageJsonAndroidAndIosScriptsIfNotContainRun'],
 };
 
 module.exports = config;

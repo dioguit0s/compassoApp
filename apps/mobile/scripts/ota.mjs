@@ -5,7 +5,8 @@
  *   RELEASES_DIR=./releases node apps/mobile/scripts/ota.mjs
  *
  * Só publica para o runtime (fingerprint nativo) do APK publicado. Se o commit mudou algo nativo,
- * o bundle não roda no APK que os amigos têm: pula e avisa para gerar o APK (apk:publicar).
+ * o bundle não roda no APK que os amigos têm: pula. No workflow nem chega aqui nesse caso, porque o
+ * job gerar-apk gera o APK novo (ADR-0016).
  *
  * Cada publicação grava também a novidade dela em releases/novidades/ (ADR-0014): os trailers
  * `Novidade:` dos commits do app desde a publicação anterior. Precisa do histórico (no workflow,
@@ -94,7 +95,8 @@ if (apk.runtimeVersion !== runtime) {
       '### OTA não publicado: mudança nativa',
       `O runtime deste commit é \`${runtime}\`, e o do APK publicado (${apk.versionName}) é ` +
         `\`${apk.runtimeVersion}\`. O bundle não rodaria no app dos amigos.`,
-      'Gere e publique o APK: `npm run apk:publicar -w @compasso/mobile -- --notas "..."`.',
+      'O APK novo sai pelo job `gerar-apk` e entra no ar quando o job `publicar-apk` for ' +
+        'aprovado (ADR-0016); à mão, `npm run apk:publicar -w @compasso/mobile`.',
     ].join('\n\n'),
   );
   process.exit(0);

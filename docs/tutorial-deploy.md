@@ -171,13 +171,17 @@ Desde a 0.3.0 ninguém instala nada à mão
   `publicar-ota` termina com "OTA publicado", e os celulares pegam a versão nova em até duas
   aberturas do app. As linhas `Novidade:` dos commits aparecem na página de download e, uma vez,
   no celular quando a versão nova entra.
-- **Mudou algo nativo** (o job avisa "OTA não publicado: mudança nativa"):
-  1. No `apps/mobile/app.json`, suba `version` (ex.: `0.3.1`) e `android.versionCode` (+1), e
-     commite.
-  2. `npm run apk:publicar -w @compasso/mobile` (com a **mesma** chave). O texto do aviso vem
-     dos trailers `Novidade:` dos commits; `-- --notas "O que mudou"` o substitui.
-  3. Na próxima abertura, cada celular mostra "Versão 0.3.1 disponível"; um toque baixa e instala
+- **Mudou algo nativo** ([ADR-0016](adr/0016-apk-gerado-no-runner-com-aprovacao.md)):
+  1. Faça push na `main`. Em Actions → **App**, o job `gerar-apk` termina com "APK … gerado,
+     aguardando aprovação". A versão é automática (patch seguinte, se a do `app.json` já estiver
+     publicada).
+  2. Baixe o artefato `apk-<commit>` do run, instale no seu celular e teste.
+  3. No mesmo run, **Review deployments** → `apk` → **Approve**. O job `publicar-apk` põe o APK no
+     ar.
+  4. Na próxima abertura, cada celular mostra "Versão 0.4.1 disponível"; um toque baixa e instala
      por cima. Os dados locais ficam.
+
+  De reserva, da sua máquina: `npm run apk:publicar -w @compasso/mobile` (com a **mesma** chave).
 - **Um OTA quebrou algo:** `npm run ota:reverter -w @compasso/mobile` volta para o anterior.
 
 ### Convidar alguém

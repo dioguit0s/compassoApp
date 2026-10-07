@@ -8,7 +8,22 @@ mova o registro para o PR/commit correspondente.
 
 ---
 
-## Tarefa atual — widget da semana na tela inicial (2026-10-06)
+## Tarefa atual — APK gerado e publicado pelo runner (2026-10-07)
+
+Decisões do usuário: chave de assinatura no servidor; publicação com aprovação de um clique
+(environment `apk`); versão do app.json com patch automático e versionCode = publicado + 1; sem
+trailer, texto "Melhorias e correções". Default meu: trailer `Atualizacao-obrigatoria: sim`.
+
+- [x] 1. versao-apk.mjs (proximaVersao) e novidades.mjs (obrigatória, texto padrão) + testes
+- [x] 2. app.config.js (versão do ambiente) + sourceSkips no fingerprint.config.js
+- [x] 3. publicar-apk.mjs: --gerar / --publicar / manual; apk.mjs com versão do ambiente e --no-daemon no CI
+- [x] 4. ota.mjs: mensagem de mudança nativa; app.yml com gerar-apk, publicar-apk (environment), simular
+- [x] 5. ADR-0016, ADR-0013, especificação, roadmap, deploy.md, desenvolvimento.md, CLAUDE.md
+- [ ] 6. verificar, revisar diff, commit, push, PR
+- [ ] 7. **Usuário:** preparar o servidor (JDK, SDK, chave), environment `apk`, rodar `simular`
+
+
+## Tarefa anterior — widget da semana na tela inicial (2026-10-06)
 
 Decisões do usuário: só Android; 7 colunas domingo–sábado; eventos, tarefas e aulas; tema do app.
 

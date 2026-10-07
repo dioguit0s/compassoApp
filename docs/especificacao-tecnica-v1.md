@@ -561,9 +561,11 @@ desenvolvedor, para resolver um problema que a janela deslizante já resolve.
 **Atualizações do app vêm do próprio servidor**
 ([ADR-0013](adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)). O bundle JS chega sozinho
 por OTA (`expo-updates` contra a API): o runner publica a cada push na `main` e o app aplica na
-abertura seguinte. Mudança nativa só vem com APK novo, que o autor publica no servidor
-(`apk:publicar`); o app avisa e instala com um toque. A compatibilidade entre bundle e APK é o
-fingerprint nativo (`runtimeVersion`).
+abertura seguinte. Mudança nativa só vem com APK novo: o runner o gera e assina sozinho e ele
+entra no ar quando o autor aprova a publicação no GitHub
+([ADR-0016](adr/0016-apk-gerado-no-runner-com-aprovacao.md)); o app avisa e instala com um toque.
+A compatibilidade entre bundle e APK é o fingerprint nativo (`runtimeVersion`), do qual a versão
+do app não faz parte.
 
 **Cada atualização diz o que mudou**
 ([ADR-0014](adr/0014-novidades-das-atualizacoes-escritas-nos-commits.md)). O texto para o público
@@ -903,6 +905,7 @@ acessível de qualquer aba, não uma tela para onde é preciso navegar.
 | `effort` opcional | Esforço obrigatório em tudo | Consulta médica não tem esforço estimado; sem isso o radar mediria presença |
 | Importação ICS única | Sincronização bidirecional | Migrar é problema de uma vez; sincronizar é problema permanente |
 | Widget desenhado em JS (`react-native-android-widget`) | Widget em Kotlin | A projeção da agenda não pode existir em duas versões; ver [ADR-0015](adr/0015-widget-da-semana-no-android.md) |
+| APK gerado no runner, publicado com aprovação | APK manual na máquina do autor; publicação sem aprovação | Mudança nativa não fica parada esperando o autor, e nada nativo chega aos amigos sem ele instalar antes; ver [ADR-0016](adr/0016-apk-gerado-no-runner-com-aprovacao.md) |
 | Janela deslizante de notificações | Agendar tudo de uma vez | iOS limita a 64 pendentes; uma série diária estoura sozinha |
 | Exclusão lógica em tudo | `DELETE` físico | Sync exige tombstone para não ressuscitar item apagado; a lixeira vem junto |
 | IDs gerados no client | IDs atribuídos pelo servidor | Criar item offline não pode depender de rede, e retry não pode duplicar |

@@ -50,11 +50,12 @@ function git(cwd, args) {
 }
 
 /**
- * Novidades dos commits que mudaram o app depois de `desde` até `ate`. Sem `desde`, ou se ele não
- * é ancestral de `ate` (primeira publicação, histórico reescrito, checkout raso), conta só o
- * próprio `ate`: melhor perder texto antigo que repetir o histórico inteiro.
+ * Mensagens dos commits que mudaram o app depois de `desde` até `ate`, da mais antiga para a mais
+ * nova. Sem `desde`, ou se ele não é ancestral de `ate` (primeira publicação, histórico reescrito,
+ * checkout raso), conta só o próprio `ate`: melhor perder texto antigo que repetir o histórico
+ * inteiro.
  */
-export function novidadesDosCommits(cwd, desde, ate = 'HEAD') {
+export function mensagensDosCommits(cwd, desde, ate = 'HEAD') {
   const ancestral =
     desde && spawnSync('git', ['merge-base', '--is-ancestor', desde, ate], { cwd }).status === 0;
   const intervalo = ancestral ? [`${desde}..${ate}`] : ['-1', ate];
@@ -69,7 +70,30 @@ export function novidadesDosCommits(cwd, desde, ate = 'HEAD') {
     ...CAMINHOS_DO_APP.map((c) => `:(top)${c}`),
   ]);
   if (saida === null) throw new Error('git log falhou ao ler as novidades');
-  return juntarNovidades(saida.split('\x1e'));
+  return saida.split('\x1e').filter((m) => m.trim());
+}
+
+/** Novidades dos commits do app desde `desde` (ver `mensagensDosCommits`). */
+export function novidadesDosCommits(cwd, desde, ate = 'HEAD') {
+  return juntarNovidades(mensagensDosCommits(cwd, desde, ate));
+}
+
+/**
+ * Texto do APK gerado pelo runner quando nenhum commit do intervalo trouxe `Novidade:` (ADR-0016):
+ * a publicação não fica parada esperando um trailer.
+ */
+export const NOVIDADE_PADRAO = 'Melhorias e correções';
+
+/**
+ * Algum commit pede atualização obrigatória (ADR-0016)? Trailer `Atualizacao-obrigatoria: sim`
+ * (com ou sem acento, qualquer caixa). O APK que levar esse commit vira o mínimo para usar o app.
+ */
+export function pedeAtualizacaoObrigatoria(mensagens) {
+  return mensagens.some((mensagem) =>
+    mensagem
+      .split(/\r?\n/)
+      .some((linha) => /^Atualiza(c|ç)(a|ã)o-obrigat(o|ó)ria:[ \t]*sim\s*$/i.test(linha)),
+  );
 }
 
 /** Instante AAAAMMDDHHMMSS (UTC) em ISO, o mesmo formato do createdAt do OTA. */

@@ -64,10 +64,14 @@ releases/novidades-revertidas/       as novidades das publicações revertidas
 ```
 
 - **OTA:** o workflow **App** (push na `main` que toque `apps/mobile`, o core ou o lockfile)
-  roda `ota.mjs` no runner, que escreve direto em `releases/ota`. Pula, com aviso no resumo do
-  job, se o commit mudou algo nativo em relação ao APK publicado.
-- **APK:** `npm run apk:publicar -w @compasso/mobile`, da máquina do autor, por `scp`
-  ([`desenvolvimento.md`](desenvolvimento.md#atualizações-apk-e-ota)).
+  roda `ota.mjs` no runner, que escreve direto em `releases/ota`, quando o commit não mudou nada
+  nativo em relação ao APK publicado.
+- **APK** ([ADR-0016](adr/0016-apk-gerado-no-runner-com-aprovacao.md)): quando o commit mudou algo
+  nativo, o job `gerar-apk` gera e assina o APK no runner e o guarda em `~/compasso/apk-pendente/`
+  (e como artefato do run). O job `publicar-apk` espera a aprovação do autor (environment `apk`) e
+  copia para `releases/android`. À mão, de reserva: `npm run apk:publicar -w @compasso/mobile`,
+  da máquina do autor, por `scp` ([`desenvolvimento.md`](desenvolvimento.md#atualizações-apk-e-ota)).
+  Preparação do runner: [passo 8](#8-build-do-apk-no-runner) da instalação.
 - **Novidades:** as duas vias gravam em `releases/novidades/` os trailers `Novidade:` dos commits
   desde a publicação anterior. Um texto errado se corrige editando o arquivo ali.
 
@@ -174,6 +178,60 @@ cd ~/compasso && docker compose run --rm admin npm run convite:criar -- "minha c
 ```
 
 A conta nasce no app, em Perfil → Tenho um convite (F10, ADR-0008).
+
+### 8. Build do APK no runner
+
+Para o job `gerar-apk` gerar e assinar o APK sozinho
+([ADR-0016](adr/0016-apk-gerado-no-runner-com-aprovacao.md)). Conferir antes: `free -h` (o build
+usa até ~6–8 GB de RAM) e `df -h ~` (~10 GB para SDK, NDK e cache do Gradle).
+
+**JDK e Android SDK**, como `ash` (o JDK precisa ser 17–23; 24+ quebra o CMake):
+
+```sh
+sudo apt install -y openjdk-21-jdk-headless unzip
+# "Command line tools only" para Linux, da página https://developer.android.com/studio
+mkdir -p ~/android-sdk/cmdline-tools && cd ~/android-sdk/cmdline-tools
+unzip ~/commandlinetools-linux-*_latest.zip && mv cmdline-tools latest
+export ANDROID_HOME=~/android-sdk
+yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-36" \
+  "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
+```
+
+Com as licenças aceitas, o Gradle baixa sozinho o que faltar numa versão futura do Expo.
+
+**Variáveis do runner**: no `~/actions-runner-compasso/.env` (o serviço lê no início):
+
+```sh
+JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+ANDROID_HOME=/home/ash/android-sdk
+```
+
+e `sudo ./svc.sh stop && sudo ./svc.sh start` na pasta do runner.
+
+**Chave de assinatura**: a mesma do APK de sempre, copiada da máquina do autor. **Não apague a
+cópia de lá:** sem a chave, nenhum celular aceita mais atualização.
+
+```sh
+# do Windows
+scp C:/Users/<você>/compasso-release.keystore luna-dash:compasso/chave/
+# no servidor
+mkdir -p ~/compasso/chave && chmod 700 ~/compasso/chave && chmod 600 ~/compasso/chave/*.keystore
+cat >> ~/.gradle/gradle.properties <<'PROPS'
+COMPASSO_RELEASE_STORE_FILE=/home/ash/compasso/chave/compasso-release.keystore
+COMPASSO_RELEASE_STORE_PASSWORD=...
+COMPASSO_RELEASE_KEY_ALIAS=compasso
+COMPASSO_RELEASE_KEY_PASSWORD=...
+PROPS
+chmod 600 ~/.gradle/gradle.properties
+```
+
+**Aprovação**: no GitHub, Settings → Environments → **New environment** `apk` → **Required
+reviewers**: você; **Deployment branches and tags**: só `main`. Sem o revisor, o job
+`publicar-apk` falha de propósito (não publica sem aprovação).
+
+**Testar sem publicar**: Actions → **App** → **Run workflow** → marque `simular`. O `gerar-apk`
+gera o APK mesmo sem mudança nativa e o deixa como artefato; nada vai para `releases/`.
 
 ## Administração
 

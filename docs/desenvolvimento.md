@@ -190,8 +190,17 @@ Duas vias, as duas pelo servidor
   publicação anterior. Não reverta para antes de uma migração do SQLite (`drizzle/`): corrija para
   frente.
 - **Mudança nativa** (dependência com código nativo, plugin, permissão, `app.json`, versão do
-  Expo): o runner pula o OTA e avisa no resumo do job. Suba `version` e `android.versionCode` no
-  `app.json`, commite e publique o APK:
+  Expo): também basta o push ([ADR-0016](adr/0016-apk-gerado-no-runner-com-aprovacao.md)). O job
+  `gerar-apk` gera e assina o APK no runner. Baixe o artefato do run, instale e teste. Depois
+  aprove o job `publicar-apk` (Actions → o run → **Review deployments** → `apk` → **Approve**).
+
+A versão é automática: o `app.json` diz a que você quer (`version`, ex.: `0.5.0`); se ela já
+estiver publicada, o APK sai com o patch seguinte (`0.4.0` → `0.4.1`), e o `versionCode` é sempre
+o publicado + 1. Não precisa commitar versão nova. O texto do aviso vem dos trailers `Novidade:`
+(sem nenhum, "Melhorias e correções"). Para tornar a atualização obrigatória, ponha
+`Atualizacao-obrigatoria: sim` num commit do intervalo.
+
+À mão, de reserva (mesmo código, mesma versão automática):
 
 ```sh
 npm run apk:publicar -w @compasso/mobile                     # texto dos trailers Novidade:
@@ -203,6 +212,10 @@ O script exige árvore limpa e a chave de release, gera só arm64-v8a e confere 
 (`assets/fingerprint`) é o fingerprint do commit. Depois envia por `ssh luna-dash`
 (`COMPASSO_SSH` troca o host) para `~/compasso/releases/android/`. Os apps oferecem a versão nova
 na abertura seguinte.
+
+A versão chega ao build por `COMPASSO_VERSION_NAME` e `COMPASSO_VERSION_CODE`
+(`apps/mobile/app.config.js`) e não entra no fingerprint (`sourceSkips` no
+`fingerprint.config.js`).
 
 O runtime é o fingerprint nativo do Expo, e o `apps/mobile/fingerprint.config.js` existe para ele
 dar o mesmo hash no Windows (APK) e no Linux (runner). Para ver o hash:

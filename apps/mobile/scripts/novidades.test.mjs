@@ -12,6 +12,7 @@ import {
   isoDoInstante,
   juntarNovidades,
   novidadesDosCommits,
+  pedeAtualizacaoObrigatoria,
 } from './novidades.mjs';
 
 describe('extrairNovidades', () => {
@@ -92,5 +93,21 @@ describe('novidadesDosCommits', () => {
   it('sem publicação anterior conhecida, só o último commit', () => {
     assert.deepEqual(novidadesDosCommits(repo, undefined), ['Segunda']);
     assert.deepEqual(novidadesDosCommits(repo, 'f'.repeat(40)), ['Segunda']);
+  });
+});
+
+describe('pedeAtualizacaoObrigatoria', () => {
+  it('reconhece o trailer com e sem acento, em qualquer caixa', () => {
+    assert.equal(pedeAtualizacaoObrigatoria(['fix: x\n\nAtualizacao-obrigatoria: sim']), true);
+    assert.equal(pedeAtualizacaoObrigatoria(['fix: x\n\natualização-obrigatória: SIM']), true);
+  });
+
+  it('ignora "não", texto no corpo e commits sem o trailer', () => {
+    assert.equal(pedeAtualizacaoObrigatoria(['fix: x\n\nAtualizacao-obrigatoria: não']), false);
+    assert.equal(
+      pedeAtualizacaoObrigatoria(['fix: a Atualizacao-obrigatoria: sim no meio']),
+      false,
+    );
+    assert.equal(pedeAtualizacaoObrigatoria(['feat: y', 'fix: z']), false);
   });
 });
