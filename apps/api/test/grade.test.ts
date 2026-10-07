@@ -314,3 +314,109 @@ describe('rotas da grade (#58)', () => {
     expect((await api(token, 'DELETE', `/courses/${c.corpo!.id}`)).status).toBe(404);
   });
 });
+
+describe('aulas quinzenais e quadrimestre (ADR-0017)', () => {
+  it('quadrimestre com quinzenais sincroniza; aparelho e API alternam as mesmas semanas', async () => {
+    const { a, b, token } = await doisAparelhos('Quinzenal');
+    const sem = a.repo.criarSemestre({
+      label: '2026.3',
+      startDate: '2026-09-21',
+      endDate: '2026-12-19',
+      kind: 'quadrimester',
+    });
+    const c = a.repo.criarDisciplina({
+      semesterId: sem.id,
+      name: 'Física Quântica',
+      code: 'FQ',
+      professor: null,
+      color: '#4A7A3A',
+      defaultRoom: 'S-101',
+      notes: null,
+    });
+    const horario = (weekday: number, weekOffset: number) =>
+      a.repo.criarHorario({
+        courseId: c.id,
+        weekday,
+        startTime: '08:00',
+        endTime: '10:00',
+        room: null,
+        weekInterval: 2,
+        weekOffset,
+      });
+    horario(2, 0); // quinzenal 1, terça
+    horario(4, 1); // quinzenal 2, quinta
+    await sincronizar(a, b);
+
+    expect(b.repo.grade().semestres[0]).toMatchObject({ kind: 'quadrimester' });
+    const aulas = await agendaApi(token, '2026-09-20', '2026-10-10');
+    expect(aulas.map((x) => x.dia)).toEqual(['2026-09-22', '2026-10-01', '2026-10-06']);
+    const dias = Array.from({ length: 21 }, (_, i) =>
+      new Date(Date.UTC(2026, 8, 20 + i)).toISOString().slice(0, 10),
+    );
+    expect(dias.flatMap((d) => aulasDoDia(b.repo.grade(), d))).toEqual(aulas);
+  });
+
+  it('rotas: semestre com tipo, horário quinzenal, edição e recusa de semana fora do intervalo', async () => {
+    const { token, userId } = await doisAparelhos('Quinzenal pela API');
+    const sem = await api(token, 'POST', '/semesters', {
+      label: '2026.3',
+      startDate: '2026-09-21',
+      endDate: '2026-12-19',
+      kind: 'quadrimester',
+    });
+    expect(sem.corpo).toMatchObject({ kind: 'quadrimester' });
+    const semPadrao = await api(token, 'POST', '/semesters', {
+      label: '2027.1',
+      startDate: '2027-02-01',
+      endDate: '2027-06-30',
+    });
+    expect(semPadrao.corpo).toMatchObject({ kind: 'semester' });
+    await api(token, 'POST', '/semesters', {
+      label: 'x',
+      startDate: '2026-01-01',
+      endDate: '2026-02-01',
+      kind: 'bimestre',
+    }).then((r) => expect(r.status).toBe(400));
+
+    const c = await api(token, 'POST', '/courses', {
+      semesterId: sem.corpo!.id,
+      name: 'Física Quântica',
+      color: '#4A7A3A',
+    });
+    const h = await api(token, 'POST', `/courses/${c.corpo!.id}/slots`, {
+      weekday: 2,
+      startTime: '08:00',
+      endTime: '10:00',
+      weekInterval: 2,
+      weekOffset: 1,
+    });
+    expect(h.status).toBe(201);
+    expect(h.corpo).toMatchObject({ weekInterval: 2, weekOffset: 1 });
+    const semanal = await api(token, 'POST', `/courses/${c.corpo!.id}/slots`, {
+      weekday: 4,
+      startTime: '08:00',
+      endTime: '10:00',
+    });
+    expect(semanal.corpo).toMatchObject({ weekInterval: 1, weekOffset: 0 });
+    expect(
+      (
+        await api(token, 'POST', `/courses/${c.corpo!.id}/slots`, {
+          weekday: 1,
+          startTime: '08:00',
+          endTime: '10:00',
+          weekInterval: 2,
+          weekOffset: 2,
+        })
+      ).status,
+    ).toBe(400);
+
+    const editado = await api(token, 'PATCH', `/slots/${h.corpo!.id}`, { weekOffset: 0 });
+    expect(editado.corpo).toMatchObject({ weekInterval: 2, weekOffset: 0 });
+    await expect(
+      ctx.dono.query(`update class_slots set week_offset = 3 where id = $1 and user_id = $2`, [
+        h.corpo!.id,
+        userId,
+      ]),
+    ).rejects.toThrow(/violates check constraint "class_slots_week_offset_check"/);
+  });
+});

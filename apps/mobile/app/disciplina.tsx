@@ -1,4 +1,10 @@
-import { PALETA_DESTAQUE, REGEX_HORA } from '@compasso/core';
+import {
+  nomeDoPeriodo,
+  PALETA_DESTAQUE,
+  REGEX_HORA,
+  rotuloFrequencia,
+  type TipoPeriodo,
+} from '@compasso/core';
 import { ErroDeValidacao, type DisciplinaLocal, type HorarioLocal } from '@compasso/core/local';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -14,6 +20,12 @@ import { useAlturaTeclado } from '../src/ui/teclado';
 import { Entrada, Texto } from '../src/ui/Texto';
 
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+/** Frequências oferecidas na tela; o modelo aceita até "a cada 4 semanas" (ADR-0017). */
+const FREQUENCIAS = [
+  { rotulo: 'semanal', weekInterval: 1, weekOffset: 0 },
+  { rotulo: 'quinzenal 1', weekInterval: 2, weekOffset: 0 },
+  { rotulo: 'quinzenal 2', weekInterval: 2, weekOffset: 1 },
+];
 
 /** Criar/editar disciplina e seus horários (issue #59). `?id=` edita; `?semestre=` cria. */
 export default function Disciplina() {
@@ -75,7 +87,9 @@ function Formulario({
   return (
     <View style={{ flex: 1, backgroundColor: tema.fundo }}>
       <CabecalhoInterno
-        voltar={semestre ? `Semestre ${semestre.label}` : 'Semestre'}
+        voltar={
+          semestre ? `${nomeDoPeriodo(semestre.kind)} ${semestre.label}` : nomeDoPeriodo(undefined)
+        }
         titulo={disciplina ? disciplina.name : 'Nova disciplina'}
         corTopo={cor}
       />
@@ -160,7 +174,7 @@ function Formulario({
             {horarios.map((h) => (
               <LinhaHorario key={h.id} horario={h} />
             ))}
-            <NovoHorario disciplinaId={disciplina.id} />
+            <NovoHorario disciplinaId={disciplina.id} periodo={semestre?.kind} />
             <Botao
               perigo
               rotulo="Excluir disciplina"
@@ -196,6 +210,7 @@ function LinhaHorario({ horario }: { horario: HorarioLocal }) {
     <View style={[estilos.horario, { backgroundColor: tema.cartao, borderColor: tema.linha }]}>
       <Texto style={{ fontSize: 13, flex: 1 }}>
         {DIAS[horario.weekday]} {horario.startTime}–{horario.endTime}
+        {rotuloFrequencia(horario) ? ` · ${rotuloFrequencia(horario)}` : ''}
         {horario.room ? ` · sala ${horario.room}` : ''}
       </Texto>
       <Pressable
@@ -219,9 +234,16 @@ function LinhaHorario({ horario }: { horario: HorarioLocal }) {
   );
 }
 
-function NovoHorario({ disciplinaId }: { disciplinaId: string }) {
+function NovoHorario({
+  disciplinaId,
+  periodo,
+}: {
+  disciplinaId: string;
+  periodo: TipoPeriodo | undefined;
+}) {
   const tema = useTema();
   const [dia, setDia] = useState(1);
+  const [frequencia, setFrequencia] = useState(0);
   const [inicio, setInicio] = useState('19:00');
   const [fim, setFim] = useState('20:40');
   const [sala, setSala] = useState('');
@@ -253,6 +275,35 @@ function NovoHorario({ disciplinaId }: { disciplinaId: string }) {
           );
         })}
       </View>
+      <View style={estilos.dias}>
+        {FREQUENCIAS.map((f, i) => {
+          const ativo = frequencia === i;
+          return (
+            <Pressable
+              key={f.rotulo}
+              onPress={() => setFrequencia(i)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: ativo }}
+              style={[
+                estilos.dia,
+                ativo
+                  ? { backgroundColor: tema.ouro, borderColor: tema.ouroEscuro }
+                  : { backgroundColor: tema.campo, borderColor: tema.bordaCampo },
+              ]}
+            >
+              <Texto style={{ fontSize: 11, color: ativo ? tema.sobreOuro : tema.sutil }}>
+                {f.rotulo}
+              </Texto>
+            </Pressable>
+          );
+        })}
+      </View>
+      {frequencia > 0 ? (
+        <Texto style={{ fontSize: 11.5, color: tema.rotulo }}>
+          A quinzenal 1 é a semana em que o {nomeDoPeriodo(periodo).toLowerCase()} começa; a
+          quinzenal 2, a seguinte.
+        </Texto>
+      ) : null}
       <View style={estilos.tres}>
         <CampoHora rotulo="Início" valor={inicio} aoMudar={setInicio} />
         <CampoHora rotulo="Fim" valor={fim} aoMudar={setFim} />
@@ -279,6 +330,8 @@ function NovoHorario({ disciplinaId }: { disciplinaId: string }) {
               startTime: inicio,
               endTime: fim,
               room: sala.trim() || null,
+              weekInterval: FREQUENCIAS[frequencia]!.weekInterval,
+              weekOffset: FREQUENCIAS[frequencia]!.weekOffset,
             });
             setErro('');
           } catch (e) {

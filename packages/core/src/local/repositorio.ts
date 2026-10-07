@@ -966,10 +966,19 @@ export class RepositorioLocal implements ArmazemLocal {
    * Semestre novo já nasce ativo e desativa os outros: só um semestre corrente por vez
    * (ADR-0005). Trocar de semestre é criar o novo, não editar o anterior.
    */
-  criarSemestre(dados: { label: string; startDate: Dia; endDate: Dia }): SemestreLocal {
+  criarSemestre(dados: {
+    label: string;
+    startDate: Dia;
+    endDate: Dia;
+    kind?: SemestreLocal['kind'];
+  }): SemestreLocal {
     let novo!: SemestreLocal;
     this.db.transaction(() => {
-      novo = this.gravarGrade<SemestreLocal>('semestres', { ...dados, active: true });
+      novo = this.gravarGrade<SemestreLocal>('semestres', {
+        kind: 'semester',
+        ...dados,
+        active: true,
+      });
       this.desativarOutros(novo.id);
     });
     return novo;
@@ -1032,9 +1041,13 @@ export class RepositorioLocal implements ArmazemLocal {
   }
 
   criarHorario(
-    dados: Omit<HorarioLocal, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'dirty'>,
+    dados: Omit<
+      HorarioLocal,
+      'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'dirty' | 'weekInterval' | 'weekOffset'
+    > &
+      Partial<Pick<HorarioLocal, 'weekInterval' | 'weekOffset'>>,
   ) {
-    return this.gravarGrade<HorarioLocal>('horarios', dados);
+    return this.gravarGrade<HorarioLocal>('horarios', { weekInterval: 1, weekOffset: 0, ...dados });
   }
 
   editarHorario(id: string, m: Partial<HorarioLocal>) {

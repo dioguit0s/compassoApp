@@ -3,7 +3,10 @@ import {
   aulasDoDia,
   esquemaExcecao,
   esquemaHorario,
+  esquemaSemestre,
   instantesDaAula,
+  rotuloFrequencia,
+  semanaDoPeriodo,
   semestreDoDia,
   type GradeParaProjecao,
 } from '../src';
@@ -20,6 +23,7 @@ function grade(): GradeParaProjecao {
         startDate: '2026-08-03',
         endDate: '2026-12-12',
         active: true,
+        kind: 'semester',
         deletedAt: null,
       },
       {
@@ -28,6 +32,7 @@ function grade(): GradeParaProjecao {
         startDate: '2026-02-09',
         endDate: '2026-07-04',
         active: false,
+        kind: 'semester',
         deletedAt: null,
       },
     ],
@@ -71,6 +76,8 @@ function grade(): GradeParaProjecao {
         startTime: '19:00',
         endTime: '20:40',
         room: null,
+        weekInterval: 1,
+        weekOffset: 0,
         deletedAt: null,
       },
       {
@@ -80,6 +87,8 @@ function grade(): GradeParaProjecao {
         startTime: '19:00',
         endTime: '20:40',
         room: 'LAB-3',
+        weekInterval: 1,
+        weekOffset: 0,
         deletedAt: null,
       },
       {
@@ -89,6 +98,8 @@ function grade(): GradeParaProjecao {
         startTime: '20:50',
         endTime: '22:30',
         room: null,
+        weekInterval: 1,
+        weekOffset: 0,
         deletedAt: null,
       },
       {
@@ -98,6 +109,8 @@ function grade(): GradeParaProjecao {
         startTime: '08:00',
         endTime: '10:00',
         room: null,
+        weekInterval: 1,
+        weekOffset: 0,
         deletedAt: null,
       },
     ],
@@ -253,5 +266,104 @@ describe('validação de horário (#56)', () => {
     expect(e({ type: 'room_change', room: 'B-1' })).toBe(true);
     expect(e({ startTime: '08:00', endTime: '09:00' })).toBe(false);
     expect(e({ type: 'extra', startTime: '08:00', endTime: '09:00' })).toBe(true);
+  });
+});
+
+describe('aulas quinzenais e quadrimestre (ADR-0017)', () => {
+  // s1 começa na segunda 2026-08-03: a semana 0 vai de 02/08 (domingo) a 08/08.
+  const quinzenal = (weekOffset: number) => {
+    const g = grade();
+    Object.assign(
+      g.horarios.find((h) => h.id === 'h1')!,
+      { weekInterval: 2, weekOffset },
+    );
+    return g;
+  };
+  const temSr = (g: GradeParaProjecao, d: string) =>
+    aulasDoDia(g, d).some((a) => a.slotId === 'h1');
+
+  it('conta as semanas a partir da semana em que o período começa', () => {
+    expect(semanaDoPeriodo('2026-08-03', '2026-08-02')).toBe(0);
+    expect(semanaDoPeriodo('2026-08-03', '2026-08-08')).toBe(0);
+    expect(semanaDoPeriodo('2026-08-03', '2026-08-09')).toBe(1);
+    expect(semanaDoPeriodo('2026-08-03', '2026-09-22')).toBe(7);
+  });
+
+  it('quinzenal 1 nas semanas pares do período, quinzenal 2 nas ímpares', () => {
+    const q1 = quinzenal(0);
+    expect(
+      ['2026-08-04', '2026-08-11', '2026-08-18', '2026-08-25'].map((d) => temSr(q1, d)),
+    ).toEqual([true, false, true, false]);
+    const q2 = quinzenal(1);
+    expect(
+      ['2026-08-04', '2026-08-11', '2026-08-18', '2026-08-25'].map((d) => temSr(q2, d)),
+    ).toEqual([false, true, false, true]);
+    // Os outros horários, semanais, não mudam.
+    expect(aulasDoDia(q1, '2026-09-22').map((a) => a.slotId)).toEqual(['h3']);
+    expect(aulasDoDia(q1, '2026-09-24').map((a) => a.slotId)).toEqual(['h2']);
+  });
+
+  it('período que começa no meio da semana: a semana do início é a quinzenal 1', () => {
+    const g = quinzenal(0);
+    g.semestres[0]!.startDate = '2026-08-05'; // quarta
+    expect(temSr(g, '2026-08-04')).toBe(false); // antes do início
+    expect(temSr(g, '2026-08-11')).toBe(false);
+    expect(temSr(g, '2026-08-18')).toBe(true);
+  });
+
+  it('aula extra aparece na semana de folga da quinzenal', () => {
+    const g = quinzenal(0);
+    g.excecoes.push({
+      id: 'e9',
+      slotId: 'h1',
+      date: '2026-08-11',
+      type: 'extra',
+      room: null,
+      note: 'reposição',
+      startTime: null,
+      endTime: null,
+      deletedAt: null,
+    });
+    const [a] = aulasDoDia(g, '2026-08-11').filter((x) => x.slotId === 'h1');
+    expect(a).toMatchObject({ extra: true, inicio: '19:00' });
+  });
+
+  it('rótulos de frequência', () => {
+    expect(rotuloFrequencia({ weekInterval: 1, weekOffset: 0 })).toBe('');
+    expect(rotuloFrequencia({ weekInterval: 2, weekOffset: 0 })).toBe('quinzenal 1');
+    expect(rotuloFrequencia({ weekInterval: 2, weekOffset: 1 })).toBe('quinzenal 2');
+    expect(rotuloFrequencia({ weekInterval: 3, weekOffset: 2 })).toBe('a cada 3 semanas (3ª)');
+  });
+
+  it('validação: semana do horário dentro do intervalo; apps antigos recebem os defaults', () => {
+    const h = (x: object) =>
+      esquemaHorario.safeParse({
+        id: '01900000-0000-7000-8000-000000000001',
+        courseId: '01900000-0000-7000-8000-000000000002',
+        weekday: 2,
+        startTime: '19:00',
+        endTime: '20:40',
+        room: null,
+        ...base,
+        ...x,
+      });
+    expect(h({}).data).toMatchObject({ weekInterval: 1, weekOffset: 0 });
+    expect(h({ weekInterval: 2, weekOffset: 1 }).success).toBe(true);
+    expect(h({ weekInterval: 2, weekOffset: 2 }).success).toBe(false);
+    expect(h({ weekInterval: 5, weekOffset: 0 }).success).toBe(false);
+    expect(h({ weekInterval: 0, weekOffset: 0 }).success).toBe(false);
+    const s = (x: object) =>
+      esquemaSemestre.safeParse({
+        id: '01900000-0000-7000-8000-000000000009',
+        label: '2026.3',
+        startDate: '2026-09-21',
+        endDate: '2026-12-19',
+        active: true,
+        ...base,
+        ...x,
+      });
+    expect(s({}).data?.kind).toBe('semester');
+    expect(s({ kind: 'quadrimester' }).data?.kind).toBe('quadrimester');
+    expect(s({ kind: 'trimestre' }).success).toBe(false);
   });
 });

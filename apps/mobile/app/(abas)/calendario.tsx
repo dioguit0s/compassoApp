@@ -1,4 +1,11 @@
-import { nomeDoMes, partesDoDia, somarDias, somarMeses, type Dia } from '@compasso/core';
+import {
+  nomeDoMes,
+  nomeDoPeriodo,
+  partesDoDia,
+  somarDias,
+  somarMeses,
+  type Dia,
+} from '@compasso/core';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -61,7 +68,7 @@ export default function Calendario() {
           <Pressable
             onPress={() => router.push('/semestre')}
             accessibilityRole="button"
-            accessibilityLabel="Semestre e grade de aulas"
+            accessibilityLabel={`${nomeDoPeriodo(semestre?.kind)} e grade de aulas`}
             style={[estilos.grade, { borderColor: tema.ouroClaro, backgroundColor: tema.folha }]}
           >
             <Texto cinzel style={{ fontSize: 10, letterSpacing: 0.6, color: tema.moedaTexto }}>

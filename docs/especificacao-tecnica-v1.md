@@ -305,7 +305,8 @@ reintroduziria toda a maquinaria de recorrência que a v1 evita, e ainda inundar
 tarefas com linhas que não são tarefas.
 
 ```
-semesters: { _id, userId, label /* "2026.2" */, startDate, endDate, active: Boolean }
+semesters: { _id, userId, label /* "2026.2" */, startDate, endDate, active: Boolean,
+             kind: "semester" | "quadrimester" }   // só rótulo (ADR-0017)
 
 courses:   { _id, userId, semesterId, name /* "Sistemas Reconfiguráveis" */,
              code, professor, color, defaultRoom, notes }
@@ -314,7 +315,9 @@ classSlots:{ _id, userId, courseId,
              weekday: 0..6,          // 0 = domingo
              startTime: "19:00",     // string HH:mm, hora de parede
              endTime:   "20:40",
-             room: String | null }   // sobrepõe defaultRoom quando presente
+             room: String | null,    // sobrepõe defaultRoom quando presente
+             weekInterval: 1..4,     // 1 = semanal, 2 = quinzenal (ADR-0017)
+             weekOffset: 0..weekInterval-1 }  // quinzenal 1 = 0, quinzenal 2 = 1
 
 classExceptions: { _id, userId, slotId, date,
                    type: "cancelled" | "room_change" | "extra",
@@ -326,6 +329,12 @@ classExceptions: { _id, userId, slotId, date,
 **Horário é string `HH:mm`, não `Date`.** Aula das 19:00 é hora de parede: acontece às 19:00 toda
 terça, independente de fuso ou horário de verão. Guardar isso como timestamp é o erro clássico —
 funciona até a primeira mudança de regra e depois desloca a grade inteira em uma hora.
+
+**Quinzenais contam as semanas do início do período**
+([ADR-0017](adr/0017-aulas-quinzenais-e-quadrimestre.md)). A semana (domingo a sábado) que contém o
+`startDate` é a semana 0; o horário tem aula nas semanas em que `semana % weekInterval ==
+weekOffset`. Assim a "quinzenal 1" de um quadrimestre cai na primeira semana dele e a "quinzenal 2"
+na seguinte. Aula extra vale em qualquer semana.
 
 `classExceptions` é a versão barata e específica do que uma RRULE resolveria de forma geral: aula
 cancelada, sala trocada num dia só, aula extra de reposição. Cobre o que de fato acontece num
@@ -896,6 +905,7 @@ acessível de qualquer aba, não uma tela para onde é preciso navegar.
 | Avatar em arquivo no disco | Base64 na tabela, `bytea`, object storage | Uma imagem por conta e poucas contas; um volume no disco basta |
 | Progresso dentro do Perfil | Aba separada de estatísticas | Cinco abas sem ganho de informação; o cabeçalho de identidade já contextualiza o radar |
 | Grade acadêmica fora de `items` | Aulas como itens recorrentes | Evita materializar ~400 ocorrências por semestre e trazer RRULE para a v1; aula não é tarefa |
+| Quinzenal por `weekInterval`/`weekOffset` contados do início do período | RRULE no horário; âncora pela data da 1ª aula | É como a universidade fala ("quinzenal 1 e 2") e a projeção continua uma comparação; ver [ADR-0017](adr/0017-aulas-quinzenais-e-quadrimestre.md) |
 | Horário de aula como string `HH:mm` | `Date` completo | Aula é hora de parede; timestamp desloca a grade inteira na primeira mudança de fuso |
 | `GET /agenda` projetando no servidor | Client monta aulas + itens | A regra de projeção (semestre ativo, dia da semana, exceções) não pode existir em duas versões |
 | Exceções pontuais em vez de RRULE | RRULE com EXDATE desde já | Cancelamento, troca de sala e reposição cobrem o que acontece de fato num semestre |
@@ -991,7 +1001,9 @@ gerado no app para a Luna, com escopos e restrito a `/api/v1`
 - **Recorrência da grade acadêmica versus RRULE.** Agora que a v1 tem expansão de RRULE, `classSlots`
   passou a ser um segundo mecanismo de repetição no mesmo sistema. A duplicação se justifica por
   enquanto — a grade carrega sala e disciplina, e aula não pontua — mas se ela começar a divergir em
-  comportamento, vale unificar sobre RRULE.
+  comportamento, vale unificar sobre RRULE. Em 2026-10-07 a grade ganhou aulas quinzenais por duas
+  colunas simples (`weekInterval`, `weekOffset`), sem RRULE: o caso só precisa de "qual semana"
+  ([ADR-0017](adr/0017-aulas-quinzenais-e-quadrimestre.md)).
 - **Curva de nível.** ✅ Resolvida na F9 (2026-10-02): o autor manteve os números da seção 4.4
   depois do uso real.
 - **Régua de esforço.** ✅ Resolvida na F9 (2026-10-02): o autor manteve a régua como está.
