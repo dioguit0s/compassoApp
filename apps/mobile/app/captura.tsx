@@ -29,7 +29,8 @@ const HORA_MS = 3_600_000;
 /**
  * Captura rápida (especificação §7): meta de menos de 3 s do toque ao item salvo. Um campo só
  * obrigatório — o título, já com foco e teclado aberto. A hora vem com default (próxima hora
- * cheia de hoje) e ajustes de um toque; o resto vai para o detalhe do item.
+ * cheia de hoje) e ajustes de um toque; o resto vai para o detalhe do item, aberto logo depois
+ * de salvar.
  */
 export default function Captura() {
   const tema = useTema();
@@ -53,9 +54,10 @@ export default function Captura() {
     // Lembrete padrão das configurações (issue #85).
     const lembrete = { reminderMinutesBefore: perfilLocal()?.defaultReminderMinutes ?? null };
     try {
+      let novo;
       if (tarefa && pontuacao.effort !== null) {
         // Tarefa: prazo em vez de bloco de tempo; exige esforço (§4.8).
-        repositorio.criar({
+        novo = repositorio.criar({
           ...novoCompromisso(t, inicio, null),
           ...pontuacao,
           ...lembrete,
@@ -66,20 +68,22 @@ export default function Captura() {
       } else if (diaInteiro) {
         const dia: Dia = diaDe(inicio);
         const { startAt, endAt } = limitesDiaInteiro(dia, dia);
-        repositorio.criar({
+        novo = repositorio.criar({
           ...novoCompromisso(t, startAt, endAt),
           ...pontuacao,
           ...lembrete,
           allDay: true,
         });
       } else {
-        repositorio.criar({
+        novo = repositorio.criar({
           ...novoCompromisso(t, inicio, new Date(inicio.getTime() + HORA_MS)),
           ...pontuacao,
           ...lembrete,
         });
       }
-      router.back();
+      // Item já salvo: segue para o detalhe, onde ficam disciplina, notas, recorrência e o resto.
+      // `replace` tira a captura da pilha; fechar o detalhe volta para onde a captura foi aberta.
+      router.replace({ pathname: '/item/[id]', params: { id: novo.id } });
     } catch (e) {
       setErro((e as Error).message);
     }
