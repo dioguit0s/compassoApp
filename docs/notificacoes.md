@@ -12,8 +12,19 @@
 60 e deixa folga. A agenda é projetada 45 dias à frente, os disparos (início − lembrete) já no
 passado, concluídos e cancelados saem, e ficam os 60 mais próximos.
 
-**Identificador estável** `compasso:<itemId>@<ocorrência|unico>@<instante-ms>`. Mudar o horário de
-um item muda o identificador: o reagendamento cancela o antigo e agenda o novo. O que não mudou é
+**Vários lembretes por item** ([ADR-0018](adr/0018-multiplos-lembretes-por-item.md)). Cada item
+tem até 5 lembretes (`remindersMinutesBefore`), editados no detalhe; a captura rápida cria com um
+só, o padrão da conta. Cada lembrete vira um disparo e todos disputam o mesmo orçamento, sem cota
+por item: uma série diária com dois lembretes gasta os 60 em 30 dias, e o resto entra conforme a
+janela anda. Numa série os lembretes são da série; a ocorrência movida leva os dela junto.
+
+**Texto.** O título é o do item e o corpo é o horário ("14:00–15:00"). Quando o lembrete dispara
+em outro dia que não o do compromisso — o de véspera — o corpo diz também o dia
+("qua 14/10 · 14:00–15:00").
+
+**Identificador estável** `compasso:<itemId>@<ocorrência|unico>@<instante-ms>@<minutos>@<resumo>`
+(`minutos` é o lembrete que gerou o disparo; `resumo`, um hash curto do texto). Mudar o horário, o
+lembrete ou o título de um item muda o identificador: o reagendamento cancela o antigo e agenda o novo. O que não mudou é
 reconhecido e não é refeito. Identificadores que não começam com `compasso:` nunca são tocados.
 
 **Quando reagenda:** na abertura do app; 1,5 s depois de qualquer escrita em `items` ou
@@ -25,7 +36,7 @@ que também sincroniza.
 **Fuso:** o instante de disparo sai da hora de São Paulo (ADR-0003).
 
 **Permissões:**
-- A permissão de notificação é pedida quando a pessoa escolhe um lembrete no detalhe do item ou
+- A permissão de notificação é pedida quando a pessoa adiciona um lembrete no detalhe do item ou
   toca em "Ativar lembretes" no Perfil — nunca na primeira abertura sem contexto.
 - Negada: o Perfil mostra um aviso fixo de que os lembretes não vão disparar. O app não trava nem
   perde dado; só não agenda.

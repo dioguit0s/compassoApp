@@ -26,7 +26,8 @@ info:
 
     **Não suportado nesta versão**: editar, mover, remanejar ou apagar evento ou tarefa; criar
     recorrência; desfazer conclusão; local de evento (`location` é sempre `null` em eventos e o
-    campo é recusado na criação); prioridade de tarefa; lembretes; webhooks/push;
+    campo é recusado na criação); prioridade de tarefa; editar lembretes de um item que já
+    existe (na criação, `reminders_minutes_before` é aceito); webhooks/push;
     compartilhamento e múltiplos usuários; aulas (a grade é só leitura, editada no app).
 servers:
   - url: https://compasso.homelab-server.space/api/v1
@@ -308,6 +309,7 @@ paths:
                   anyOf:
                     - { type: string, format: date }
                     - { type: string, format: date-time }
+                reminders_minutes_before: { $ref: '#/components/schemas/Lembretes' }
             examples:
               comData:
                 value:
@@ -438,7 +440,7 @@ paths:
       summary: Criar evento
       description: |
         Evento simples (sem recorrência e sem pontuação). Sem `end` nem `duration_minutes`, dura
-        60 minutos. Recebe o lembrete padrão configurado no app.
+        60 minutos. Sem `reminders_minutes_before`, recebe o lembrete padrão configurado no app.
 
         **Conflito não bloqueia**: o evento é criado e `conflicts` lista os eventos com horário
         e as aulas não canceladas que se sobrepõem a ele (sempre presente; vazio quando não há).
@@ -469,6 +471,7 @@ paths:
                     - { type: string, format: date }
                 duration_minutes: { type: integer, minimum: 1, maximum: 10080, default: 60 }
                 all_day: { type: boolean, default: false }
+                reminders_minutes_before: { $ref: '#/components/schemas/Lembretes' }
             examples:
               comHora:
                 value: { title: Reunião do grupo, start: '2026-09-26T14:30:00-03:00' }
@@ -602,6 +605,16 @@ components:
       anyOf:
         - { type: string, format: date, examples: ['2026-09-26'] }
         - { type: string, format: date-time, examples: ['2026-09-26T14:00:00-03:00'] }
+    Lembretes:
+      type: array
+      maxItems: 5
+      items: { type: integer, minimum: 0, maximum: 525600 }
+      description: |
+        Lembretes do item, em minutos antes do início (evento) ou do prazo (tarefa): `[60, 1440]`
+        é "1 hora antes e 1 dia antes"; `0` é na hora. A resposta vem sem repetição e em ordem
+        crescente. Na criação: sem o campo, vale o lembrete padrão da conta; `[]` cria sem
+        lembrete. O lembrete é disparado pelo app no aparelho, não pela API.
+      examples: [[60, 1440]]
     Base:
       type: object
       required: [id, type, title, start, end, all_day, location, recurring, occurrence_date]
@@ -630,9 +643,10 @@ components:
       allOf:
         - $ref: '#/components/schemas/Base'
         - type: object
-          required: [type]
+          required: [type, reminders_minutes_before]
           properties:
             type: { const: event }
+            reminders_minutes_before: { $ref: '#/components/schemas/Lembretes' }
             end:
               description: |
                 Dia inteiro: a data do último dia, inclusive. Com horário: o fim, ou `null` em
@@ -654,9 +668,10 @@ components:
       allOf:
         - $ref: '#/components/schemas/Base'
         - type: object
-          required: [type, due, done]
+          required: [type, due, done, reminders_minutes_before]
           properties:
             type: { const: task }
+            reminders_minutes_before: { $ref: '#/components/schemas/Lembretes' }
             start: { description: Igual a `due` (para a agenda ordenar por um campo só). }
             end: { type: 'null' }
             due:

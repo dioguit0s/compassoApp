@@ -10,6 +10,7 @@ import m0005 from './0005_conclusoes_e_ledger.sql';
 import m0006 from './0006_economia.sql';
 import m0007 from './0007_perfil_preferencias.sql';
 import m0008 from './0008_grade_quinzenal_quadrimestre.sql';
+import m0009 from './0009_lembretes_multiplos.sql';
 
   export default {
     journal,
@@ -22,7 +23,8 @@ m0004,
 m0005,
 m0006,
 m0007,
-m0008
+m0008,
+m0009
     }
   }
   

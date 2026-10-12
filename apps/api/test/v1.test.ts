@@ -192,6 +192,7 @@ describe('GET /api/v1/agenda', () => {
       location: null,
       recurring: false,
       occurrence_date: null,
+      reminders_minutes_before: [],
     });
     expect(treino).toMatchObject({
       id: ids.treino,
@@ -379,6 +380,49 @@ describe('tarefas', () => {
 });
 
 describe('POST /api/v1/events', () => {
+  it('lembretes: aceita a lista, normaliza, devolve e mantém o campo antigo espelhado', async () => {
+    const r = await chamar('criar-evento-lembretes', 'POST', '/api/v1/events', luna, {
+      title: 'Prova de cálculo',
+      start: `${amanha}T19:00:00-03:00`,
+      reminders_minutes_before: [1440, 60, 60],
+    });
+    expect(r.status).toBe(201);
+    expect(r.corpo.reminders_minutes_before).toEqual([60, 1440]);
+    const linha = await env.banco.comUsuario(userId, (rep) => rep.itens.obterLinha(r.corpo.id));
+    expect(linha!.remindersMinutesBefore).toEqual([60, 1440]);
+    expect(linha!.reminderMinutesBefore).toBe(60);
+
+    // Lista vazia é "sem lembrete", mesmo com lembrete padrão na conta; sem o campo vale o padrão.
+    await env.banco.comUsuario(userId, (rep) =>
+      rep.usuarios.editar({ defaultReminderMinutes: 30 }),
+    );
+    const sem = await chamar(null, 'POST', '/api/v1/events', luna, {
+      title: 'Sem aviso',
+      start: `${amanha}T21:00:00-03:00`,
+      reminders_minutes_before: [],
+    });
+    expect(sem.corpo.reminders_minutes_before).toEqual([]);
+    const padrao = await chamar(null, 'POST', '/api/v1/events', luna, {
+      title: 'Com o padrão',
+      start: `${amanha}T22:00:00-03:00`,
+    });
+    expect(padrao.corpo.reminders_minutes_before).toEqual([30]);
+    await env.banco.comUsuario(userId, (rep) =>
+      rep.usuarios.editar({ defaultReminderMinutes: null }),
+    );
+
+    const seis = await chamar(null, 'POST', '/api/v1/events', luna, {
+      title: 'Lembretes demais',
+      start: `${amanha}T23:00:00-03:00`,
+      reminders_minutes_before: [1, 2, 3, 4, 5, 6],
+    });
+    expect(seis.status).toBe(400);
+    expect(seis.corpo.error).toMatchObject({
+      code: 'validation_error',
+      field: 'reminders_minutes_before',
+    });
+  });
+
   it('cria com duração padrão de 60 min e avisa conflito sem recusar', async () => {
     const r = await chamar(
       'criar-evento-conflito',

@@ -1,8 +1,12 @@
 import {
+  diaDe,
+  formatarDiaCurto,
   HORIZONTE_NOTIFICACOES_DIAS,
   instanteDoDisparo,
+  nomeCurtoDoDia,
   planejarReagendamento,
   selecionarDisparos,
+  type EntradaAgenda,
 } from '@compasso/core';
 import type * as BackgroundTaskT from 'expo-background-task';
 import type * as NotificationsT from 'expo-notifications';
@@ -104,6 +108,18 @@ async function configurarCanal(): Promise<void> {
   });
 }
 
+/**
+ * Corpo do lembrete: o horário do compromisso. Lembrete que dispara em outro dia (o de véspera)
+ * diz também o dia — "14:00–15:00" sozinho, na véspera, seria lido como hoje.
+ */
+export function corpoDoLembrete(e: EntradaAgenda, instante: Date): string {
+  const inicio = e.kind === 'task' ? e.dueAt : e.startAt;
+  const quando = rotuloDeHora(e);
+  if (!inicio || diaDe(inicio) === diaDe(instante)) return quando;
+  const dia = diaDe(inicio);
+  return `${nomeCurtoDoDia(dia)} ${formatarDiaCurto(dia)} · ${quando}`;
+}
+
 let emAndamento: Promise<number> | null = null;
 let proxima: Promise<number> | null = null;
 
@@ -135,7 +151,7 @@ async function executarReagendamento(): Promise<number> {
     agora,
     new Date(agora.getTime() + HORIZONTE_NOTIFICACOES_DIAS * DIA_MS),
   );
-  const selecao = selecionarDisparos(entradas, agora, undefined, rotuloDeHora);
+  const selecao = selecionarDisparos(entradas, agora, undefined, corpoDoLembrete);
   const agendados = await Notifications.getAllScheduledNotificationsAsync();
   const plano = planejarReagendamento(
     agendados.map((n) => n.identifier),

@@ -17,7 +17,7 @@ linha em cinza na aba Hoje (só o ícone na faixa da semana); limiar de dia chei
 lembrete de aula e resumo da manhã são do aparelho (não sincronizam).
 
 - [x] 1. Carga do dia e da semana: core + testes, semana, mês, Hoje, avisos, configuração, docs
-- [ ] 2. Múltiplos lembretes: modelo, migrações (app 0009, API 0020), ADR-0018, sync compatível,
+- [x] 2. Múltiplos lembretes: modelo, migrações (app 0009, API 0020), ADR-0018, sync compatível,
       `selecionarDisparos`, detalhe, API v1, docs
 - [ ] 3. Observações: captura, listas, links no detalhe, corpo da notificação, API v1, docs
 - [ ] 4. Notificações: ação Concluir, lembrete de aula, resumo da manhã, diagnóstico do

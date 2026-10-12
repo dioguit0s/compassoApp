@@ -58,14 +58,18 @@ interface Base {
   recurring: boolean;
   occurrence_date: Dia | null;
 }
-export type EventoV1 = Base & { type: 'event' };
+/** Lembretes do item, em minutos antes do início ou do prazo (ADR-0018); `[]` = sem lembrete. */
+interface ComLembretes {
+  reminders_minutes_before: number[];
+}
+export type EventoV1 = Base & ComLembretes & { type: 'event' };
 export type AulaV1 = Base & {
   type: 'class';
   subject: string;
   professor: string | null;
   cancelled: boolean;
 };
-export type TarefaV1 = Base & { type: 'task'; due: string | null; done: boolean };
+export type TarefaV1 = Base & ComLembretes & { type: 'task'; due: string | null; done: boolean };
 export type ItemV1 = EventoV1 | AulaV1 | TarefaV1;
 
 /** O que os formatadores precisam de um item, venha da tabela ou da projeção da agenda. */
@@ -79,6 +83,7 @@ interface Fonte {
   status: 'open' | 'done';
   ocorrencia: Dia | null;
   recorrente: boolean;
+  lembretes: number[];
 }
 
 export const deLinha = (l: LinhaItem): Fonte => ({
@@ -91,6 +96,7 @@ export const deLinha = (l: LinhaItem): Fonte => ({
   status: l.status,
   ocorrencia: null,
   recorrente: l.rrule !== null,
+  lembretes: l.remindersMinutesBefore,
 });
 
 export const deEntrada = (e: EntradaAgenda): Fonte => ({
@@ -103,6 +109,7 @@ export const deEntrada = (e: EntradaAgenda): Fonte => ({
   status: e.status,
   ocorrencia: e.ocorrencia,
   recorrente: e.ocorrencia !== null,
+  lembretes: e.remindersMinutesBefore,
 });
 
 /**
@@ -130,6 +137,7 @@ export function eventoV1(f: Fonte): EventoV1 {
     location: null,
     recurring: f.recorrente,
     occurrence_date: f.ocorrencia,
+    reminders_minutes_before: f.lembretes,
   };
 }
 
@@ -146,6 +154,7 @@ export function tarefaV1(f: Fonte): TarefaV1 {
     location: null,
     recurring: f.recorrente,
     occurrence_date: f.ocorrencia,
+    reminders_minutes_before: f.lembretes,
     due,
     done: f.status === 'done',
   };

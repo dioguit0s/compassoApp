@@ -52,7 +52,9 @@ revoga todos os tokens, inclusive o da Luna.
 - Local do evento (`location` é sempre `null` em eventos e é recusado na criação). Nas aulas,
   `location` é a sala.
 - Prioridade de tarefa (`priority` é recusado).
-- Lembretes: o item criado pela Luna recebe o lembrete padrão das configurações do app.
+- Editar os lembretes de um item que já existe. Na criação, `reminders_minutes_before` aceita
+  até 5 lembretes em minutos antes (`[60, 1440]` = 1 hora e 1 dia antes); sem o campo, o item
+  recebe o lembrete padrão das configurações do app, e `[]` cria sem lembrete.
 - Cadastrar ou alterar aulas, semestre e disciplinas (a grade é editada no app).
 - Webhooks, notificações push, compartilhamento e múltiplas contas.
 - Listar tarefas recorrentes em `GET /tasks` (elas aparecem na agenda, por ocorrência).

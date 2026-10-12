@@ -24,6 +24,7 @@ import {
   fimDaSerie,
   novoId,
   projetarAgenda,
+  resolverLembretes,
   type EntradaAgenda,
   type ItemWire,
   type OcorrenciaWire,
@@ -93,6 +94,7 @@ function itemParaWire(l: LinhaItem): ItemWire {
     completedAt: paraIso(l.completedAt),
     postponeCount: l.postponeCount,
     reminderMinutesBefore: l.reminderMinutesBefore,
+    remindersMinutesBefore: l.remindersMinutesBefore,
     deletedAt: paraIso(l.deletedAt),
     createdAt: l.createdAt.toISOString(),
     updatedAt: l.updatedAt.toISOString(),
@@ -118,9 +120,14 @@ function serieDaLinha(l: {
   };
 }
 
-function wireParaLinha(w: ItemWire, userId: string) {
+/**
+ * `lembretesAtuais`: a lista já gravada, para quando o item chega sem ela (versão do app
+ * anterior ao ADR-0018) — `resolverLembretes` preserva os lembretes extras se o único não mudou.
+ */
+function wireParaLinha(w: ItemWire, userId: string, lembretesAtuais?: number[]) {
   const linha = {
     ...w,
+    ...resolverLembretes(w, lembretesAtuais),
     userId,
     effortLockedAt: paraData(w.effortLockedAt),
     dueAt: paraData(w.dueAt),
@@ -415,12 +422,16 @@ export function criarRepositorios(tx: Tx, userId: string) {
       }
       const agora = await relogio();
       const novo: ItemWire = { ...w, ...mudancas, id, updatedAt: agora.toISOString() };
+      // Quem manda só o campo antigo não está confirmando a lista que já existe (ADR-0018).
+      if ('reminderMinutesBefore' in mudancas && !('remindersMinutesBefore' in mudancas)) {
+        delete novo.remindersMinutesBefore;
+      }
       const r = esquemaItem.safeParse(novo);
       if (!r.success)
         throw new ErroDeOcorrencia(422, r.error.issues.map((i) => i.message).join('; '));
       await tx
         .update(items)
-        .set(wireParaLinha(r.data, userId))
+        .set(wireParaLinha(r.data, userId, atual.remindersMinutesBefore))
         .where(and(doUsuario, eq(items.id, id)));
       return itemParaWire((await itensRepo.obterLinha(id))!);
     },
@@ -474,6 +485,27 @@ export function criarRepositorios(tx: Tx, userId: string) {
             ).map((c) => c.id)
           : [],
       );
+      // Versão do app anterior ao ADR-0018 não manda a lista de lembretes: a decisão depende
+      // da lista já gravada, então ela é lida antes (só para esses itens).
+      const semLista = recebidos.filter((r) => r.remindersMinutesBefore === undefined);
+      const lembretesAtuais = new Map(
+        semLista.length
+          ? (
+              await tx
+                .select({ id: items.id, lista: items.remindersMinutesBefore })
+                .from(items)
+                .where(
+                  and(
+                    doUsuario,
+                    inArray(
+                      items.id,
+                      semLista.map((r) => r.id),
+                    ),
+                  ),
+                )
+            ).map((l) => [l.id, l.lista])
+          : [],
+      );
       const gravados = await tx
         .insert(items)
         .values(
@@ -481,6 +513,7 @@ export function criarRepositorios(tx: Tx, userId: string) {
             wireParaLinha(
               w.courseId && !existentes.has(w.courseId) ? { ...w, courseId: null } : w,
               userId,
+              lembretesAtuais.get(w.id),
             ),
           ),
         )

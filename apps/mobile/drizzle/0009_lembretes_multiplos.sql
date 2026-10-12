@@ -1,0 +1,2 @@
+ALTER TABLE `items` ADD `reminders_minutes_before` text DEFAULT '[]' NOT NULL;--> statement-breakpoint
+UPDATE `items` SET `reminders_minutes_before` = '[' || `reminder_minutes_before` || ']' WHERE `reminder_minutes_before` IS NOT NULL;

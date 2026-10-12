@@ -373,7 +373,8 @@ tipo de app.
   completedAt: Date | null,
   courseId: uuid | null,           // prova, trabalho ou entrega ligada a uma disciplina
   postponeCount: Number,
-  reminderMinutesBefore: Number | null,
+  remindersMinutesBefore: Number[],       // até 5, sem repetição, crescente (ADR-0018)
+  reminderMinutesBefore: Number | null,   // espelho do primeiro, para versões antigas do app
   deletedAt: Date | null,          // tombstone: exclusão lógica, ver 6.6
   createdAt, updatedAt
 }
@@ -392,6 +393,7 @@ mesmo contra um retry com bug ou uma edição manual no `psql` — a API não é
   composta `(userId, courseId)`, que é também a barreira estrutural contra vínculo entre contas.
   Excluir uma disciplina não exclui os itens ligados a ela: `ON DELETE SET NULL` anula o vínculo e a
   prova continua no histórico.
+- `remindersMinutesBefore` tem no máximo 5 valores.
 
 **Invariantes que continuam sendo responsabilidade da API.** Nenhum deles é expressável como
 constraint, porque todos dependem de estado anterior ou de regra de fluxo:
@@ -400,6 +402,14 @@ constraint, porque todos dependem de estado anterior ou de regra de fluxo:
 - Concluir um item já concluído é no-op, não gera lançamento duplicado.
 - Item sem `effort` não aceita conclusão: a rota responde 409.
 - Item com `rrule` não usa `status` nem `completedAt` — quem carrega estado é a ocorrência.
+
+**Lembretes** ([ADR-0018](adr/0018-multiplos-lembretes-por-item.md)). Um item tem até cinco
+lembretes, cada um em minutos antes do início (ou do prazo): "1 dia antes + 1 hora antes" numa
+prova. A lista mora na própria linha, não numa tabela à parte — sincroniza junto com o item, pelo
+mesmo LWW. `reminderMinutesBefore` continua existindo só como espelho do primeiro lembrete (o
+mais próximo do compromisso), para as versões do app que conhecem um lembrete só; quando uma
+delas devolve o item sem a lista, o servidor mantém os lembretes extras se o único não mudou.
+Numa série, os lembretes são da série: a ocorrência não tem lembrete próprio.
 
 **Timezone é armazenado junto com a data.** É barato agora e caro depois: a primeira viagem ou
 mudança de regra de horário quebra o calendário inteiro.
@@ -803,7 +813,7 @@ Quatro abas na navegação inferior, mais os fluxos que aparecem por cima delas.
 | Recompensas | aba | Lista com preço, cooldown, saldo e botão de resgate |
 | Perfil | aba | Identidade e progresso, ver detalhe abaixo |
 | Captura rápida | modal | Criar item em menos de 3 segundos: título, esforço, atributo |
-| Detalhe do item | modal | Edição completa, recorrência, notas, lembrete, disciplina |
+| Detalhe do item | modal | Edição completa, recorrência, notas, lembretes, disciplina |
 | Semestre | tela | Cadastro e edição da grade: disciplinas, horários, salas |
 | Importar ICS | tela | Migração inicial, alcançada pelas configurações |
 | Widget da semana | tela inicial | Semana corrente em 7 colunas, fora do app (Android) |
@@ -932,6 +942,7 @@ acessível de qualquer aba, não uma tela para onde é preciso navegar.
 | Filtro por `userId` na camada de repositório | Filtrar em cada endpoint | Disciplina manual falha uma vez só, e o custo dessa vez é vazamento entre contas |
 | Avatar em arquivo no disco | Base64 na tabela, `bytea`, object storage | Uma imagem por conta e poucas contas; um volume no disco basta |
 | Progresso dentro do Perfil | Aba separada de estatísticas | Cinco abas sem ganho de informação; o cabeçalho de identidade já contextualiza o radar |
+| Lembretes como lista na linha do item, com o campo antigo de espelho | Tabela `item_reminders`; dois campos independentes; trocar o campo e exigir atualização | Até 5 inteiros não pagam uma tabela sincronizada, e versões antigas do app seguem funcionando; ver [ADR-0018](adr/0018-multiplos-lembretes-por-item.md) |
 | Grade acadêmica fora de `items` | Aulas como itens recorrentes | Evita materializar ~400 ocorrências por semestre e trazer RRULE para a v1; aula não é tarefa |
 | Quinzenal por `weekInterval`/`weekOffset` contados do início do período | RRULE no horário; âncora pela data da 1ª aula | É como a universidade fala ("quinzenal 1 e 2") e a projeção continua uma comparação; ver [ADR-0017](adr/0017-aulas-quinzenais-e-quadrimestre.md) |
 | Horário de aula como string `HH:mm` | `Date` completo | Aula é hora de parede; timestamp desloca a grade inteira na primeira mudança de fuso |

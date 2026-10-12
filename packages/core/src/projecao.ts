@@ -6,6 +6,7 @@
 import { itemNoIntervalo, type ItemDeAgenda } from './agenda';
 import type { Dia } from './calendario';
 import { FUSO_PADRAO } from './calendario';
+import { lembretesDoItem } from './lembretes';
 import { ehOcorrencia, ocorrencias } from './rrule';
 
 export interface ItemParaProjecao extends ItemDeAgenda {
@@ -14,6 +15,8 @@ export interface ItemParaProjecao extends ItemDeAgenda {
   timezone: string;
   recurrenceEndsAt: Date | null;
   reminderMinutesBefore: number | null;
+  /** Ausente em quem só tem o campo antigo: vale `reminderMinutesBefore` (ADR-0018). */
+  remindersMinutesBefore?: readonly number[] | null;
   courseId: string | null;
   postponeCount: number;
   deletedAt: Date | null;
@@ -39,6 +42,8 @@ export interface EntradaAgenda extends ItemDeAgenda {
   ocorrencia: Dia | null;
   notes: string | null;
   reminderMinutesBefore: number | null;
+  /** Lembretes em minutos antes, do mais próximo ao mais distante. São da série, não da ocorrência. */
+  remindersMinutesBefore: number[];
   /** Disciplina ligada (prova, trabalho) — o selo na interface. */
   courseId: string | null;
   /** Quantas vezes foi adiado — exibido sem julgamento (§4.7). */
@@ -142,6 +147,7 @@ function base(item: ItemParaProjecao) {
     status: item.status,
     notes: item.notes,
     reminderMinutesBefore: item.reminderMinutesBefore,
+    remindersMinutesBefore: lembretesDoItem(item),
     courseId: item.courseId,
     postponeCount: item.postponeCount,
   };
@@ -165,6 +171,7 @@ export function entradaParaJson(e: EntradaAgenda) {
     status: e.status,
     desviada: e.desviada,
     reminderMinutesBefore: e.reminderMinutesBefore,
+    remindersMinutesBefore: e.remindersMinutesBefore,
     courseId: e.courseId,
     postponeCount: e.postponeCount,
   };

@@ -5,6 +5,9 @@
  *
  * O instante do disparo vem da hora de São Paulo (ADR-0003): um lembrete de um compromisso às
  * 14:00 de São Paulo dispara às 14:00 de São Paulo, esteja o aparelho onde estiver.
+ *
+ * Um item pode ter vários lembretes (ADR-0018): cada um vira um disparo, e todos disputam o mesmo
+ * orçamento — uma série diária com dois lembretes gasta o dobro e alcança metade dos dias.
  */
 import type { EntradaAgenda } from './projecao';
 
@@ -16,12 +19,14 @@ export const HORIZONTE_NOTIFICACOES_DIAS = 45;
 
 export interface Disparo {
   /**
-   * Identificador estável: muda se o instante ou o texto mudar, então reagendar cancela o antigo
-   * e agenda o novo; se nada mudou, o mesmo id é reconhecido e nada é refeito.
+   * Identificador estável: muda se o instante, o lembrete ou o texto mudar, então reagendar
+   * cancela o antigo e agenda o novo; se nada mudou, o mesmo id é reconhecido e nada é refeito.
    */
   id: string;
   itemId: string;
   ocorrencia: string | null;
+  /** Qual lembrete do item gerou o disparo, em minutos antes do início. */
+  minutosAntes: number;
   instante: Date;
   titulo: string;
   corpo: string;
@@ -42,42 +47,61 @@ function resumo(texto: string): string {
 export const PREFIXO_DISPARO = 'compasso:';
 
 /**
- * Instante (ms) de um id de disparo: `compasso:<item>@<ocorrência>@<instante>@<resumo>`. É o
- * penúltimo segmento — o último é o resumo do texto. Id fora do formato → null.
+ * Instante (ms) de um id de disparo: `compasso:<item>@<ocorrência>@<instante>@<minutos>@<resumo>`.
+ * É sempre o terceiro segmento; ids da versão anterior (sem os minutos) também são lidos, para o
+ * diagnóstico ordenar o que ainda não foi reagendado. Id fora do formato → null.
  */
 export function instanteDoDisparo(id: string): number | null {
   if (!id.startsWith(PREFIXO_DISPARO)) return null;
   const partes = id.split('@');
-  if (partes.length !== 4) return null;
+  if (partes.length !== 4 && partes.length !== 5) return null;
   const ms = Number(partes[2]);
   return Number.isFinite(ms) && ms > 0 ? ms : null;
 }
 
+/**
+ * Todos os disparos futuros da agenda, um por lembrete de cada entrada, do mais próximo para o
+ * mais distante — ainda sem o corte do orçamento. `descreverQuando` recebe também o instante do
+ * disparo: um lembrete de véspera precisa dizer o dia, o da própria hora não.
+ */
+export function listarDisparos(
+  entradas: EntradaAgenda[],
+  agora: Date,
+  descreverQuando: (e: EntradaAgenda, instante: Date) => string = () => '',
+): Disparo[] {
+  const disparos: Disparo[] = [];
+  for (const e of entradas) {
+    if (e.status === 'done') continue;
+    const inicio = inicioDaEntrada(e);
+    if (!inicio) continue;
+    for (const minutos of e.remindersMinutesBefore) {
+      const instante = new Date(inicio.getTime() - minutos * 60_000);
+      if (instante <= agora) continue;
+      const corpo = descreverQuando(e, instante);
+      disparos.push({
+        id: `${PREFIXO_DISPARO}${e.itemId}@${e.ocorrencia ?? 'unico'}@${instante.getTime()}@${minutos}@${resumo(`${e.title}\n${corpo}`)}`,
+        itemId: e.itemId,
+        ocorrencia: e.ocorrencia,
+        minutosAntes: minutos,
+        instante,
+        titulo: e.title,
+        corpo,
+      });
+    }
+  }
+  return disparos.sort(
+    (a, b) => a.instante.getTime() - b.instante.getTime() || a.id.localeCompare(b.id),
+  );
+}
+
+/** Os disparos que cabem no orçamento: os mais próximos primeiro. */
 export function selecionarDisparos(
   entradas: EntradaAgenda[],
   agora: Date,
   orcamento: number = ORCAMENTO_NOTIFICACOES,
-  descreverQuando: (e: EntradaAgenda) => string = () => '',
+  descreverQuando: (e: EntradaAgenda, instante: Date) => string = () => '',
 ): Disparo[] {
-  const disparos: Disparo[] = [];
-  for (const e of entradas) {
-    if (e.reminderMinutesBefore === null || e.status === 'done') continue;
-    const inicio = inicioDaEntrada(e);
-    if (!inicio) continue;
-    const instante = new Date(inicio.getTime() - e.reminderMinutesBefore * 60_000);
-    if (instante <= agora) continue;
-    const corpo = descreverQuando(e);
-    disparos.push({
-      id: `${PREFIXO_DISPARO}${e.itemId}@${e.ocorrencia ?? 'unico'}@${instante.getTime()}@${resumo(`${e.title}\n${corpo}`)}`,
-      itemId: e.itemId,
-      ocorrencia: e.ocorrencia,
-      instante,
-      titulo: e.title,
-      corpo,
-    });
-  }
-  disparos.sort((a, b) => a.instante.getTime() - b.instante.getTime() || a.id.localeCompare(b.id));
-  return disparos.slice(0, Math.max(0, orcamento));
+  return listarDisparos(entradas, agora, descreverQuando).slice(0, Math.max(0, orcamento));
 }
 
 /**

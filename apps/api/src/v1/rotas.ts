@@ -5,6 +5,9 @@ import {
   FUSO_PADRAO,
   inicioDoDia,
   instantesDaAula,
+  MAX_LEMBRETES,
+  MAX_MINUTOS_DE_LEMBRETE,
+  normalizarLembretes,
   novoId,
   somarDias,
   type EntradaAgenda,
@@ -63,6 +66,12 @@ const busca = z
   .refine((q) => !q.includes(SUBSTITUICAO))
   .optional();
 
+/** Até 5 lembretes, em minutos antes; a ordem e as repetições são normalizadas (ADR-0018). */
+const lembretes = z
+  .array(z.number().int().min(0).max(MAX_MINUTOS_DE_LEMBRETE))
+  .max(MAX_LEMBRETES)
+  .optional();
+
 const esquemaEvento = z
   .object({
     title: titulo,
@@ -70,6 +79,7 @@ const esquemaEvento = z
     end: z.union([instante, data]).optional(),
     duration_minutes: z.number().int().min(1).max(10_080).optional(),
     all_day: z.boolean().default(false),
+    reminders_minutes_before: lembretes,
   })
   .strict();
 
@@ -80,6 +90,7 @@ const esquemaTarefa = z
     attribute: z.enum(ATRIBUTOS),
     secondary_attribute: z.enum(ATRIBUTOS).optional(),
     due: z.union([instante, data]).optional(),
+    reminders_minutes_before: lembretes,
   })
   .strict();
 
@@ -276,8 +287,16 @@ function mesmoPedido(a: LinhaItem, b: ItemWire): boolean {
     t(a.dueAt) === tw(b.dueAt) &&
     a.effort === b.effort &&
     a.primaryAttribute === b.primaryAttribute &&
-    a.secondaryAttribute === b.secondaryAttribute
+    a.secondaryAttribute === b.secondaryAttribute &&
+    // Só compara quando o pedido informou os lembretes; sem eles vale o padrão da conta.
+    (b.remindersMinutesBefore === undefined ||
+      a.remindersMinutesBefore.join() === normalizarLembretes(b.remindersMinutesBefore).join())
   );
+}
+
+/** Os lembretes informados no pedido; sem eles, nada — fica o padrão da conta. */
+function lembretesDoPedido(lista: number[] | undefined): Partial<ItemWire> {
+  return lista === undefined ? {} : { remindersMinutesBefore: normalizarLembretes(lista) };
 }
 
 export function itemNovo(
@@ -306,7 +325,8 @@ export function itemNovo(
     status: 'open',
     completedAt: null,
     postponeCount: 0,
-    // Lembrete padrão da conta, como a captura do app (issue #85).
+    // Lembrete padrão da conta, como a captura do app (issue #85). Quando o pedido traz a lista
+    // (`remindersMinutesBefore` em `campos`), ela manda e este campo vira o espelho (ADR-0018).
     reminderMinutesBefore: lembrete,
     deletedAt: null,
     createdAt: agora.toISOString(),
@@ -452,6 +472,7 @@ export function rotasV1(banco: Banco, opcoes: { versao: string; limite?: LimiteD
             ? null
             : (soData ? inicioDoDia(p.due) : new Date(p.due)).toISOString(),
         allDay: soData,
+        ...lembretesDoPedido(p.reminders_minutes_before),
       });
       const { linha, criado } = await gravar(r, w);
       return { tarefa: tarefaV1(deLinha(linha)), criado };
@@ -547,6 +568,7 @@ export function rotasV1(banco: Banco, opcoes: { versao: string; limite?: LimiteD
         startAt: inicio.toISOString(),
         endAt: fim.toISOString(),
         allDay: p.all_day,
+        ...lembretesDoPedido(p.reminders_minutes_before),
       });
       const { linha, criado } = await gravar(r, w);
       // Só avisa: o evento já foi criado. Dia inteiro não conflita com nada.
