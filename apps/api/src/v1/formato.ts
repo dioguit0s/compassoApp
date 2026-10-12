@@ -48,6 +48,23 @@ export function tituloLimpo(titulo: string): string {
   return t.length > TAMANHO_DO_TITULO ? `${t.slice(0, TAMANHO_DO_TITULO - 1)}…` : t;
 }
 
+export const TAMANHO_DA_NOTA = 2000;
+
+/**
+ * Observações prontas para o contexto do modelo: texto puro, quebras de linha preservadas, sem
+ * outros caracteres de controle e no máximo 2000 caracteres. Vazia vira `null`.
+ */
+export function notaLimpa(notas: string | null): string | null {
+  if (notas === null) return null;
+  const t = notas
+    .replace(/\r\n?/g, '\n')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0009\u000b-\u001f\u007f]+/g, ' ')
+    .trim();
+  if (!t) return null;
+  return t.length > TAMANHO_DA_NOTA ? `${t.slice(0, TAMANHO_DA_NOTA - 1)}…` : t;
+}
+
 interface Base {
   id: string;
   title: string;
@@ -58,8 +75,12 @@ interface Base {
   recurring: boolean;
   occurrence_date: Dia | null;
 }
-/** Lembretes do item, em minutos antes do início ou do prazo (ADR-0018); `[]` = sem lembrete. */
+/**
+ * O que só evento e tarefa têm: as observações (`notes`, texto puro ou `null`) e os lembretes, em
+ * minutos antes do início ou do prazo (ADR-0018); `[]` = sem lembrete.
+ */
 interface ComLembretes {
+  notes: string | null;
   reminders_minutes_before: number[];
 }
 export type EventoV1 = Base & ComLembretes & { type: 'event' };
@@ -84,6 +105,7 @@ interface Fonte {
   ocorrencia: Dia | null;
   recorrente: boolean;
   lembretes: number[];
+  notes: string | null;
 }
 
 export const deLinha = (l: LinhaItem): Fonte => ({
@@ -97,6 +119,7 @@ export const deLinha = (l: LinhaItem): Fonte => ({
   ocorrencia: null,
   recorrente: l.rrule !== null,
   lembretes: l.remindersMinutesBefore,
+  notes: l.notes,
 });
 
 export const deEntrada = (e: EntradaAgenda): Fonte => ({
@@ -110,6 +133,8 @@ export const deEntrada = (e: EntradaAgenda): Fonte => ({
   ocorrencia: e.ocorrencia,
   recorrente: e.ocorrencia !== null,
   lembretes: e.remindersMinutesBefore,
+  // Numa ocorrência editada, a nota é a dela (`notesOverride`), já resolvida pela projeção.
+  notes: e.notes,
 });
 
 /**
@@ -137,6 +162,7 @@ export function eventoV1(f: Fonte): EventoV1 {
     location: null,
     recurring: f.recorrente,
     occurrence_date: f.ocorrencia,
+    notes: notaLimpa(f.notes),
     reminders_minutes_before: f.lembretes,
   };
 }
@@ -154,6 +180,7 @@ export function tarefaV1(f: Fonte): TarefaV1 {
     location: null,
     recurring: f.recorrente,
     occurrence_date: f.ocorrencia,
+    notes: notaLimpa(f.notes),
     reminders_minutes_before: f.lembretes,
     due,
     done: f.status === 'done',

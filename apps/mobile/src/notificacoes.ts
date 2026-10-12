@@ -5,6 +5,7 @@ import {
   instanteDoDisparo,
   nomeCurtoDoDia,
   planejarReagendamento,
+  primeiraLinhaDaNota,
   selecionarDisparos,
   type EntradaAgenda,
 } from '@compasso/core';
@@ -110,14 +111,19 @@ async function configurarCanal(): Promise<void> {
 
 /**
  * Corpo do lembrete: o horário do compromisso. Lembrete que dispara em outro dia (o de véspera)
- * diz também o dia — "14:00–15:00" sozinho, na véspera, seria lido como hoje.
+ * diz também o dia — "14:00–15:00" sozinho, na véspera, seria lido como hoje. Na linha de baixo
+ * vai a primeira linha das observações ("levar exames"). Na tela bloqueada o conteúdo continua
+ * escondido: quem decide isso é o canal (`lockscreenVisibility: PRIVATE`), não o texto.
  */
 export function corpoDoLembrete(e: EntradaAgenda, instante: Date): string {
   const inicio = e.kind === 'task' ? e.dueAt : e.startAt;
-  const quando = rotuloDeHora(e);
-  if (!inicio || diaDe(inicio) === diaDe(instante)) return quando;
-  const dia = diaDe(inicio);
-  return `${nomeCurtoDoDia(dia)} ${formatarDiaCurto(dia)} · ${quando}`;
+  let quando = rotuloDeHora(e);
+  if (inicio && diaDe(inicio) !== diaDe(instante)) {
+    const dia = diaDe(inicio);
+    quando = `${nomeCurtoDoDia(dia)} ${formatarDiaCurto(dia)} · ${quando}`;
+  }
+  const nota = primeiraLinhaDaNota(e.notes);
+  return nota ? `${quando}\n${nota}` : quando;
 }
 
 let emAndamento: Promise<number> | null = null;

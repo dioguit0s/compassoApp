@@ -213,6 +213,7 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
                     key={i.id}
                     item={i}
                     variante="mini"
+                    comNota
                     style={
                       arrasto?.item.id === i.id
                         ? {
@@ -235,7 +236,7 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
                     }}
                   />
                 ) : (
-                  <EntradaItem key={i.id} item={i} variante="mini" />
+                  <EntradaItem key={i.id} item={i} variante="mini" comNota />
                 ),
               )}
           </View>

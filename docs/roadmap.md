@@ -498,6 +498,27 @@ início do quadrimestre. ⏳ Implementado; falta a validação no aparelho.
 
 ---
 
+### Observações visíveis — fora das fases
+
+Pedido do autor em 2026-10-12 (especificação §7, Observações). O campo `notes` já existia; faltava
+aparecer onde é útil.
+
+- Captura rápida: "+ observações" recolhido por padrão.
+- Aba Hoje: ícone e primeira linha da nota; faixa da semana: só o ícone.
+- Detalhe: modo leitura com links, e-mails e telefones tocáveis (`trechosDaNota`, puro e testado
+  no core). O campo continua texto puro.
+- Lembrete: primeira linha da nota no corpo da notificação.
+- API v1 da Luna: `notes` na leitura e na criação de eventos e tarefas.
+- Só JS e API: chega por OTA, sem migração.
+
+Fora: anexos e caderno de anotações por aula (§10).
+
+**Critério de saída:** uma consulta criada pela Luna com "levar exames" aparece na aba Hoje com a
+nota em cinza, o lembrete dela mostra a nota, e o telefone escrito nas observações abre o
+discador a partir do detalhe. ⏳ Implementado; falta a validação no aparelho.
+
+---
+
 ### Múltiplos lembretes por item — fora das fases
 
 Pedido do autor em 2026-10-12, extensão da F4

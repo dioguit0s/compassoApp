@@ -28,6 +28,8 @@ import {
   deEntrada,
   deLinha,
   eventoV1,
+  notaLimpa,
+  TAMANHO_DA_NOTA,
   TAMANHO_DO_TITULO,
   tarefaV1,
   type ItemV1,
@@ -72,6 +74,9 @@ const lembretes = z
   .max(MAX_LEMBRETES)
   .optional();
 
+/** Observações: texto puro, até 2000 caracteres. Vazio é o mesmo que não mandar. */
+const notas = z.string().max(TAMANHO_DA_NOTA).optional();
+
 const esquemaEvento = z
   .object({
     title: titulo,
@@ -79,6 +84,7 @@ const esquemaEvento = z
     end: z.union([instante, data]).optional(),
     duration_minutes: z.number().int().min(1).max(10_080).optional(),
     all_day: z.boolean().default(false),
+    notes: notas,
     reminders_minutes_before: lembretes,
   })
   .strict();
@@ -90,6 +96,7 @@ const esquemaTarefa = z
     attribute: z.enum(ATRIBUTOS),
     secondary_attribute: z.enum(ATRIBUTOS).optional(),
     due: z.union([instante, data]).optional(),
+    notes: notas,
     reminders_minutes_before: lembretes,
   })
   .strict();
@@ -281,6 +288,7 @@ function mesmoPedido(a: LinhaItem, b: ItemWire): boolean {
   return (
     a.kind === b.kind &&
     a.title === b.title &&
+    a.notes === b.notes &&
     a.allDay === b.allDay &&
     t(a.startAt) === tw(b.startAt) &&
     t(a.endAt) === tw(b.endAt) &&
@@ -472,6 +480,7 @@ export function rotasV1(banco: Banco, opcoes: { versao: string; limite?: LimiteD
             ? null
             : (soData ? inicioDoDia(p.due) : new Date(p.due)).toISOString(),
         allDay: soData,
+        notes: notaLimpa(p.notes ?? null),
         ...lembretesDoPedido(p.reminders_minutes_before),
       });
       const { linha, criado } = await gravar(r, w);
@@ -568,6 +577,7 @@ export function rotasV1(banco: Banco, opcoes: { versao: string; limite?: LimiteD
         startAt: inicio.toISOString(),
         endAt: fim.toISOString(),
         allDay: p.all_day,
+        notes: notaLimpa(p.notes ?? null),
         ...lembretesDoPedido(p.reminders_minutes_before),
       });
       const { linha, criado } = await gravar(r, w);

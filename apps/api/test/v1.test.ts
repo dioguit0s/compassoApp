@@ -192,6 +192,7 @@ describe('GET /api/v1/agenda', () => {
       location: null,
       recurring: false,
       occurrence_date: null,
+      notes: null,
       reminders_minutes_before: [],
     });
     expect(treino).toMatchObject({
@@ -380,6 +381,74 @@ describe('tarefas', () => {
 });
 
 describe('POST /api/v1/events', () => {
+  it('observações: aceita na criação, devolve na leitura e chega ao aparelho', async () => {
+    const r = await chamar(
+      'criar-evento-observacoes',
+      'POST',
+      '/api/v1/events',
+      luna,
+      {
+        title: 'Oftalmologista',
+        start: `${amanha}T09:00:00-03:00`,
+        notes: '  Levar exames\r\nRua das Flores, 120  ',
+      },
+      { 'Idempotency-Key': 'voz-evento-notas' },
+    );
+    expect(r.status).toBe(201);
+    expect(r.corpo.notes).toBe('Levar exames\nRua das Flores, 120');
+
+    const agenda = await chamar(
+      null,
+      'GET',
+      `/api/v1/agenda?from=${amanha}T00:00:00-03:00&to=${amanha}T23:59:00-03:00&q=oftalmologista`,
+      luna,
+    );
+    expect(agenda.corpo.items.map((i: { notes: string }) => i.notes)).toEqual([
+      'Levar exames\nRua das Flores, 120',
+    ]);
+    const pull = await chamar(null, 'GET', '/sync/pull', sessao);
+    expect(pull.corpo.itens.find((i: { id: string }) => i.id === r.corpo.id).notes).toBe(
+      'Levar exames\nRua das Flores, 120',
+    );
+
+    // A nota faz parte do pedido: mesma chave com outra nota é conflito.
+    const outro = await chamar(
+      null,
+      'POST',
+      '/api/v1/events',
+      luna,
+      { title: 'Oftalmologista', start: `${amanha}T09:00:00-03:00`, notes: 'Outra coisa' },
+      { 'Idempotency-Key': 'voz-evento-notas' },
+    );
+    expect(outro.status).toBe(409);
+
+    const longa = await chamar(null, 'POST', '/api/v1/events', luna, {
+      title: 'Nota longa',
+      start: `${amanha}T10:00:00-03:00`,
+      notes: 'x'.repeat(2001),
+    });
+    expect(longa.status).toBe(400);
+    expect(longa.corpo.error).toMatchObject({ code: 'validation_error', field: 'notes' });
+  });
+
+  it('tarefa com observações; só espaços é o mesmo que sem nota', async () => {
+    const r = await chamar(null, 'POST', '/api/v1/tasks', luna, {
+      title: 'Comprar remédio',
+      effort: 1,
+      attribute: 'casa',
+      notes: 'Genérico serve',
+    });
+    expect(r.status).toBe(201);
+    expect(r.corpo.notes).toBe('Genérico serve');
+    const vazia = await chamar(null, 'POST', '/api/v1/tasks', luna, {
+      title: 'Comprar pão',
+      effort: 1,
+      attribute: 'casa',
+      notes: '   ',
+    });
+    expect(vazia.corpo.notes).toBeNull();
+  });
+
   it('lembretes: aceita a lista, normaliza, devolve e mantém o campo antigo espelhado', async () => {
     const r = await chamar('criar-evento-lembretes', 'POST', '/api/v1/events', luna, {
       title: 'Prova de cálculo',

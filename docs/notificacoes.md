@@ -20,7 +20,8 @@ janela anda. Numa série os lembretes são da série; a ocorrência movida leva 
 
 **Texto.** O título é o do item e o corpo é o horário ("14:00–15:00"). Quando o lembrete dispara
 em outro dia que não o do compromisso — o de véspera — o corpo diz também o dia
-("qua 14/10 · 14:00–15:00").
+("qua 14/10 · 14:00–15:00"). Se o item tem observações, a primeira linha delas vai na linha de
+baixo ("levar exames"). Na tela bloqueada nada disso aparece: o canal esconde o conteúdo.
 
 **Identificador estável** `compasso:<itemId>@<ocorrência|unico>@<instante-ms>@<minutos>@<resumo>`
 (`minutos` é o lembrete que gerou o disparo; `resumo`, um hash curto do texto). Mudar o horário, o

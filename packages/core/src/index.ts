@@ -12,6 +12,7 @@ export * from './id';
 export * from './item';
 export * from './lembretes';
 export * from './ledger';
+export * from './notas';
 export * from './notificacoes';
 export * from './ocorrencia';
 export * from './projecao';

@@ -1,11 +1,17 @@
-import { horaDe, NOMES_ATRIBUTOS, type Atributo, type EntradaAgenda } from '@compasso/core';
+import {
+  horaDe,
+  NOMES_ATRIBUTOS,
+  primeiraLinhaDaNota,
+  type Atributo,
+  type EntradaAgenda,
+} from '@compasso/core';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { descreverEfeito } from '../conclusao';
 import { useDisciplina } from '../disciplinas';
 import { useAviso } from './Aviso';
 import { useAlerta } from './Dialogo';
-import { CaixaDeMarcar, Escudo, Tracos } from './Icones';
+import { CaixaDeMarcar, Escudo, Nota, Tracos } from './Icones';
 import { Texto } from './Texto';
 import { repositorio } from '../sync';
 import { COR_DO_ATRIBUTO, useTema, type Tema } from '../tema';
@@ -78,6 +84,7 @@ export function EntradaItem({
   style,
   aoSegurar,
   aoSoltar,
+  comNota = false,
 }: {
   item: EntradaAgenda & { atributo?: Atributo | null };
   variante: 'linha' | 'bloco' | 'mini';
@@ -85,6 +92,8 @@ export function EntradaItem({
   /** Só `mini`: segurar começa a arrastar (tarefa para a grade da semana). */
   aoSegurar?: (pageX: number, pageY: number) => void;
   aoSoltar?: () => void;
+  /** Só `mini`: mostra o ícone de observações (faixa da semana; no mês não há espaço). */
+  comNota?: boolean;
 }) {
   const tema = useTema();
   const router = useRouter();
@@ -94,6 +103,8 @@ export function EntradaItem({
   const alerta = useAlerta();
   const selo = disciplina ? (disciplina.code ?? disciplina.name.slice(0, 4)) : null;
   const estado = estadoDaEntrada(item);
+  // Numa ocorrência editada, `notes` já é a nota dela (a projeção resolve o desvio).
+  const previa = primeiraLinhaDaNota(item.notes);
   const e = estiloDoEstado(estado, tema);
   const abrir = () =>
     router.push({
@@ -115,6 +126,7 @@ export function EntradaItem({
         accessibilityHint={aoSegurar ? 'Segure e arraste para um horário para agendar' : undefined}
         style={[estilos.mini, e.caixa, style]}
       >
+        {comNota && previa ? <Nota cor={tema.rotulo} tamanho={8} /> : null}
         <Texto numberOfLines={1} style={[estilos.textoMini, e.texto]}>
           {selo ? (
             <Texto style={{ color: disciplina!.color, fontWeight: '700' }}>{selo} </Texto>
@@ -217,9 +229,17 @@ export function EntradaItem({
       >
         {marcador}
         <View style={estilos.concluida}>
-          <Texto style={[estilos.titulo, e.texto, { color: tema.texto2, fontWeight: '400' }]}>
+          <Texto
+            style={[
+              estilos.titulo,
+              e.texto,
+              { color: tema.texto2, fontWeight: '400', flexShrink: 1 },
+            ]}
+          >
             {item.title}
           </Texto>
+          {previa ? <Nota cor={tema.rotulo} /> : null}
+          <View style={{ flex: 1 }} />
           <Texto style={{ fontSize: 11, color: tema.texto2 }}>{rotuloDeHora(item)}</Texto>
         </View>
       </Pressable>
@@ -254,6 +274,7 @@ export function EntradaItem({
               <Texto style={estilos.textoSelo}>{selo.toLocaleUpperCase('pt-BR')}</Texto>
             </View>
           ) : null}
+          {previa ? <Nota cor={tema.rotulo} /> : null}
         </View>
         {estado === 'aberta' ? (
           <View style={estilos.meta}>
@@ -290,6 +311,16 @@ export function EntradaItem({
             {detalhe}
           </Texto>
         )}
+        {/* Observações: a primeira linha, em cinza, para a nota aparecer sem abrir o item. */}
+        {previa ? (
+          <Texto
+            numberOfLines={1}
+            style={{ fontSize: 11.5, color: tema.apagado }}
+            accessibilityLabel={`Observações: ${previa}`}
+          >
+            {previa}
+          </Texto>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -320,8 +351,16 @@ const estilos = StyleSheet.create({
   textoSelo: { color: '#FFFFFF', fontSize: 9.5, fontWeight: '700', letterSpacing: 1 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap', rowGap: 4 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  mini: { borderRadius: 3, paddingHorizontal: 3, paddingVertical: 1.5, marginTop: 2 },
-  textoMini: { fontSize: 8.5, lineHeight: 11 },
+  mini: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    borderRadius: 3,
+    paddingHorizontal: 3,
+    paddingVertical: 1.5,
+    marginTop: 2,
+  },
+  textoMini: { fontSize: 8.5, lineHeight: 11, flexShrink: 1 },
   bloco: { borderRadius: 4, paddingHorizontal: 3, paddingVertical: 2, overflow: 'hidden' },
   textoBloco: { fontSize: 9, lineHeight: 11 },
 });

@@ -19,12 +19,13 @@ import { repositorio } from '../../src/sync';
 import { useTema } from '../../src/tema';
 import { CabecalhoModal } from '../../src/ui/Cabecalho';
 import { CampoDataHora } from '../../src/ui/CampoDataHora';
-import { Botao, Campo, Chip, Rotulo, Segmentado } from '../../src/ui/Campos';
+import { Botao, Chip, Rotulo, Segmentado } from '../../src/ui/Campos';
 import { AvisoDeDiaCheio } from '../../src/ui/Carga';
 import { useAlerta } from '../../src/ui/Dialogo';
 import { EditorDeLembretes } from '../../src/ui/EditorDeLembretes';
 import { EditorRecorrencia } from '../../src/ui/EditorRecorrencia';
 import { CaixaDeMarcar, Repetir } from '../../src/ui/Icones';
+import { Observacoes } from '../../src/ui/Observacoes';
 import { useGrade } from '../../src/hooks';
 import { SeletorEsforco, type Pontuacao } from '../../src/ui/SeletorEsforco';
 import { useAlturaTeclado } from '../../src/ui/teclado';
@@ -512,7 +513,7 @@ function Formulario({
           aoAdicionar={() => void pedirPermissao()}
         />
 
-        <Campo rotulo="Notas" value={notas} onChangeText={setNotas} multiline />
+        <Observacoes valor={notas} aoMudar={setNotas} />
 
         <Botao perigo rotulo="Excluir" aoTocar={excluir} />
       </ScrollView>

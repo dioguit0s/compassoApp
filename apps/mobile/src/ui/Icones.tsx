@@ -121,6 +121,16 @@ export function Relogio({ cor, tamanho = 13 }: { cor: string; tamanho?: number }
   );
 }
 
+/** Folha com linhas: o item tem observações. */
+export function Nota({ cor, tamanho = 11 }: { cor: string; tamanho?: number }) {
+  return (
+    <Svg width={tamanho} height={tamanho} viewBox="0 0 12 12">
+      <Path d="M2.5 1.5h7v9h-7z" fill="none" stroke={cor} strokeWidth={1.1} />
+      <Path d="M4.3 4.4h3.4M4.3 6h3.4M4.3 7.6h2.1" stroke={cor} strokeWidth={1} fill="none" />
+    </Svg>
+  );
+}
+
 export function Repetir({
   cor,
   tamanho = 13,

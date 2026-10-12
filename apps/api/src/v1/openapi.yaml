@@ -309,6 +309,7 @@ paths:
                   anyOf:
                     - { type: string, format: date }
                     - { type: string, format: date-time }
+                notes: { $ref: '#/components/schemas/Observacoes' }
                 reminders_minutes_before: { $ref: '#/components/schemas/Lembretes' }
             examples:
               comData:
@@ -471,10 +472,17 @@ paths:
                     - { type: string, format: date }
                 duration_minutes: { type: integer, minimum: 1, maximum: 10080, default: 60 }
                 all_day: { type: boolean, default: false }
+                notes: { $ref: '#/components/schemas/Observacoes' }
                 reminders_minutes_before: { $ref: '#/components/schemas/Lembretes' }
             examples:
               comHora:
                 value: { title: Reunião do grupo, start: '2026-09-26T14:30:00-03:00' }
+              comObservacoesELembretes:
+                value:
+                  title: Dentista
+                  start: '2026-09-26T15:00:00-03:00'
+                  notes: Levar exames
+                  reminders_minutes_before: [60, 1440]
               comDuracao:
                 value:
                   title: Café com a Bia
@@ -605,6 +613,13 @@ components:
       anyOf:
         - { type: string, format: date, examples: ['2026-09-26'] }
         - { type: string, format: date-time, examples: ['2026-09-26T14:00:00-03:00'] }
+    Observacoes:
+      type: string
+      maxLength: 2000
+      description: |
+        Observações do item ("levar exames", endereço, link da reunião). Texto puro, com quebras
+        de linha; sem formatação. Só espaços é o mesmo que não mandar. O que não cabe no título
+        vai aqui.
     Lembretes:
       type: array
       maxItems: 5
@@ -643,9 +658,15 @@ components:
       allOf:
         - $ref: '#/components/schemas/Base'
         - type: object
-          required: [type, reminders_minutes_before]
+          required: [type, notes, reminders_minutes_before]
           properties:
             type: { const: event }
+            notes:
+              type: [string, 'null']
+              maxLength: 2000
+              description: |
+                Observações, em texto puro (truncadas em 2000 caracteres com "…"); `null` sem
+                nota. Numa ocorrência editada "só esta", a nota da ocorrência.
             reminders_minutes_before: { $ref: '#/components/schemas/Lembretes' }
             end:
               description: |
@@ -668,9 +689,13 @@ components:
       allOf:
         - $ref: '#/components/schemas/Base'
         - type: object
-          required: [type, due, done, reminders_minutes_before]
+          required: [type, due, done, notes, reminders_minutes_before]
           properties:
             type: { const: task }
+            notes:
+              type: [string, 'null']
+              maxLength: 2000
+              description: Observações, em texto puro; `null` sem nota.
             reminders_minutes_before: { $ref: '#/components/schemas/Lembretes' }
             start: { description: Igual a `due` (para a agenda ordenar por um campo só). }
             end: { type: 'null' }

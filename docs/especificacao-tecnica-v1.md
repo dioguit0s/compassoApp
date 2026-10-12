@@ -812,8 +812,8 @@ Quatro abas na navegação inferior, mais os fluxos que aparecem por cima delas.
 | Calendário | aba | Alterna entre semana e mês; aulas ao fundo, carga de cada dia, arrastar tarefa para agendar |
 | Recompensas | aba | Lista com preço, cooldown, saldo e botão de resgate |
 | Perfil | aba | Identidade e progresso, ver detalhe abaixo |
-| Captura rápida | modal | Criar item em menos de 3 segundos: título, esforço, atributo |
-| Detalhe do item | modal | Edição completa, recorrência, notas, lembretes, disciplina |
+| Captura rápida | modal | Criar item em menos de 3 segundos: título, esforço, atributo; observações opcionais |
+| Detalhe do item | modal | Edição completa, recorrência, observações, lembretes, disciplina |
 | Semestre | tela | Cadastro e edição da grade: disciplinas, horários, salas |
 | Importar ICS | tela | Migração inicial, alcançada pelas configurações |
 | Widget da semana | tela inicial | Semana corrente em 7 colunas, fora do app (Android) |
@@ -888,6 +888,10 @@ tarefas — a distinção precisa ser visual e imediata, senão a lista vira uma
 Embaixo, os itens do dia, esses sim completáveis. Prova e trabalho aparecem aqui com um selo da
 disciplina.
 
+Item com observações mostra um ícone ao lado do título e a primeira linha da nota em cinza, logo
+abaixo: "levar exames" aparece sem abrir o item. Na faixa de tarefas da visão de semana, onde a
+largura é de uma coluna, fica só o ícone; na visão de mês, nada.
+
 Se a aula do dia tem exceção registrada, a linha mostra o estado em vez do horário normal: sala
 trocada em destaque, ou a aula riscada quando cancelada.
 
@@ -922,6 +926,24 @@ servidor, salva como um arquivo por conta em volume no disco e servida pela pró
 [ADR-0011](adr/0011-deploy-em-docker-com-runner-self-hosted.md)). Guardar imagem em base64 na
 própria tabela infla toda leitura de `users`; `bytea` e object storage são resposta para um volume
 que o Compasso não vai ter.
+
+### Observações
+
+`notes` é o campo de texto livre do item: endereço da consulta, link da reunião, o que levar. É
+**texto puro** — sem formatação rica, sem anexo.
+
+- **Captura rápida:** um "+ observações" recolhido por padrão. Quem não precisa não vê um campo a
+  mais nem perde o foco do título; a meta dos 3 segundos não muda.
+- **Listas:** ícone e primeira linha na aba Hoje; só o ícone na faixa da semana (ver Hoje).
+- **Detalhe:** com texto, o campo abre em modo leitura, e links, e-mails e telefones viram toque
+  (abrem o navegador, o e-mail ou o discador). Tocar no texto ou em "editar" volta para a edição.
+  A detecção é só na exibição: o que fica gravado é o texto como foi digitado.
+- **Lembrete:** a primeira linha da nota vai no corpo da notificação, abaixo do horário. Na tela
+  bloqueada o conteúdo continua escondido (§6.2).
+- **Luna:** eventos e tarefas saem com `notes` na API v1, e a criação aceita o campo.
+
+Numa ocorrência editada "só esta", a nota mostrada é a da ocorrência (`notesOverride`). Anexos e
+caderno de anotações por aula continuam fora (§10).
 
 A captura rápida é o fluxo que determina se o Compasso será usado. Se registrar algo custar mais que
 poucos segundos, o registro não acontece e nada mais no sistema importa. Por isso ela é um modal

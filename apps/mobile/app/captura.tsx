@@ -19,7 +19,7 @@ import { perfilLocal } from '../src/perfil';
 import { repositorio } from '../src/sync';
 import { useTema } from '../src/tema';
 import { Folha } from '../src/ui/Cabecalho';
-import { Botao, Chip, Segmentado } from '../src/ui/Campos';
+import { Botao, Campo, Chip, Segmentado } from '../src/ui/Campos';
 import { AvisoDeDiaCheio } from '../src/ui/Carga';
 import { Relogio } from '../src/ui/Icones';
 import { SeletorEsforco, type Pontuacao } from '../src/ui/SeletorEsforco';
@@ -31,7 +31,8 @@ const HORA_MS = 3_600_000;
  * Captura rápida (especificação §7): meta de menos de 3 s do toque ao item salvo. Um campo só
  * obrigatório — o título, já com foco e teclado aberto. A hora vem com default (próxima hora
  * cheia de hoje) e ajustes de um toque; o resto vai para o detalhe do item, aberto logo depois
- * de salvar.
+ * de salvar. Observações são opcionais e ficam recolhidas: quem não precisa delas não vê um
+ * campo a mais nem perde o foco do título.
  */
 export default function Captura() {
   const tema = useTema();
@@ -48,12 +49,15 @@ export default function Captura() {
   });
   const [tarefa, setTarefa] = useState(false);
   const [escolhendoData, setEscolhendoData] = useState(false);
+  const [comObservacoes, setComObservacoes] = useState(false);
+  const [observacoes, setObservacoes] = useState('');
 
   const salvar = () => {
     const t = titulo.trim();
     if (!t) return;
     // Lembrete padrão das configurações (issue #85).
     const lembrete = { reminderMinutesBefore: perfilLocal()?.defaultReminderMinutes ?? null };
+    const notas = { notes: observacoes.trim() ? observacoes.trim() : null };
     try {
       let novo;
       if (tarefa && pontuacao.effort !== null) {
@@ -62,6 +66,7 @@ export default function Captura() {
           ...novoCompromisso(t, inicio, null),
           ...pontuacao,
           ...lembrete,
+          ...notas,
           kind: 'task',
           startAt: null,
           dueAt: inicio,
@@ -73,6 +78,7 @@ export default function Captura() {
           ...novoCompromisso(t, startAt, endAt),
           ...pontuacao,
           ...lembrete,
+          ...notas,
           allDay: true,
         });
       } else {
@@ -80,6 +86,7 @@ export default function Captura() {
           ...novoCompromisso(t, inicio, new Date(inicio.getTime() + HORA_MS)),
           ...pontuacao,
           ...lembrete,
+          ...notas,
         });
       }
       // Item já salvo: segue para o detalhe, onde ficam disciplina, notas, recorrência e o resto.
@@ -163,6 +170,26 @@ export default function Captura() {
           </View>
         ) : null}
         <SeletorEsforco valor={pontuacao} aoMudar={setPontuacao} compacto />
+        {comObservacoes ? (
+          <Campo
+            value={observacoes}
+            onChangeText={setObservacoes}
+            multiline
+            autoFocus
+            placeholder="Observações: endereço, o que levar…"
+            placeholderTextColor={tema.inativo}
+            accessibilityLabel="Observações"
+          />
+        ) : (
+          <Pressable
+            onPress={() => setComObservacoes(true)}
+            accessibilityRole="button"
+            hitSlop={8}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            <Texto style={{ fontSize: 12.5, color: tema.ouroEscuro }}>+ observações</Texto>
+          </Pressable>
+        )}
         {erro ? <Texto style={{ color: tema.perigo, fontSize: 12.5 }}>{erro}</Texto> : null}
         <View style={estilos.rodape}>
           {pontuacao.effort !== null ? (
