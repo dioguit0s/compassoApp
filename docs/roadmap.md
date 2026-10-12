@@ -498,6 +498,26 @@ início do quadrimestre. ⏳ Implementado; falta a validação no aparelho.
 
 ---
 
+### Carga do dia e da semana — fora das fases
+
+Pedido do autor em 2026-10-12, extensão da F2 e da F5 (especificação §7, Calendário e Hoje).
+
+- Core: `cargaDoDia` / `cargaDaSemana` (`packages/core/src/carga.ts`), puras, sobre a projeção
+  da agenda e da grade. Duas medidas: esforço dos pontuáveis abertos e tempo ocupado (eventos com
+  horário e aulas, em união). Concluído e cancelado não entram.
+- Limiar de dia cheio configurável no aparelho (padrão: esforço ≥ 13 ou 8 h ocupadas).
+- Semana: barra no cabeçalho de cada dia. Mês: ponto no dia cheio. Hoje: linha no topo.
+- Captura, detalhe e arrastar para agendar avisam quando o dia já está cheio, sem impedir.
+- Só JS: chega por OTA, sem migração.
+
+Fora: decidir pela pessoa ou sugerir para onde mover ("encaixar tarefa").
+
+**Critério de saída:** num dia com aulas e tarefas que passam do limiar, a aba Hoje mostra a
+linha de carga em destaque, a semana e o mês marcam o dia, e criar um item nesse dia mostra o
+aviso e salva normalmente. ⏳ Implementado; falta a validação no aparelho.
+
+---
+
 ## 6. Armadilhas técnicas conhecidas
 
 Coisas que custam minutos se tratadas na fase certa e dias se descobertas depois.

@@ -1,17 +1,22 @@
 import {
   agruparPorDia,
+  cargaDosDias,
+  diaPesado,
   intervaloDosDias,
   nomeCurtoDoDia,
   partesDoDia,
   recortarDia,
+  rotuloDaCarga,
   semanasDoMes,
   type Dia,
 } from '@compasso/core';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { useAgenda } from '../hooks';
+import { useLimiarDeCarga } from '../carga';
+import { useAgenda, useAulas } from '../hooks';
 import { useTema } from '../tema';
 import { EntradaItem } from '../ui/EntradaItem';
+import { Ponto } from '../ui/Icones';
 import { Texto } from '../ui/Texto';
 import { quantas } from '../texto';
 
@@ -36,6 +41,12 @@ export function Mes({
   const itens = useAgenda(de, ate);
   const porDia = useMemo(() => agruparPorDia(itens, dias), [itens, dias]);
   const mesAtual = partesDoDia(referencia).mes;
+  const aulas = useAulas(dias);
+  const limiar = useLimiarDeCarga();
+  const cargas = useMemo(
+    () => cargaDosDias(dias, itens, (d) => aulas.get(d) ?? []),
+    [dias, itens, aulas],
+  );
 
   return (
     <View style={{ flex: 1 }}>
@@ -58,6 +69,8 @@ export function Mes({
             const { visiveis, excedentes } = recortarDia(porDia.get(d) ?? []);
             const fora = partesDoDia(d).mes !== mesAtual;
             const ehHoje = d === hoje;
+            const carga = cargas.get(d)!;
+            const pesado = diaPesado(carga, limiar);
             return (
               <Pressable
                 key={d}
@@ -67,7 +80,7 @@ export function Mes({
                   { borderColor: tema.grade },
                   ehHoje && { backgroundColor: tema.hojeFundo },
                 ]}
-                accessibilityLabel={`dia ${partesDoDia(d).dia}${ehHoje ? ', hoje' : ''}, ${quantas(porDia.get(d)?.length ?? 0, 'item', 'itens')}`}
+                accessibilityLabel={`dia ${partesDoDia(d).dia}${ehHoje ? ', hoje' : ''}, ${quantas(porDia.get(d)?.length ?? 0, 'item', 'itens')}${pesado ? `, dia cheio: ${rotuloDaCarga(carga)}` : ''}`}
               >
                 <View style={[estilos.numero, ehHoje && { backgroundColor: tema.hoje }]}>
                   <Texto
@@ -81,6 +94,12 @@ export function Mes({
                     {partesDoDia(d).dia}
                   </Texto>
                 </View>
+                {/* Dia cheio: um ponto no canto, sem gastar nenhuma das três linhas. */}
+                {pesado ? (
+                  <View style={[estilos.pesado, fora && { opacity: 0.5 }]}>
+                    <Ponto cor={tema.ouroEscuro} tamanho={5} />
+                  </View>
+                ) : null}
                 <View style={fora ? { opacity: 0.5 } : undefined}>
                   {visiveis.map((i) => (
                     <EntradaItem key={i.id} item={i} variante="mini" />
@@ -119,4 +138,5 @@ const estilos = StyleSheet.create({
     justifyContent: 'center',
   },
   mais: { fontSize: 8.5, paddingLeft: 3, marginTop: 1 },
+  pesado: { position: 'absolute', top: 5, right: 4 },
 });

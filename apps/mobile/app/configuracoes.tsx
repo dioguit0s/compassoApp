@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { bundleEmUso, versaoInstalada } from '../src/atualizacao';
+import { gravarLimiarDeCarga, useLimiarDeCarga } from '../src/carga';
 import { db } from '../src/db';
 import { reagendar } from '../src/notificacoes';
 import { salvarPreferencias } from '../src/perfil';
@@ -25,6 +26,60 @@ const LEMBRETES: { rotulo: string; minutos: number | null }[] = [
   { rotulo: '1 h', minutos: 60 },
   { rotulo: '1 dia', minutos: 1440 },
 ];
+
+const LIMIARES_DE_ESFORCO = [8, 13, 21];
+const LIMIARES_DE_HORAS = [6, 8, 10];
+
+/** A partir de quanto um dia é marcado como cheio no calendário e na aba Hoje (§7). */
+function DiaCheio() {
+  const tema = useTema();
+  const limiar = useLimiarDeCarga();
+  return (
+    <View style={estilos.bloco}>
+      <Rotulo>Dia cheio</Rotulo>
+      <Texto style={{ fontSize: 12.5, lineHeight: 19, color: tema.texto2 }}>
+        O calendário e a aba Hoje marcam o dia que chega a um destes valores. É só um aviso: nada é
+        bloqueado.
+      </Texto>
+      <Texto style={{ fontSize: 11.5, color: tema.rotulo }}>Esforço somado a partir de</Texto>
+      <View style={estilos.chips}>
+        {LIMIARES_DE_ESFORCO.map((n) => (
+          <Chip
+            key={n}
+            rotulo={String(n)}
+            dica={`Esforço a partir de ${n}`}
+            ativo={limiar.esforco === n}
+            aoTocar={() => gravarLimiarDeCarga('esforco', n)}
+          />
+        ))}
+        <Chip
+          rotulo="Não avisar"
+          dica="Não avisar pelo esforço"
+          ativo={limiar.esforco === null}
+          aoTocar={() => gravarLimiarDeCarga('esforco', null)}
+        />
+      </View>
+      <Texto style={{ fontSize: 11.5, color: tema.rotulo }}>Horas ocupadas a partir de</Texto>
+      <View style={estilos.chips}>
+        {LIMIARES_DE_HORAS.map((n) => (
+          <Chip
+            key={n}
+            rotulo={`${n} h`}
+            dica={`Horas ocupadas a partir de ${n}`}
+            ativo={limiar.horas === n}
+            aoTocar={() => gravarLimiarDeCarga('horas', n)}
+          />
+        ))}
+        <Chip
+          rotulo="Não avisar"
+          dica="Não avisar pelas horas"
+          ativo={limiar.horas === null}
+          aoTocar={() => gravarLimiarDeCarga('horas', null)}
+        />
+      </View>
+    </View>
+  );
+}
 
 /** Configurações (especificação §7, issue #85). Nome e lembrete padrão funcionam offline. */
 /** Versão instalada e atualização manual (ADR-0013); a automática roda na abertura. */
@@ -132,6 +187,8 @@ export default function Configuracoes() {
           </Texto>
         )}
         {erro ? <Texto style={{ color: tema.perigo, fontSize: 12.5 }}>{erro}</Texto> : null}
+
+        <DiaCheio />
 
         <View style={[estilos.bloco, { gap: 6 }]}>
           <Rotulo>Fuso horário</Rotulo>

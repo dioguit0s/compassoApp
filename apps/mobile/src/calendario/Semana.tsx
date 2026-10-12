@@ -1,7 +1,9 @@
 import {
   agendarTarefa,
   agruparPorDia,
+  cargaDosDias,
   diaDe,
+  diaPesado,
   diasDaSemana,
   DURACAO_DO_AGENDAMENTO_MIN,
   horaDe,
@@ -13,6 +15,7 @@ import {
   partesDoDia,
   podeAgendarArrastando,
   posicionarNoDia,
+  rotuloDaCarga,
   vaiParaFaixaDoDia,
   type Dia,
   type EntradaAgenda,
@@ -27,10 +30,12 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { avisoDeDiaCheio, useLimiarDeCarga } from '../carga';
 import { useAgenda, useAulas } from '../hooks';
 import { repositorio } from '../sync';
 import { FOLGA_DO_FAB, useTema } from '../tema';
 import { useAviso } from '../ui/Aviso';
+import { BarraDeCarga } from '../ui/Carga';
 import { useAlerta } from '../ui/Dialogo';
 import { EntradaItem } from '../ui/EntradaItem';
 import { Texto } from '../ui/Texto';
@@ -48,6 +53,11 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
   const itens = useAgenda(de, ate);
   const porDia = useMemo(() => agruparPorDia(itens, dias), [itens, dias]);
   const aulas = useAulas(dias);
+  const limiar = useLimiarDeCarga();
+  const cargas = useMemo(
+    () => cargaDosDias(dias, itens, (d) => aulas.get(d) ?? []),
+    [dias, itens, aulas],
+  );
   const larguraDia = (width - MARGEM) / 7;
   const rolagem = useRef<ScrollView>(null);
   const [agora, setAgora] = useState(() => new Date());
@@ -108,10 +118,12 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
     const antes = repositorio.obter(a.item.itemId);
     if (!antes) return;
     try {
+      // Só avisa (especificação §7): a tarefa é agendada mesmo com o dia cheio.
+      const cheio = avisoDeDiaCheio(destino.dia, a.item.itemId);
       const m = agendarTarefa(destino.dia, destino.minutos);
       repositorio.editar(a.item.itemId, m);
       aviso({
-        texto: `Agendada: ${nomeCurtoDoDia(destino.dia)} ${horaDe(m.startAt)}–${horaDe(m.endAt)}`,
+        texto: `Agendada: ${nomeCurtoDoDia(destino.dia)} ${horaDe(m.startAt)}–${horaDe(m.endAt)}${cheio ? ` · ${cheio}` : ''}`,
         acao: {
           rotulo: 'Desfazer',
           aoTocar: () =>
@@ -160,11 +172,13 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
         {dias.map((d) => {
           const ehHoje = d === hoje;
           const cor = ehHoje ? tema.hoje : tema.rotulo;
+          const carga = cargas.get(d)!;
+          const textoDaCarga = rotuloDaCarga(carga);
           return (
             <View
               key={d}
               style={{ width: larguraDia, alignItems: 'center', gap: 1 }}
-              accessibilityLabel={`${nomeCurtoDoDia(d)} ${partesDoDia(d).dia}${ehHoje ? ', hoje' : ''}`}
+              accessibilityLabel={`${nomeCurtoDoDia(d)} ${partesDoDia(d).dia}${ehHoje ? ', hoje' : ''}${textoDaCarga ? `, ${textoDaCarga}` : ''}${diaPesado(carga, limiar) ? ', dia cheio' : ''}`}
             >
               <Texto cinzel style={{ color: cor, fontSize: 9 }}>
                 {nomeCurtoDoDia(d).charAt(0).toLocaleUpperCase('pt-BR')}
@@ -175,6 +189,7 @@ export function Semana({ referencia, hoje }: { referencia: Dia; hoje: Dia }) {
               >
                 {partesDoDia(d).dia}
               </Texto>
+              <BarraDeCarga carga={carga} limiar={limiar} />
             </View>
           );
         })}

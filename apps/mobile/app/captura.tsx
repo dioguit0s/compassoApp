@@ -20,6 +20,7 @@ import { repositorio } from '../src/sync';
 import { useTema } from '../src/tema';
 import { Folha } from '../src/ui/Cabecalho';
 import { Botao, Chip, Segmentado } from '../src/ui/Campos';
+import { AvisoDeDiaCheio } from '../src/ui/Carga';
 import { Relogio } from '../src/ui/Icones';
 import { SeletorEsforco, type Pontuacao } from '../src/ui/SeletorEsforco';
 import { Entrada, Texto } from '../src/ui/Texto';
@@ -121,6 +122,8 @@ export default function Captura() {
           <Relogio cor={tema.rotulo} />
           <Texto style={{ fontSize: 13, color: tema.texto2 }}>{quando}</Texto>
         </View>
+        {/* Só avisa (especificação §7): salvar num dia cheio continua a um toque. */}
+        <AvisoDeDiaCheio dia={dia} />
         <View style={estilos.chips}>
           <Chip rotulo="Hoje" ativo={dia === hoje} aoTocar={() => paraDia(0)} />
           <Chip rotulo="Amanhã" ativo={dia === somarDias(hoje, 1)} aoTocar={() => paraDia(1)} />

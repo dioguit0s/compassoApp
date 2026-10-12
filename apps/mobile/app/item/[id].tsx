@@ -20,6 +20,7 @@ import { useTema } from '../../src/tema';
 import { CabecalhoModal } from '../../src/ui/Cabecalho';
 import { CampoDataHora } from '../../src/ui/CampoDataHora';
 import { Botao, Campo, Chip, Rotulo, Segmentado } from '../../src/ui/Campos';
+import { AvisoDeDiaCheio } from '../../src/ui/Carga';
 import { useAlerta } from '../../src/ui/Dialogo';
 import { EditorRecorrencia } from '../../src/ui/EditorRecorrencia';
 import { CaixaDeMarcar, Repetir } from '../../src/ui/Icones';
@@ -478,6 +479,8 @@ function Formulario({
               )}
             </>
           )}
+          {/* Carga do dia sem este item: só avisa, não impede salvar (especificação §7). */}
+          {concluido ? null : <AvisoDeDiaCheio dia={primeiroDia} exceto={item.id} />}
           {fusoDoAparelhoDifere() ? (
             <Texto style={{ fontSize: 11.5, color: tema.rotulo }}>
               Horários em hora de São Paulo ({FUSO_PADRAO}), não no fuso deste aparelho.

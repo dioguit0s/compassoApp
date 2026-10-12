@@ -798,8 +798,8 @@ Quatro abas na navegação inferior, mais os fluxos que aparecem por cima delas.
 
 | Tela | Tipo | Responsabilidade |
 |---|---|---|
-| Hoje | aba | Aulas do dia com sala, seguidas dos itens do dia; saldo de moedas no topo |
-| Calendário | aba | Alterna entre semana e mês; aulas ao fundo, arrastar tarefa para agendar |
+| Hoje | aba | Aulas do dia com sala, seguidas dos itens do dia; saldo de moedas e carga do dia no topo |
+| Calendário | aba | Alterna entre semana e mês; aulas ao fundo, carga de cada dia, arrastar tarefa para agendar |
 | Recompensas | aba | Lista com preço, cooldown, saldo e botão de resgate |
 | Perfil | aba | Identidade e progresso, ver detalhe abaixo |
 | Captura rápida | modal | Criar item em menos de 3 segundos: título, esforço, atributo |
@@ -831,6 +831,30 @@ grade transforma a tarefa num bloco de 1 h naquele horário (encaixe de 15 minut
 pontuando (§4.8). Um aviso oferece desfazer; soltar fora da grade cancela. Só tarefa simples e
 aberta: ocorrência de série passa pelo detalhe, que pergunta o alcance.
 
+**Carga do dia e da semana.** Um app de tarefa que ignora a agenda mente sobre o tempo disponível
+(§1); a carga é a resposta a isso: mostra se o dia já está cheio antes de encher mais. São duas
+medidas lado a lado, como no radar, e nenhuma é convertida na outra:
+
+- **Esforço do dia** — soma do esforço dos itens pontuáveis abertos do dia (tarefa com prazo no
+  dia, evento pontuável). Item de vários dias conta uma vez, no primeiro dia.
+- **Tempo ocupado** — eventos com horário mais as aulas projetadas da grade, recortados ao dia.
+  É a união dos intervalos: uma reunião em cima da aula não ocupa a hora duas vezes. Dia inteiro
+  e evento sem fim não contam tempo.
+
+Item concluído, ocorrência cancelada e aula cancelada ficam de fora. A conta é uma função pura do
+core (`cargaDoDia`, `cargaDaSemana`) sobre a mesma projeção da agenda e da grade.
+
+O dia é **cheio** quando chega a um dos dois limiares: esforço ≥ 13 ou 8 h ocupadas, por padrão.
+Os dois se ajustam em Configurações → Dia cheio (cada um pode ser desligado) e valem para o
+aparelho, como a visão do calendário. Na semana, o cabeçalho de cada dia tem uma barra fina com
+quanto do limiar já foi usado, destacada no dia cheio; no mês, o dia cheio ganha um ponto no
+canto, sem gastar nenhuma das três linhas.
+
+Ao pôr algo num dia cheio — na captura rápida, no detalhe do item ou arrastando uma tarefa para a
+grade — aparece **só um aviso**. Nada é bloqueado, e o texto informa sem cobrar (§4.7). O
+Compasso não decide pela pessoa nem sugere para onde mover: isso seria "encaixar tarefa", que
+fica para outra entrega.
+
 ### Widget da semana
 
 Widget da tela inicial do Android ([ADR-0015](adr/0015-widget-da-semana-no-android.md)): a semana
@@ -843,7 +867,10 @@ Tocar abre a aba Calendário. Só leitura: concluir e editar continuam no app.
 
 ### Hoje
 
-Duas faixas em ordem fixa. Em cima, as **aulas do dia**: horário, disciplina, sala, na cor da
+No topo, ao lado do saldo, uma linha com a carga do dia: "esforço 9 · 5 h ocupadas" (ver
+Calendário), destacada quando o dia está cheio. Dia sem nada marcado não mostra a linha.
+
+Abaixo, duas faixas em ordem fixa. Em cima, as **aulas do dia**: horário, disciplina, sala, na cor da
 disciplina. Elas não são clicáveis para conclusão e não têm caixa de marcar, porque não são
 tarefas — a distinção precisa ser visual e imediata, senão a lista vira uma mistura confusa de
 "coisas que eu faço" e "coisas que acontecem comigo".
@@ -871,7 +898,8 @@ A tela reúne quem é a pessoa e como ela está indo, nesta ordem vertical:
 2. **Radar dos 5 atributos** com as duas medidas sobrepostas: acumulado total e janela de 30 dias.
 3. **Faixas por atributo** — nível atual e quanto falta para o próximo.
 4. **Histórico** — resgates de recompensa e evolução de XP ao longo dos meses.
-5. **Configurações** — fuso horário, lembrete padrão, régua de esforço, sair da conta.
+5. **Configurações** — fuso horário, lembrete padrão, limiar de dia cheio, régua de esforço,
+   sair da conta.
 
 Progresso e identidade ficam na mesma tela em vez de duas abas separadas porque, com o cabeçalho no
 topo, a leitura natural da página já é "quem eu sou e como estou indo". Uma quinta aba só para o
