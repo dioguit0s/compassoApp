@@ -301,6 +301,7 @@ describe('rótulos', () => {
   it.each([
     [{ esforco: 9, minutosOcupados: 300 }, 'esforço 9 · 5 h ocupadas'],
     [{ esforco: 0, minutosOcupados: 60 }, '1 h ocupada'],
+    [{ esforco: 0, minutosOcupados: 100 }, '1 h 40 ocupadas'],
     [{ esforco: 0, minutosOcupados: 45 }, '45 min ocupados'],
     [{ esforco: 3, minutosOcupados: 0 }, 'esforço 3'],
     [{ esforco: 0, minutosOcupados: 0 }, ''],

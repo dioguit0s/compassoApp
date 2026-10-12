@@ -27,10 +27,12 @@ import { ProvedorDeAvisos } from '../src/ui/Aviso';
 import { ProvedorDeDialogos } from '../src/ui/Dialogo';
 import { Emblema } from '../src/ui/Icones';
 import {
+  ACAO_CONCLUIR,
   observarMudancas,
   reagendar,
   registrarTarefaDeBackground,
   useUltimaRespostaDeNotificacao,
+  type DadosDaNotificacao,
 } from '../src/notificacoes';
 import { atualizarPerfil } from '../src/perfil';
 import { sincronizarAgora } from '../src/sync';
@@ -75,14 +77,18 @@ export default function Raiz() {
     return observarMudancas();
   }, [success]);
 
-  // Tocar num lembrete abre o detalhe do item (ou da ocorrência).
+  // Tocar num lembrete abre o detalhe do item (ou da ocorrência); no de aula, a aula daquele
+  // dia; no resumo da manhã, a aba Hoje, que é onde o app já abre.
   useEffect(() => {
     // Só com o Stack montado (banco migrado e fontes prontas): antes disso não há onde navegar.
     if (!success || !fontesProntas || !resposta) return;
-    const dados = resposta.notification.request.content.data as {
-      itemId?: string;
-      ocorrencia?: string | null;
-    };
+    // "Concluir" já foi tratado em src/notificacoes.ts e não navega.
+    if (resposta.actionIdentifier === ACAO_CONCLUIR) return;
+    const dados = resposta.notification.request.content.data as DadosDaNotificacao;
+    if (dados?.tipo === 'aula' && dados.slotId && dados.dia) {
+      router.push({ pathname: '/aula', params: { slotId: dados.slotId, dia: dados.dia } });
+      return;
+    }
     if (!dados?.itemId) return;
     router.push({
       pathname: '/item/[id]',

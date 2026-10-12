@@ -133,7 +133,7 @@ export function rotuloDaCarga(c: Carga): string {
   if (c.esforco > 0) partes.push(`esforço ${c.esforco}`);
   if (c.minutosOcupados > 0) {
     const m = c.minutosOcupados;
-    const sufixo = m < 60 ? 'ocupados' : m < 120 ? 'ocupada' : 'ocupadas';
+    const sufixo = m < 60 ? 'ocupados' : m === 60 ? 'ocupada' : 'ocupadas';
     partes.push(`${formatarDuracao(m)} ${sufixo}`);
   }
   return partes.join(' · ');

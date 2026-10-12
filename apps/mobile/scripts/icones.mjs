@@ -56,4 +56,7 @@ await gerar('android-icon-foreground.png', svg(1024, 0.56));
 await gerar('android-icon-monochrome.png', svg(1024, 0.56, { mono: true }));
 await gerar('android-icon-background.png', svg(1024, 0, { fundo: FUNDO }));
 await gerar('favicon.png', svg(48, 0.9, { fundo: FUNDO }));
+// Ícone pequeno da notificação no Android: só o canal alfa conta (o sistema pinta de uma cor só),
+// então é a rosa em branco sobre transparente, 96 px, tingida de ouro pelo `color` do plugin.
+await gerar('notification-icon.png', svg(96, 0.92, { mono: true }));
 await gerar('splash-icon.png', svg(1024, 0.6));

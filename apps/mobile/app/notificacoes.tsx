@@ -1,19 +1,28 @@
-import { instanteDoDisparo, ORCAMENTO_NOTIFICACOES } from '@compasso/core';
+import { instanteDoDisparo, ORCAMENTO_NOTIFICACOES, type Disparo } from '@compasso/core';
+import { quantas } from '../src/texto';
 import type { NotificationRequest } from 'expo-notifications';
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { dataHoraCurta } from '../src/datasUi';
-import { pendentes, reagendar } from '../src/notificacoes';
+import { pendentes, planoAtual, reagendar } from '../src/notificacoes';
 import { useTema } from '../src/tema';
 import { CabecalhoInterno } from '../src/ui/Cabecalho';
 import { Botao } from '../src/ui/Campos';
 import { Texto } from '../src/ui/Texto';
 
-/** Diagnóstico (issue #49): as notificações pendentes, em ordem, contra o orçamento. */
+/**
+ * Diagnóstico (issue #49): as notificações pendentes, em ordem, contra o orçamento — e, quando
+ * ele enche, quantas ficaram de fora e qual é a primeira delas.
+ */
 export default function Notificacoes() {
   const tema = useTema();
   const [lista, setLista] = useState<NotificationRequest[]>([]);
-  const carregar = useCallback(async () => setLista(await pendentes()), []);
+  const [fora, setFora] = useState<Disparo[]>([]);
+  const carregar = useCallback(async () => {
+    setLista(await pendentes());
+    setFora(planoAtual().descartados);
+  }, []);
+  const primeiro = fora[0];
   useEffect(() => {
     void carregar();
   }, [carregar]);
@@ -49,6 +58,23 @@ export default function Notificacoes() {
                 />
               </View>
             </View>
+            {primeiro ? (
+              <View
+                style={[
+                  estilos.aviso,
+                  { backgroundColor: tema.ouroFundo, borderColor: tema.ouroClaro },
+                ]}
+              >
+                <Texto style={{ fontSize: 12.5, fontWeight: '600', color: tema.moedaTexto }}>
+                  Orçamento cheio:{' '}
+                  {quantas(fora.length, 'lembrete ficou de fora', 'lembretes ficaram de fora')}.
+                </Texto>
+                <Texto style={{ fontSize: 12, lineHeight: 17, color: tema.texto2 }}>
+                  O primeiro: {primeiro.titulo}, {dataHoraCurta(primeiro.instante)}. Eles entram
+                  sozinhos conforme os mais próximos disparam e o app reagenda.
+                </Texto>
+              </View>
+            ) : null}
             <Botao
               compacto
               rotulo="Reagendar agora"
@@ -89,5 +115,6 @@ const estilos = StyleSheet.create({
     gap: 8,
   },
   trilha: { height: 5, borderRadius: 3, overflow: 'hidden' },
+  aviso: { borderWidth: 1, borderRadius: 8, padding: 10, gap: 3 },
   linha: { paddingVertical: 11, gap: 2, borderBottomWidth: 1 },
 });

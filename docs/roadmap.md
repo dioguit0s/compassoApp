@@ -498,6 +498,32 @@ início do quadrimestre. ⏳ Implementado; falta a validação no aparelho.
 
 ---
 
+### Notificações que permitem agir — fora das fases
+
+Pedido do autor em 2026-10-12, extensão da F4 (especificação §6.2, `notificacoes.md`).
+
+- **Concluir pela notificação** em item pontuável, pelo mesmo fluxo idempotente da conclusão
+  (ADR-0006), com o app fechado e sem rede.
+- **Lembrete de aula**: X minutos antes de cada aula, com a sala (a trocada em destaque);
+  ligado em Configurações e silenciável por disciplina.
+- **Resumo da manhã**: notificação diária num horário configurável, com contagens e a carga do
+  dia; uma vaga fixa do orçamento.
+- **Diagnóstico**: quando o orçamento de 60 enche, a tela de lembretes agendados mostra quantos
+  ficaram de fora e o primeiro deles.
+- **Ícone do app** na notificação (rosa dos ventos, tingida de ouro).
+- Regras de seleção e orçamento compartilhado no core, com testes
+  (`listarDisparosDeAulas`, `disparoDoResumo`, `aplicarOrcamento`).
+- O ícone é recurso nativo: **esta entrega chega com APK novo**, não por OTA.
+
+Fora: push vindo do servidor (não-objetivo da §2).
+
+**Critério de saída:** com o app fechado e o aparelho em modo avião, tocar em "Concluir" no
+lembrete de uma tarefa a deixa concluída ao abrir o app, e o XP aparece depois do sync; o
+lembrete de aula dispara com a sala certa num dia com troca de sala; o resumo da manhã chega no
+horário escolhido com os números da aba Hoje. ⏳ Implementado; falta a validação no aparelho.
+
+---
+
 ### Observações visíveis — fora das fases
 
 Pedido do autor em 2026-10-12 (especificação §7, Observações). O campo `notes` já existia; faltava
@@ -509,7 +535,7 @@ aparecer onde é útil.
   no core). O campo continua texto puro.
 - Lembrete: primeira linha da nota no corpo da notificação.
 - API v1 da Luna: `notes` na leitura e na criação de eventos e tarefas.
-- Só JS e API: chega por OTA, sem migração.
+- Só JS e API, sem migração.
 
 Fora: anexos e caderno de anotações por aula (§10).
 
@@ -551,7 +577,7 @@ Pedido do autor em 2026-10-12, extensão da F2 e da F5 (especificação §7, Cal
 - Limiar de dia cheio configurável no aparelho (padrão: esforço ≥ 13 ou 8 h ocupadas).
 - Semana: barra no cabeçalho de cada dia. Mês: ponto no dia cheio. Hoje: linha no topo.
 - Captura, detalhe e arrastar para agendar avisam quando o dia já está cheio, sem impedir.
-- Só JS: chega por OTA, sem migração.
+- Só JS, sem migração.
 
 Fora: decidir pela pessoa ou sugerir para onde mover ("encaixar tarefa").
 

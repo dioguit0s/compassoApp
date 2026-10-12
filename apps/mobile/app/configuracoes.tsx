@@ -13,6 +13,7 @@ import { encerrarSessaoNoServidor, esquecerConexao, trocarSenha } from '../src/s
 import { apagarDadosLocais, repositorio } from '../src/sync';
 import { useTema } from '../src/tema';
 import { quantas } from '../src/texto';
+import { AjustesDeNotificacao } from '../src/ui/AjustesDeNotificacao';
 import { useProcurarAtualizacao } from '../src/ui/Atualizacao';
 import { CabecalhoInterno } from '../src/ui/Cabecalho';
 import { Botao, Campo, Chip, LinhaDeLista, Rotulo } from '../src/ui/Campos';
@@ -187,6 +188,8 @@ export default function Configuracoes() {
           </Texto>
         )}
         {erro ? <Texto style={{ color: tema.perigo, fontSize: 12.5 }}>{erro}</Texto> : null}
+
+        <AjustesDeNotificacao />
 
         <DiaCheio />
 

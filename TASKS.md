@@ -20,9 +20,9 @@ lembrete de aula e resumo da manhã são do aparelho (não sincronizam).
 - [x] 2. Múltiplos lembretes: modelo, migrações (app 0009, API 0020), ADR-0018, sync compatível,
       `selecionarDisparos`, detalhe, API v1, docs
 - [x] 3. Observações: captura, listas, links no detalhe, corpo da notificação, API v1, docs
-- [ ] 4. Notificações: ação Concluir, lembrete de aula, resumo da manhã, diagnóstico do
+- [x] 4. Notificações: ação Concluir, lembrete de aula, resumo da manhã, diagnóstico do
       orçamento, ícone, testes, docs
-- [ ] 5. `npm run verificar`, revisar o diff, push
+- [x] 5. `npm run verificar`, revisar o diff, push
 - [ ] 6. **Usuário:** migrar a API (0020), APK novo (ícone e ação da notificação são nativos),
       testar no aparelho
 

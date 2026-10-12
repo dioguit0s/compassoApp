@@ -22,6 +22,8 @@ export function Observacoes({
   const alerta = useAlerta();
   const [editando, setEditando] = useState(false);
 
+  // `editando` liga no foco: sem isso, a primeira letra digitada num campo vazio já trocaria o
+  // campo pelo modo leitura.
   if (editando || !valor.trim()) {
     return (
       <Campo
@@ -30,6 +32,7 @@ export function Observacoes({
         onChangeText={aoMudar}
         multiline
         autoFocus={editando}
+        onFocus={() => setEditando(true)}
         onBlur={() => setEditando(false)}
         placeholder="Endereço, link da reunião, o que levar…"
         placeholderTextColor={tema.inativo}

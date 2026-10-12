@@ -577,6 +577,15 @@ orçamento, priorizando por proximidade, e reagendar na abertura do Compasso e e
 background. Sem push do servidor — que exigiria credenciais de FCM e APNs e uma conta de
 desenvolvedor, para resolver um problema que a janela deslizante já resolve.
 
+O orçamento é um só para tudo o que o aparelho agenda: os lembretes de item (até cinco por item,
+[ADR-0018](adr/0018-multiplos-lembretes-por-item.md)), o **lembrete de aula** (um aviso X minutos
+antes de cada aula da grade, com a sala) e o **resumo da manhã** (uma notificação diária com o
+que há no dia, que ocupa uma vaga fixa). Itens e aulas disputam por proximidade. Quando não cabe
+tudo, o diagnóstico mostra quantos ficaram de fora e qual é o primeiro. Uma notificação perdida
+custa o compromisso (§2), então o lembrete também precisa permitir agir: o de item pontuável tem
+o botão **Concluir**, que passa pelo fluxo de conclusão da §6.4 no próprio aparelho, offline e
+com o app fechado. Detalhes em [`notificacoes.md`](notificacoes.md).
+
 **Atualizações do app vêm do próprio servidor**
 ([ADR-0013](adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)). O bundle JS chega sozinho
 por OTA (`expo-updates` contra a API): o runner publica a cada push na `main` e o app aplica na
@@ -895,6 +904,11 @@ largura é de uma coluna, fica só o ícone; na visão de mês, nada.
 Se a aula do dia tem exceção registrada, a linha mostra o estado em vez do horário normal: sala
 trocada em destaque, ou a aula riscada quando cancelada.
 
+A mesma leitura do dia chega fora do app pelo **resumo da manhã**, opcional: uma notificação num
+horário escolhido em Configurações com as contagens e a carga do dia ("3 aulas, 2 compromissos ·
+esforço 8"). E o **lembrete de aula**, também opcional, avisa antes de cada aula com a sala — a
+trocada em destaque, como na linha da aba. Os dois são preferências do aparelho (§6.2).
+
 ### Semestre
 
 Tela alcançada pelo cabeçalho da aba Calendário, não por uma quinta aba. Editar a grade acontece
@@ -912,8 +926,8 @@ A tela reúne quem é a pessoa e como ela está indo, nesta ordem vertical:
 2. **Radar dos 5 atributos** com as duas medidas sobrepostas: acumulado total e janela de 30 dias.
 3. **Faixas por atributo** — nível atual e quanto falta para o próximo.
 4. **Histórico** — resgates de recompensa e evolução de XP ao longo dos meses.
-5. **Configurações** — fuso horário, lembrete padrão, limiar de dia cheio, régua de esforço,
-   sair da conta.
+5. **Configurações** — fuso horário, lembrete padrão, lembrete de aula, resumo da manhã, limiar
+   de dia cheio, régua de esforço, sair da conta.
 
 Progresso e identidade ficam na mesma tela em vez de duas abas separadas porque, com o cabeçalho no
 topo, a leitura natural da página já é "quem eu sou e como estou indo". Uma quinta aba só para o
