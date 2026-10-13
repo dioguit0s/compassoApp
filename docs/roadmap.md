@@ -498,6 +498,95 @@ início do quadrimestre. ⏳ Implementado; falta a validação no aparelho.
 
 ---
 
+### Notificações que permitem agir — fora das fases
+
+Pedido do autor em 2026-10-12, extensão da F4 (especificação §6.2, `notificacoes.md`).
+
+- **Concluir pela notificação** em item pontuável, pelo mesmo fluxo idempotente da conclusão
+  (ADR-0006), com o app fechado e sem rede.
+- **Lembrete de aula**: X minutos antes de cada aula, com a sala (a trocada em destaque);
+  ligado em Configurações e silenciável por disciplina.
+- **Resumo da manhã**: notificação diária num horário configurável, com contagens e a carga do
+  dia; uma vaga fixa do orçamento.
+- **Diagnóstico**: quando o orçamento de 60 enche, a tela de lembretes agendados mostra quantos
+  ficaram de fora e o primeiro deles.
+- **Ícone do app** na notificação (rosa dos ventos, tingida de ouro).
+- Regras de seleção e orçamento compartilhado no core, com testes
+  (`listarDisparosDeAulas`, `disparoDoResumo`, `aplicarOrcamento`).
+- O ícone é recurso nativo: **esta entrega chega com APK novo**, não por OTA.
+
+Fora: push vindo do servidor (não-objetivo da §2).
+
+**Critério de saída:** com o app fechado e o aparelho em modo avião, tocar em "Concluir" no
+lembrete de uma tarefa a deixa concluída ao abrir o app, e o XP aparece depois do sync; o
+lembrete de aula dispara com a sala certa num dia com troca de sala; o resumo da manhã chega no
+horário escolhido com os números da aba Hoje. ⏳ Implementado; falta a validação no aparelho.
+
+---
+
+### Observações visíveis — fora das fases
+
+Pedido do autor em 2026-10-12 (especificação §7, Observações). O campo `notes` já existia; faltava
+aparecer onde é útil.
+
+- Captura rápida: "+ observações" recolhido por padrão.
+- Aba Hoje: ícone e primeira linha da nota; faixa da semana: só o ícone.
+- Detalhe: modo leitura com links, e-mails e telefones tocáveis (`trechosDaNota`, puro e testado
+  no core). O campo continua texto puro.
+- Lembrete: primeira linha da nota no corpo da notificação.
+- API v1 da Luna: `notes` na leitura e na criação de eventos e tarefas.
+- Só JS e API, sem migração.
+
+Fora: anexos e caderno de anotações por aula (§10).
+
+**Critério de saída:** uma consulta criada pela Luna com "levar exames" aparece na aba Hoje com a
+nota em cinza, o lembrete dela mostra a nota, e o telefone escrito nas observações abre o
+discador a partir do detalhe. ⏳ Implementado; falta a validação no aparelho.
+
+---
+
+### Múltiplos lembretes por item — fora das fases
+
+Pedido do autor em 2026-10-12, extensão da F4
+([ADR-0018](adr/0018-multiplos-lembretes-por-item.md)).
+
+- `items.remindersMinutesBefore`: até 5 lembretes por item, na própria linha. Migrações 0020 (API)
+  e 0009 (app), copiando o lembrete atual.
+- Sync compatível: `reminderMinutesBefore` vira espelho do primeiro lembrete e a lista é opcional
+  no transporte. Versões antigas do app seguem funcionando — **sem atualização obrigatória**.
+- Lembrete é da série; a ocorrência não tem lembrete próprio.
+- `selecionarDisparos` gera um disparo por lembrete, no mesmo orçamento de 60.
+- Detalhe do item: lista com adicionar (10 min, 30 min, 1 h, 1 dia, personalizado) e remover. A
+  captura rápida continua com um lembrete só.
+- API v1 da Luna: `reminders_minutes_before` na leitura e na criação de eventos e tarefas.
+
+**Critério de saída:** uma prova com "1 dia antes" e "1 hora antes" dispara os dois lembretes no
+aparelho; editar o título dela num aparelho com a versão anterior do app não apaga o segundo
+lembrete. ⏳ Implementado; falta a validação no aparelho. **Ordem do deploy:** migrar a API (0020)
+antes de publicar o app.
+
+---
+
+### Carga do dia e da semana — fora das fases
+
+Pedido do autor em 2026-10-12, extensão da F2 e da F5 (especificação §7, Calendário e Hoje).
+
+- Core: `cargaDoDia` / `cargaDaSemana` (`packages/core/src/carga.ts`), puras, sobre a projeção
+  da agenda e da grade. Duas medidas: esforço dos pontuáveis abertos e tempo ocupado (eventos com
+  horário e aulas, em união). Concluído e cancelado não entram.
+- Limiar de dia cheio configurável no aparelho (padrão: esforço ≥ 13 ou 8 h ocupadas).
+- Semana: barra no cabeçalho de cada dia. Mês: ponto no dia cheio. Hoje: linha no topo.
+- Captura, detalhe e arrastar para agendar avisam quando o dia já está cheio, sem impedir.
+- Só JS, sem migração.
+
+Fora: decidir pela pessoa ou sugerir para onde mover ("encaixar tarefa").
+
+**Critério de saída:** num dia com aulas e tarefas que passam do limiar, a aba Hoje mostra a
+linha de carga em destaque, a semana e o mês marcam o dia, e criar um item nesse dia mostra o
+aviso e salva normalmente. ⏳ Implementado; falta a validação no aparelho.
+
+---
+
 ## 6. Armadilhas técnicas conhecidas
 
 Coisas que custam minutos se tratadas na fase certa e dias se descobertas depois.

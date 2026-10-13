@@ -102,6 +102,7 @@ export function rotasDeItens() {
       'allDay',
       'rrule',
       'reminderMinutesBefore',
+      'remindersMinutesBefore',
       'courseId',
     ];
     const m = Object.fromEntries(Object.entries(corpo).filter(([k]) => permitidos.includes(k)));

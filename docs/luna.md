@@ -42,6 +42,10 @@ revoga todos os tokens, inclusive o da Luna.
   conexão cair e a Luna reenviar, o Compasso devolve o mesmo item em vez de duplicar.
 - **Tarefa exige esforço e atributo.** Esforço: 1, 2, 3, 5 ou 8. Atributo: `corpo`, `mente`,
   `oficio`, `casa` ou `social`. Se a pessoa não disser, pergunte ou proponha e confirme.
+- **Observações vão em `notes`**, não no título: "cria dentista amanhã às 15h, levar exames"
+  vira `title: "Dentista"` e `notes: "Levar exames"`. Texto puro, até 2000 caracteres; eventos e
+  tarefas voltam com `notes` (ou `null`) na agenda, então a Luna pode dizer a observação junto
+  com o compromisso.
 - **Decida pelo `error.code`**, nunca pelo texto. A `message` pode ser falada.
 
 ## O que não é suportado (não prometa em voz)
@@ -52,7 +56,9 @@ revoga todos os tokens, inclusive o da Luna.
 - Local do evento (`location` é sempre `null` em eventos e é recusado na criação). Nas aulas,
   `location` é a sala.
 - Prioridade de tarefa (`priority` é recusado).
-- Lembretes: o item criado pela Luna recebe o lembrete padrão das configurações do app.
+- Editar os lembretes de um item que já existe. Na criação, `reminders_minutes_before` aceita
+  até 5 lembretes em minutos antes (`[60, 1440]` = 1 hora e 1 dia antes); sem o campo, o item
+  recebe o lembrete padrão das configurações do app, e `[]` cria sem lembrete.
 - Cadastrar ou alterar aulas, semestre e disciplinas (a grade é editada no app).
 - Webhooks, notificações push, compartilhamento e múltiplas contas.
 - Listar tarefas recorrentes em `GET /tasks` (elas aparecem na agenda, por ocorrência).
@@ -94,20 +100,24 @@ curl -G "$COMPASSO/agenda" -H "Authorization: Bearer $TOKEN" --data-urlencode "f
   "items": [
     { "id": "01a0d9ec-…d8e7", "type": "event", "title": "Aniversário da Ana",
       "start": "2026-09-26", "end": "2026-09-26", "all_day": true, "location": null,
-      "recurring": false, "occurrence_date": null },
+      "recurring": false, "occurrence_date": null,
+      "notes": null, "reminders_minutes_before": [] },
     { "id": "01a0d9ec-…3524", "type": "event", "title": "Treino na academia",
       "start": "2026-09-26T07:00:00-03:00", "end": "2026-09-26T08:00:00-03:00", "all_day": false,
-      "location": null, "recurring": true, "occurrence_date": "2026-09-26" },
+      "location": null, "recurring": true, "occurrence_date": "2026-09-26",
+      "notes": null, "reminders_minutes_before": [] },
     { "id": "01a0d9ec-…c466", "type": "class", "title": "Cálculo II",
       "start": "2026-09-26T08:00:00-03:00", "end": "2026-09-26T10:00:00-03:00", "all_day": false,
       "location": "B-204", "recurring": true, "occurrence_date": "2026-09-26",
       "subject": "Cálculo II", "professor": "Marcos Lima", "cancelled": false },
     { "id": "01a0d9ec-…73fa", "type": "event", "title": "Dentista",
       "start": "2026-09-26T14:00:00-03:00", "end": "2026-09-26T15:00:00-03:00", "all_day": false,
-      "location": null, "recurring": false, "occurrence_date": null },
+      "location": null, "recurring": false, "occurrence_date": null,
+      "notes": null, "reminders_minutes_before": [] },
     { "id": "01a0d9ec-…9197", "type": "task", "title": "Entregar relatório de física",
       "start": "2026-09-26T23:59:00-03:00", "end": null, "all_day": false, "location": null,
       "recurring": false, "occurrence_date": null,
+      "notes": null, "reminders_minutes_before": [],
       "due": "2026-09-26T23:59:00-03:00", "done": false }
   ],
   "next_cursor": null
@@ -126,7 +136,8 @@ curl -G "$COMPASSO/agenda" -H "Authorization: Bearer $TOKEN" --data-urlencode "f
   "items": [
     { "id": "01a0d9f1-…d1e9", "type": "event", "title": "Prova de Cálculo II",
       "start": "2026-10-09T08:00:00-03:00", "end": "2026-10-09T10:00:00-03:00", "all_day": false,
-      "location": null, "recurring": false, "occurrence_date": null }
+      "location": null, "recurring": false, "occurrence_date": null,
+      "notes": null, "reminders_minutes_before": [] }
   ],
   "next_cursor": null
 }
@@ -144,13 +155,16 @@ curl "$COMPASSO/tasks?done=false" -H "Authorization: Bearer $TOKEN"
   "items": [
     { "id": "01a0d9f1-…b2ed", "type": "task", "title": "Entregar relatório de física",
       "start": "2026-09-26T23:59:00-03:00", "end": null, "all_day": false, "location": null,
-      "recurring": false, "occurrence_date": null, "due": "2026-09-26T23:59:00-03:00", "done": false },
+      "recurring": false, "occurrence_date": null,
+      "notes": null, "reminders_minutes_before": [], "due": "2026-09-26T23:59:00-03:00", "done": false },
     { "id": "01a0d9f1-…c660", "type": "task", "title": "Lista 3 de cálculo",
       "start": "2026-09-27", "end": null, "all_day": true, "location": null,
-      "recurring": false, "occurrence_date": null, "due": "2026-09-27", "done": false },
+      "recurring": false, "occurrence_date": null,
+      "notes": null, "reminders_minutes_before": [], "due": "2026-09-27", "done": false },
     { "id": "01a0d9f1-…d37a", "type": "task", "title": "Comprar ração do gato",
       "start": null, "end": null, "all_day": false, "location": null,
-      "recurring": false, "occurrence_date": null, "due": null, "done": false }
+      "recurring": false, "occurrence_date": null,
+      "notes": null, "reminders_minutes_before": [], "due": null, "done": false }
   ],
   "next_cursor": null
 }
@@ -167,6 +181,7 @@ curl -X POST "$COMPASSO/tasks" -H "Authorization: Bearer $TOKEN" -H "Content-Typ
 ```json
 { "id": "ee38e37e-…cd90", "type": "task", "title": "Pagar a conta de luz", "start": "2026-09-28",
   "end": null, "all_day": true, "location": null, "recurring": false, "occurrence_date": null,
+  "notes": null, "reminders_minutes_before": [],
   "due": "2026-09-28", "done": false }
 ```
 
@@ -181,6 +196,7 @@ curl -X POST "$COMPASSO/tasks/01a0d9f1-e195-70a0-83ed-0c843997d37a/complete" -H 
 ```json
 { "id": "01a0d9f1-…d37a", "type": "task", "title": "Comprar ração do gato", "start": null,
   "end": null, "all_day": false, "location": null, "recurring": false, "occurrence_date": null,
+  "notes": null, "reminders_minutes_before": [],
   "due": null, "done": true }
 ```
 
@@ -199,12 +215,34 @@ curl -X POST "$COMPASSO/events" -H "Authorization: Bearer $TOKEN" -H "Content-Ty
 { "id": "682a5bf4-…5c5", "type": "event", "title": "Reunião do grupo",
   "start": "2026-09-26T14:30:00-03:00", "end": "2026-09-26T15:30:00-03:00", "all_day": false,
   "location": null, "recurring": false, "occurrence_date": null,
+  "notes": null, "reminders_minutes_before": [],
   "conflicts": [
     { "id": "01a0d9f1-…0516", "type": "event", "title": "Dentista",
       "start": "2026-09-26T14:00:00-03:00", "end": "2026-09-26T15:00:00-03:00", "all_day": false,
-      "location": null, "recurring": false, "occurrence_date": null }
+      "location": null, "recurring": false, "occurrence_date": null,
+      "notes": null, "reminders_minutes_before": [] }
   ] }
 ```
+
+### Criar evento com observações e lembretes
+
+"Cria dentista amanhã às 15h, levar exames, me avisa uma hora antes e um dia antes":
+
+```bash
+curl -X POST "$COMPASSO/events" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -H "Idempotency-Key: luna-turno-0003" -d '{"title":"Dentista","start":"2026-09-26T15:00:00-03:00","notes":"Levar exames","reminders_minutes_before":[60,1440]}'
+```
+
+`201`:
+
+```json
+{ "id": "5d0c7b1e-…a41f", "type": "event", "title": "Dentista",
+  "start": "2026-09-26T15:00:00-03:00", "end": "2026-09-26T16:00:00-03:00", "all_day": false,
+  "location": null, "recurring": false, "occurrence_date": null,
+  "notes": "Levar exames", "reminders_minutes_before": [60, 1440], "conflicts": [] }
+```
+
+Sem `reminders_minutes_before` o item recebe o lembrete padrão das configurações do app; `[]`
+cria sem lembrete. O lembrete dispara no celular, pelo app — não pela API.
 
 ### Criar evento de dia inteiro
 
@@ -215,7 +253,8 @@ curl -X POST "$COMPASSO/events" -H "Authorization: Bearer $TOKEN" -H "Content-Ty
 ```json
 { "id": "01a0d9f3-…8c18", "type": "event", "title": "Viagem para Campinas", "start": "2026-09-30",
   "end": "2026-10-02", "all_day": true, "location": null, "recurring": false,
-  "occurrence_date": null, "conflicts": [] }
+  "occurrence_date": null,
+  "notes": null, "reminders_minutes_before": [], "conflicts": [] }
 ```
 
 ### Erros, um de cada

@@ -35,6 +35,49 @@ async function pull(token: string, cursor: string | null = null) {
 const mais = (iso: string, ms: number) => new Date(Date.parse(iso) + ms).toISOString();
 
 describe('POST /sync/push', () => {
+  it('lembretes (ADR-0018): app novo manda a lista; app antigo não apaga os extras', async () => {
+    const { token } = await env.admin.criarConta('Lembretes');
+    const item = evento({ reminderMinutesBefore: 5, remindersMinutesBefore: [1440, 60] });
+    await push(token, [item]);
+    const gravado = (await pull(token)).itens[0]!;
+    // A lista manda, normalizada; o campo antigo espelha o primeiro.
+    expect(gravado.remindersMinutesBefore).toEqual([60, 1440]);
+    expect(gravado.reminderMinutesBefore).toBe(60);
+
+    // Versão antiga: recebeu o item, editou só o título e devolveu sem a lista.
+    const { remindersMinutesBefore: _lista, ...antigo } = gravado;
+    await push(token, [
+      { ...antigo, title: 'renomeado', updatedAt: mais(gravado.updatedAt, 1000) },
+    ]);
+    const depois = (await pull(token)).itens[0]!;
+    expect(depois.title).toBe('renomeado');
+    expect(depois.remindersMinutesBefore).toEqual([60, 1440]);
+
+    // Versão antiga trocou o lembrete: vale só o novo.
+    await push(token, [
+      { ...antigo, reminderMinutesBefore: 15, updatedAt: mais(gravado.updatedAt, 2000) },
+    ]);
+    const trocado = (await pull(token)).itens[0]!;
+    expect(trocado.remindersMinutesBefore).toEqual([15]);
+    expect(trocado.reminderMinutesBefore).toBe(15);
+
+    // Versão antiga tirou o lembrete.
+    await push(token, [
+      { ...antigo, reminderMinutesBefore: null, updatedAt: mais(gravado.updatedAt, 3000) },
+    ]);
+    expect((await pull(token)).itens[0]!.remindersMinutesBefore).toEqual([]);
+  });
+
+  it('lembretes: item novo de app antigo ganha a lista; mais de 5 é recusado', async () => {
+    const { token } = await env.admin.criarConta('Lembretes antigos');
+    const antigo = evento({ reminderMinutesBefore: 30 });
+    await push(token, [antigo]);
+    expect((await pull(token)).itens[0]!.remindersMinutesBefore).toEqual([30]);
+
+    const demais = evento({ remindersMinutesBefore: [1, 2, 3, 4, 5, 6] });
+    expect((await push(token, [demais])).status).toBe(400);
+  });
+
   it('insere, e o mesmo push repetido não duplica nem muda nada', async () => {
     const { token } = await env.admin.criarConta('Push');
     const itens = [evento(), evento({ title: 'Aniversário' })];

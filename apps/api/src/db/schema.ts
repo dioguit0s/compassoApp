@@ -213,7 +213,13 @@ export const items = pgTable(
      */
     courseId: uuid(),
     postponeCount: integer().notNull().default(0),
+    /** Espelho do primeiro lembrete, para as versões do app que só conhecem um (ADR-0018). */
     reminderMinutesBefore: integer(),
+    /** Lembretes em minutos antes: até 5, sem repetição, em ordem crescente (ADR-0018). */
+    remindersMinutesBefore: integer()
+      .array()
+      .notNull()
+      .default(sql`'{}'::integer[]`),
     deletedAt: timestamp(tz),
     createdAt: timestamp(tz).notNull(),
     updatedAt: timestamp(tz).notNull(),
@@ -252,6 +258,7 @@ export const items = pgTable(
     ),
     check('items_timezone_check', sql`length(${t.timezone}) > 0`),
     check('items_postpone_count_check', sql`${t.postponeCount} >= 0`),
+    check('items_reminders_check', sql`cardinality(${t.remindersMinutesBefore}) <= 5`),
     pgPolicy('items_dono', {
       for: 'all',
       to: papelApp,

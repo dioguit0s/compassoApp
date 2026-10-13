@@ -46,7 +46,9 @@
       [
         "expo-notifications",
         {
-          "defaultChannel": "lembretes"
+          "defaultChannel": "lembretes",
+          "icon": "./assets/notification-icon.png",
+          "color": "#96742A"
         }
       ],
       "expo-background-task",

@@ -45,6 +45,7 @@ import {
   type ItemWire,
   type TabelaSync,
 } from '../item';
+import { MAX_LEMBRETES, resolverLembretes } from '../lembretes';
 import { violacoesDeOcorrencia, type OcorrenciaWire, type TipoOcorrencia } from '../ocorrencia';
 import { projetarAgenda, type EntradaAgenda } from '../projecao';
 import {
@@ -104,8 +105,10 @@ export type DadosItem = Omit<
   | 'postponeCount'
   | 'status'
   | 'recurrenceEndsAt'
+  | 'remindersMinutesBefore'
 > &
-  Partial<Pick<ItemLocal, 'postponeCount' | 'status'>>;
+  // Sem a lista, vale o lembrete único (`reminderMinutesBefore`) — é o que a captura rápida usa.
+  Partial<Pick<ItemLocal, 'postponeCount' | 'status' | 'remindersMinutesBefore'>>;
 
 /** O que uma operação de ocorrência pode mudar. */
 export interface MudancaDeOcorrencia {
@@ -141,6 +144,7 @@ export function localParaWire(l: ItemLocal): ItemWire {
     completedAt: iso(l.completedAt),
     postponeCount: l.postponeCount,
     reminderMinutesBefore: l.reminderMinutesBefore,
+    remindersMinutesBefore: l.remindersMinutesBefore,
     deletedAt: iso(l.deletedAt),
     createdAt: l.createdAt.toISOString(),
     updatedAt: l.updatedAt.toISOString(),
@@ -150,6 +154,8 @@ export function localParaWire(l: ItemLocal): ItemWire {
 export function wireParaLocal(w: ItemWire, dirty: boolean): ItemLocal {
   return {
     ...w,
+    // Servidor anterior ao ADR-0018 não devolve a lista: vale o campo antigo.
+    ...resolverLembretes(w),
     effortLockedAt: data(w.effortLockedAt),
     dueAt: data(w.dueAt),
     startAt: data(w.startAt),
@@ -242,6 +248,8 @@ export class RepositorioLocal implements ArmazemLocal {
   private validar(item: ItemLocal): void {
     const motivos = violacoesDeInvariante(item);
     if (!item.title.trim()) motivos.unshift('título vazio');
+    if (item.remindersMinutesBefore.length > MAX_LEMBRETES)
+      motivos.push(`no máximo ${MAX_LEMBRETES} lembretes por item`);
     if (motivos.length) throw new ErroDeValidacao(motivos);
   }
 
@@ -262,6 +270,7 @@ export class RepositorioLocal implements ArmazemLocal {
       postponeCount: 0,
       status: 'open',
       ...dados,
+      ...resolverLembretes(dados),
       recurrenceEndsAt: calcularFimDaSerie(dados),
       id: novoId(),
       createdAt: t,
@@ -290,9 +299,22 @@ export class RepositorioLocal implements ArmazemLocal {
         ]);
       }
     }
+    // Com a lista, ela manda. Só com o lembrete único (captura, desfazer): se ele mudou, troca a
+    // lista inteira por ele; se é o mesmo primeiro lembrete, os outros ficam (ADR-0018).
+    const lembretes =
+      'remindersMinutesBefore' in mudancas || 'reminderMinutesBefore' in mudancas
+        ? resolverLembretes(
+            {
+              remindersMinutesBefore: mudancas.remindersMinutesBefore,
+              reminderMinutesBefore: mudancas.reminderMinutesBefore ?? null,
+            },
+            atual.remindersMinutesBefore,
+          )
+        : {};
     const novo: ItemLocal = {
       ...atual,
       ...mudancas,
+      ...lembretes,
       id,
       effortLockedAt: atual.effortLockedAt,
       updatedAt: this.carimbo(atual.updatedAt),
@@ -831,6 +853,7 @@ export class RepositorioLocal implements ArmazemLocal {
       courseId: item.courseId,
       completedAt: null,
       reminderMinutesBefore: item.reminderMinutesBefore,
+      remindersMinutesBefore: item.remindersMinutesBefore,
     };
 
     let nova!: ItemLocal;

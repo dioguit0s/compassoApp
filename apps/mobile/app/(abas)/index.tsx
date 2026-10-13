@@ -1,12 +1,14 @@
-import { agruparPorDia, intervaloDosDias } from '@compasso/core';
+import { agruparPorDia, cargaDoDia, intervaloDosDias } from '@compasso/core';
 import { useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLimiarDeCarga } from '../../src/carga';
 import { partesDoTitulo, salaRegular } from '../../src/datasUi';
 import { useAgenda, useAulas, useGrade, useHoje, useProgresso } from '../../src/hooks';
 import { sincronizarAgora } from '../../src/sync';
 import { FOLGA_DO_FAB, useTema } from '../../src/tema';
 import { Secao } from '../../src/ui/Campos';
+import { LinhaDeCarga } from '../../src/ui/Carga';
 import { EntradaItem } from '../../src/ui/EntradaItem';
 import { Emblema } from '../../src/ui/Icones';
 import { IndicadorSync } from '../../src/ui/IndicadorSync';
@@ -15,8 +17,8 @@ import { PilulaDeSaldo } from '../../src/ui/Saldo';
 import { Texto } from '../../src/ui/Texto';
 
 /**
- * Aba Hoje (especificação §7). Ordem fixa, de cima para baixo: saldo de moedas (F7), aulas do
- * dia (F5), itens do dia.
+ * Aba Hoje (especificação §7). Ordem fixa, de cima para baixo: saldo de moedas (F7) e carga do
+ * dia, aulas do dia (F5), itens do dia.
  */
 export default function Hoje() {
   const tema = useTema();
@@ -27,10 +29,13 @@ export default function Hoje() {
   const doDia = useMemo(() => agruparPorDia(itens, [hoje]).get(hoje) ?? [], [itens, hoje]);
   const [atualizando, setAtualizando] = useState(false);
   const dias = useMemo(() => [hoje], [hoje]);
-  const aulas = useAulas(dias).get(hoje) ?? [];
+  const aulasPorDia = useAulas(dias);
+  const aulas = useMemo(() => aulasPorDia.get(hoje) ?? [], [aulasPorDia, hoje]);
   const grade = useGrade();
   const { saldo } = useProgresso();
   const titulo = partesDoTitulo(hoje);
+  const limiar = useLimiarDeCarga();
+  const carga = useMemo(() => cargaDoDia(hoje, itens, aulas), [hoje, itens, aulas]);
 
   return (
     <View style={[estilos.tela, { backgroundColor: tema.fundo }]}>
@@ -49,6 +54,7 @@ export default function Hoje() {
             <Texto cinzel style={{ fontSize: 22, fontWeight: '700' }}>
               {titulo.data}
             </Texto>
+            <LinhaDeCarga carga={carga} limiar={limiar} />
           </View>
           <PilulaDeSaldo saldo={saldo} />
         </View>

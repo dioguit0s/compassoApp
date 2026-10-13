@@ -6,18 +6,66 @@
 |---|---|
 | Seleção pela janela deslizante (pura, testada) | `packages/core/src/notificacoes.ts` |
 | Agendador, permissões, canal, tarefa de background | `apps/mobile/src/notificacoes.ts` |
-| Lista de pendentes (diagnóstico) | Perfil → Ver lembretes agendados |
+| Lembrete de aula e resumo da manhã (preferências do aparelho) | `apps/mobile/src/preferenciasDeNotificacao.ts`, Configurações |
+| Lista de pendentes e o que ficou de fora (diagnóstico) | Configurações → Lembretes agendados |
 
 **Orçamento: 60 de 64.** O iOS guarda no máximo 64 notificações pendentes por app; o Compasso usa
 60 e deixa folga. A agenda é projetada 45 dias à frente, os disparos (início − lembrete) já no
 passado, concluídos e cancelados saem, e ficam os 60 mais próximos.
 
-**Identificador estável** `compasso:<itemId>@<ocorrência|unico>@<instante-ms>`. Mudar o horário de
-um item muda o identificador: o reagendamento cancela o antigo e agenda o novo. O que não mudou é
+**Vários lembretes por item** ([ADR-0018](adr/0018-multiplos-lembretes-por-item.md)). Cada item
+tem até 5 lembretes (`remindersMinutesBefore`), editados no detalhe; a captura rápida cria com um
+só, o padrão da conta. Cada lembrete vira um disparo e todos disputam o mesmo orçamento, sem cota
+por item: uma série diária com dois lembretes gasta os 60 em 30 dias, e o resto entra conforme a
+janela anda. Numa série os lembretes são da série; a ocorrência movida leva os dela junto.
+
+**Texto.** O título é o do item e o corpo é o horário ("14:00–15:00"). Quando o lembrete dispara
+em outro dia que não o do compromisso — o de véspera — o corpo diz também o dia
+("qua 14/10 · 14:00–15:00"). Se o item tem observações, a primeira linha delas vai na linha de
+baixo ("levar exames"). Na tela bloqueada nada disso aparece: o canal esconde o conteúdo.
+
+**Três origens, um orçamento.** Além dos lembretes de item, entram no mesmo orçamento de 60:
+
+- **Lembrete de aula.** A grade não é item (ADR-0005), então aula não tem lembrete próprio: vale
+  uma regra só, "X minutos antes de cada aula", ligada em Configurações e silenciável por
+  disciplina. O corpo traz horário e sala ("19:00–20:40 · sala B-204"); com exceção de troca de
+  sala, ela vem na frente ("Sala trocada: C-301 · 19:00–20:40"). Aula cancelada não avisa;
+  reposição avisa e diz que é reposição. Tocar abre a aula daquele dia.
+- **Resumo da manhã.** Uma notificação por dia, num horário escolhido em Configurações:
+  "Hoje — 3 aulas, 2 compromissos, 1 tarefa · esforço 8 · 5 h ocupadas" (a carga é a mesma da aba
+  Hoje, `cargaDoDia`). Só o **próximo** resumo fica agendado — uma vaga fixa do orçamento, não uma
+  por dia; o de amanhã entra no reagendamento seguinte. Dia sem nada marcado não gera resumo.
+
+Itens e aulas disputam as vagas por proximidade, sem cota para nenhum dos dois; o resumo tem a
+vaga dele garantida (`aplicarOrcamento`). As duas preferências são do aparelho, não sincronizam
+e nascem desligadas.
+
+**Quando o orçamento enche.** Configurações → Lembretes agendados mostra quantos disparos ficaram
+de fora e qual é o primeiro deles (título e horário). Não é erro: eles entram sozinhos conforme os
+mais próximos disparam e o app reagenda.
+
+**Concluir pelo lembrete.** A notificação de item pontuável (tarefa ou evento com esforço) tem o
+botão "Concluir" (categoria `compasso-concluivel` do `expo-notifications`). Ele não abre o app:
+chama o mesmo `repositorio.concluir` da lista, que grava o evento de conclusão no SQLite — offline
+e com o app fechado — e o envia no próximo sync
+([ADR-0006](adr/0006-congelamento-conclusao-idempotente-e-estorno.md)). É idempotente: a resposta
+pode chegar pelo listener (app vivo) e pela tarefa de background (`compasso-acao-da-notificacao`,
+registrada no `index.ts`), e a segunda não credita nada. Numa série, conclui a ocorrência do
+lembrete. Compromisso sem esforço, aula e resumo não têm o botão. Na tela bloqueada o botão não
+aparece, porque o conteúdo fica escondido.
+
+**Ícone.** O ícone pequeno da notificação é a rosa dos ventos do app
+(`assets/notification-icon.png`, gerado por `scripts/icones.mjs`), tingido de ouro. É recurso
+nativo: muda com APK novo, não por OTA.
+
+**Identificador estável** `compasso:<itemId>@<ocorrência|unico>@<instante-ms>@<minutos>@<resumo>`
+(`minutos` é o lembrete que gerou o disparo; `resumo`, um hash curto do texto). No lembrete de
+aula o começo é `compasso:aula.<slotId>@<dia>`; no resumo da manhã, `compasso:resumo@<dia>`. Mudar o horário, o
+lembrete ou o título de um item muda o identificador: o reagendamento cancela o antigo e agenda o novo. O que não mudou é
 reconhecido e não é refeito. Identificadores que não começam com `compasso:` nunca são tocados.
 
-**Quando reagenda:** na abertura do app; 1,5 s depois de qualquer escrita em `items` ou
-`item_occurrences` no SQLite (edição local, conclusão, ou dado vindo do sync — pelo
+**Quando reagenda:** na abertura do app; ao mudar uma preferência de notificação; 1,5 s depois de
+qualquer escrita na agenda ou na grade no SQLite (edição local, conclusão, ou dado vindo do sync — pelo
 `addDatabaseChangeListener` do expo-sqlite); e na tarefa periódica de background
 (`expo-background-task`, intervalo mínimo pedido de 60 min — quem decide o momento é o sistema),
 que também sincroniza.
@@ -25,7 +73,7 @@ que também sincroniza.
 **Fuso:** o instante de disparo sai da hora de São Paulo (ADR-0003).
 
 **Permissões:**
-- A permissão de notificação é pedida quando a pessoa escolhe um lembrete no detalhe do item ou
+- A permissão de notificação é pedida quando a pessoa adiciona um lembrete no detalhe do item ou
   toca em "Ativar lembretes" no Perfil — nunca na primeira abertura sem contexto.
 - Negada: o Perfil mostra um aviso fixo de que os lembretes não vão disparar. O app não trava nem
   perde dado; só não agenda.
@@ -40,7 +88,8 @@ que também sincroniza.
   (a chave aparece cinza e ligada — visto no emulador), e o Perfil não mostra o aviso.
 - Canal Android `lembretes`, importância alta, visível na tela bloqueada sem o conteúdo.
 
-**Tocar no lembrete** abre o detalhe do item (ou da ocorrência).
+**Tocar no lembrete** abre o detalhe do item (ou da ocorrência); no de aula, a aula; no resumo,
+o app na aba Hoje.
 
 ## Importação de ICS
 

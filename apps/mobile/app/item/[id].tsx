@@ -19,10 +19,13 @@ import { repositorio } from '../../src/sync';
 import { useTema } from '../../src/tema';
 import { CabecalhoModal } from '../../src/ui/Cabecalho';
 import { CampoDataHora } from '../../src/ui/CampoDataHora';
-import { Botao, Campo, Chip, Rotulo, Segmentado } from '../../src/ui/Campos';
+import { Botao, Chip, Rotulo, Segmentado } from '../../src/ui/Campos';
+import { AvisoDeDiaCheio } from '../../src/ui/Carga';
 import { useAlerta } from '../../src/ui/Dialogo';
+import { EditorDeLembretes } from '../../src/ui/EditorDeLembretes';
 import { EditorRecorrencia } from '../../src/ui/EditorRecorrencia';
 import { CaixaDeMarcar, Repetir } from '../../src/ui/Icones';
+import { Observacoes } from '../../src/ui/Observacoes';
 import { useGrade } from '../../src/hooks';
 import { SeletorEsforco, type Pontuacao } from '../../src/ui/SeletorEsforco';
 import { useAlturaTeclado } from '../../src/ui/teclado';
@@ -31,19 +34,10 @@ import { useAviso } from '../../src/ui/Aviso';
 import { descreverEfeito } from '../../src/conclusao';
 import type { Esforco } from '@compasso/core';
 
-const LEMBRETES: { rotulo: string; minutos: number | null }[] = [
-  { rotulo: 'Nenhum', minutos: null },
-  { rotulo: '5 min', minutos: 5 },
-  { rotulo: '15 min', minutos: 15 },
-  { rotulo: '30 min', minutos: 30 },
-  { rotulo: '1 h', minutos: 60 },
-  { rotulo: '1 dia', minutos: 1440 },
-];
-
 const HORA_MS = 3_600_000;
 
 /**
- * Detalhe do item (especificação §7): edição completa, recorrência, notas, lembrete, exclusão.
+ * Detalhe do item (especificação §7): edição completa, recorrência, notas, lembretes, exclusão.
  * Aberto a partir de uma ocorrência de série (`?ocorrencia=AAAA-MM-DD`), toda edição e exclusão
  * pergunta o alcance: só esta ou esta e as futuras (issue #44). Nunca aplica em silêncio à série.
  */
@@ -111,7 +105,7 @@ function Formulario({
   const [diaInteiro, setDiaInteiro] = useState(item.allDay);
   const [inicio, setInicio] = useState<Date>(inicial.inicio);
   const [fim, setFim] = useState<Date | null>(inicial.fim);
-  const [lembrete, setLembrete] = useState<number | null>(item.reminderMinutesBefore);
+  const [lembretes, setLembretes] = useState<number[]>(item.remindersMinutesBefore);
   const [rrule, setRrule] = useState<string | null>(item.rrule);
   const [disciplina, setDisciplina] = useState<string | null>(item.courseId);
   const [pontuacao, setPontuacao] = useState<Pontuacao>({
@@ -138,7 +132,7 @@ function Formulario({
       diaInteiro,
       inicio.getTime(),
       fim?.getTime() ?? null,
-      lembrete,
+      lembretes,
       rrule,
       disciplina,
       pontuacao,
@@ -206,7 +200,7 @@ function Formulario({
       ? { dueAt: inicio, startAt: null, endAt: null }
       : { startAt: inicio, endAt: fim, dueAt: null }),
     ...(congelado ? {} : pontuacao),
-    reminderMinutesBefore: lembrete,
+    remindersMinutesBefore: lembretes,
     courseId: disciplina,
     ...(rrule !== item.rrule ? { rrule } : {}),
   });
@@ -238,18 +232,19 @@ function Formulario({
       return;
     }
     // "Só esta" guarda só horário, título e notas; mudar outro campo é "esta e as futuras".
+    // Os lembretes são da série (ADR-0018): a ocorrência não tem lembrete próprio.
     const soDaSerie =
       rrule !== item.rrule ||
       tipo !== item.kind ||
       diaInteiro !== item.allDay ||
-      lembrete !== item.reminderMinutesBefore ||
+      lembretes.join() !== item.remindersMinutesBefore.join() ||
       disciplina !== item.courseId ||
       pontuacao.effort !== item.effort ||
       pontuacao.primaryAttribute !== item.primaryAttribute ||
       pontuacao.secondaryAttribute !== item.secondaryAttribute;
     alerta(
       'Aplicar a alteração a…',
-      `${regraDaSerie()}${soDaSerie ? '\n\nTipo, dia inteiro, lembrete, disciplina, esforço e repetição só mudam nesta e nas futuras.' : ''}`,
+      `${regraDaSerie()}${soDaSerie ? '\n\nTipo, dia inteiro, lembretes, disciplina, esforço e repetição só mudam nesta e nas futuras.' : ''}`,
       [
         ...(soDaSerie
           ? []
@@ -478,6 +473,8 @@ function Formulario({
               )}
             </>
           )}
+          {/* Carga do dia sem este item: só avisa, não impede salvar (especificação §7). */}
+          {concluido ? null : <AvisoDeDiaCheio dia={primeiroDia} exceto={item.id} />}
           {fusoDoAparelhoDifere() ? (
             <Texto style={{ fontSize: 11.5, color: tema.rotulo }}>
               Horários em hora de São Paulo ({FUSO_PADRAO}), não no fuso deste aparelho.
@@ -509,25 +506,14 @@ function Formulario({
           </View>
         ) : null}
 
-        <View style={{ gap: 8 }}>
-          <Rotulo>Lembrete antes</Rotulo>
-          <View style={estilos.chips}>
-            {LEMBRETES.map((l) => (
-              <Chip
-                key={l.rotulo}
-                rotulo={l.rotulo}
-                ativo={lembrete === l.minutos}
-                aoTocar={() => {
-                  setLembrete(l.minutos);
-                  // Momento com contexto para pedir a permissão: a pessoa acabou de pedir um lembrete.
-                  if (l.minutos !== null) void pedirPermissao();
-                }}
-              />
-            ))}
-          </View>
-        </View>
+        <EditorDeLembretes
+          valor={lembretes}
+          aoMudar={setLembretes}
+          // Momento com contexto para pedir a permissão: a pessoa acabou de pedir um lembrete.
+          aoAdicionar={() => void pedirPermissao()}
+        />
 
-        <Campo rotulo="Notas" value={notas} onChangeText={setNotas} multiline />
+        <Observacoes valor={notas} aoMudar={setNotas} />
 
         <Botao perigo rotulo="Excluir" aoTocar={excluir} />
       </ScrollView>

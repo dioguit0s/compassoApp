@@ -21,6 +21,7 @@ const entrada = (extra: Partial<EntradaAgenda>): EntradaAgenda => ({
   status: 'open',
   notes: null,
   reminderMinutesBefore: null,
+  remindersMinutesBefore: [],
   courseId: null,
   postponeCount: 0,
   desviada: false,

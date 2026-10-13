@@ -264,6 +264,69 @@ describe('repositório local (CRUD offline)', () => {
   });
 });
 
+describe('lembretes múltiplos (ADR-0018)', () => {
+  it('a migração do app copia o lembrete único para a lista', async () => {
+    const { a } = await doisAparelhos('Lembretes migrados');
+    const item = a.repo.criar(novoEvento('Antigo'));
+    // Como a linha estava antes da migração 0009: só o campo único.
+    a.sqlite.prepare("update items set reminders_minutes_before = '[]' where id = ?").run(item.id);
+    a.sqlite
+      .prepare(
+        "update items set reminders_minutes_before = '[' || reminder_minutes_before || ']' where reminder_minutes_before is not null",
+      )
+      .run();
+    expect(a.repo.obter(item.id)!.remindersMinutesBefore).toEqual([30]);
+  });
+
+  it('criar com o lembrete único vira lista; a lista manda e espelha o primeiro', async () => {
+    const { a, b } = await doisAparelhos('Lembretes locais');
+    // Captura rápida: só o lembrete único.
+    const item = a.repo.criar(novoEvento('Prova'));
+    expect(item.remindersMinutesBefore).toEqual([30]);
+
+    a.tempo(1000);
+    const editado = a.repo.editar(item.id, { remindersMinutesBefore: [1440, 60, 60] });
+    expect(editado.remindersMinutesBefore).toEqual([60, 1440]);
+    expect(editado.reminderMinutesBefore).toBe(60);
+
+    a.online = b.online = true;
+    await a.motor.sincronizar();
+    await b.motor.sincronizar();
+    expect(b.repo.obter(item.id)!.remindersMinutesBefore).toEqual([60, 1440]);
+    expect(
+      b.repo.agenda(new Date('2026-10-05T00:00:00Z'), new Date('2026-10-06T00:00:00Z')),
+    ).toEqual([expect.objectContaining({ itemId: item.id, remindersMinutesBefore: [60, 1440] })]);
+
+    // Tirar todos: o espelho zera.
+    b.tempo(5000);
+    const sem = b.repo.editar(item.id, { remindersMinutesBefore: [] });
+    expect(sem.reminderMinutesBefore).toBeNull();
+    await b.motor.sincronizar();
+    await a.motor.sincronizar();
+    expect(a.repo.obter(item.id)!.remindersMinutesBefore).toEqual([]);
+  });
+
+  it('mais de 5 lembretes é recusado no aparelho, com motivo legível', async () => {
+    const { a } = await doisAparelhos('Lembretes demais');
+    const item = a.repo.criar(novoEvento('Consulta'));
+    expect(() => a.repo.editar(item.id, { remindersMinutesBefore: [1, 2, 3, 4, 5, 6] })).toThrow(
+      'no máximo 5 lembretes',
+    );
+  });
+
+  it('"esta e as futuras" leva os lembretes para a série nova', async () => {
+    const { a } = await doisAparelhos('Lembretes na série');
+    const serie = a.repo.criar({
+      ...novoEvento('Treino'),
+      rrule: 'FREQ=DAILY',
+      remindersMinutesBefore: [10, 60],
+    });
+    const nova = a.repo.alterarDaquiEmDiante(serie.id, '2026-10-08', { title: 'Treino novo' });
+    expect(nova.id).not.toBe(serie.id);
+    expect(nova.remindersMinutesBefore).toEqual([10, 60]);
+  });
+});
+
 describe('consulta local por intervalo', () => {
   it('mesma regra que itemNoIntervalo do core', async () => {
     const { itemNoIntervalo, instanteDeParede, intervaloDosDias, limitesDiaInteiro } =

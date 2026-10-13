@@ -1,14 +1,30 @@
 import {
+  aplicarOrcamento,
+  aulasDoDia,
+  diaDe,
+  disparoDoResumo,
+  formatarDiaCurto,
   HORIZONTE_NOTIFICACOES_DIAS,
   instanteDoDisparo,
+  intervaloDosDias,
+  listarDisparos,
+  listarDisparosDeAulas,
+  nomeCurtoDoDia,
   planejarReagendamento,
-  selecionarDisparos,
+  primeiraLinhaDaNota,
+  somarDias,
+  type Aula,
+  type EntradaAgenda,
+  type PlanoDeNotificacoes,
+  type TipoDeDisparo,
 } from '@compasso/core';
 import type * as BackgroundTaskT from 'expo-background-task';
 import type * as NotificationsT from 'expo-notifications';
 import { addDatabaseChangeListener } from 'expo-sqlite';
 import type * as TaskManagerT from 'expo-task-manager';
 import { Linking, Platform } from 'react-native';
+import { lerPreferenciasDeNotificacao } from './preferenciasDeNotificacao';
+import { CODICE } from './tema';
 import { rotuloDeHora } from './ui/EntradaItem';
 import { repositorio, sincronizarAgora } from './sync';
 import { NO_EXPO_GO } from './ambiente';
@@ -19,6 +35,11 @@ import { atualizarWidget } from './widget';
  * app escolhe as próximas notificações pela janela deslizante do core e sincroniza o agendador do
  * sistema com essa escolha — na abertura, depois de qualquer escrita no SQLite (edição local ou
  * sync) e numa tarefa periódica de background.
+ *
+ * Além dos lembretes de item entram o lembrete de aula e o resumo da manhã (preferências do
+ * aparelho), todos no mesmo orçamento. Lembrete de item pontuável tem o botão "Concluir": a
+ * conclusão passa pelo mesmo `repositorio.concluir` da tela (ADR-0006) — grava no SQLite na
+ * hora, offline e com o app fechado, e sincroniza quando der.
  *
  * Android 12+: `expo-notifications` usa alarme exato (`setExactAndAllowWhileIdle`) quando
  * `canScheduleExactAlarms()` permite e cai para o inexato quando não. O app declara
@@ -38,7 +59,20 @@ const BackgroundTask: typeof BackgroundTaskT = NO_EXPO_GO ? null! : require('exp
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 export const CANAL_LEMBRETES = 'lembretes';
+/** Categoria das notificações de item pontuável: a que tem o botão "Concluir". */
+export const CATEGORIA_CONCLUIVEL = 'compasso-concluivel';
+export const ACAO_CONCLUIR = 'concluir';
 const TAREFA_BACKGROUND = 'compasso-reagendar';
+const TAREFA_DE_ACAO = 'compasso-acao-da-notificacao';
+
+/** O que vai em `content.data` de cada notificação: para onde o toque leva e o que concluir. */
+export interface DadosDaNotificacao {
+  tipo?: TipoDeDisparo;
+  itemId?: string | null;
+  ocorrencia?: string | null;
+  slotId?: string | null;
+  dia?: string | null;
+}
 const DIA_MS = 86_400_000;
 
 if (!NO_EXPO_GO) {
@@ -104,6 +138,71 @@ async function configurarCanal(): Promise<void> {
   });
 }
 
+/**
+ * O botão "Concluir" não traz o app para a frente: quem conclui pelo lembrete quer continuar o
+ * que estava fazendo. Com o app fechado, a resposta chega pela tarefa `TAREFA_DE_ACAO`.
+ */
+async function configurarCategoria(): Promise<void> {
+  await Notifications.setNotificationCategoryAsync(CATEGORIA_CONCLUIVEL, [
+    {
+      identifier: ACAO_CONCLUIR,
+      buttonTitle: 'Concluir',
+      options: { opensAppToForeground: false },
+    },
+  ]);
+}
+
+/**
+ * Tudo o que deveria estar agendado agora e o que ficou de fora do orçamento — a mesma conta do
+ * reagendamento, sem tocar no sistema. O diagnóstico usa os descartados.
+ */
+export function planoAtual(agora: Date = new Date()): PlanoDeNotificacoes {
+  const prefs = lerPreferenciasDeNotificacao();
+  const entradas = repositorio.agenda(
+    agora,
+    new Date(agora.getTime() + HORIZONTE_NOTIFICACOES_DIAS * DIA_MS),
+  );
+  const disparos = listarDisparos(entradas, agora, corpoDoLembrete);
+  const grade = repositorio.grade();
+  if (prefs.aulaMinutos !== null) {
+    const hoje = diaDe(agora);
+    const aulas: Aula[] = [];
+    for (let i = 0; i <= HORIZONTE_NOTIFICACOES_DIAS; i++) {
+      aulas.push(...aulasDoDia(grade, somarDias(hoje, i)));
+    }
+    disparos.push(
+      ...listarDisparosDeAulas(aulas, agora, {
+        minutosAntes: prefs.aulaMinutos,
+        silenciadas: new Set(prefs.silenciadas),
+      }),
+    );
+  }
+  const resumo = prefs.resumoHora
+    ? disparoDoResumo(agora, prefs.resumoHora, (dia) => {
+        const { de, ate } = intervaloDosDias(dia, dia);
+        return { entradas: repositorio.agenda(de, ate), aulas: aulasDoDia(grade, dia) };
+      })
+    : null;
+  return aplicarOrcamento(disparos, resumo);
+}
+
+/**
+ * Corpo do lembrete: o horário do compromisso. Lembrete que dispara em outro dia (o de véspera)
+ * diz também o dia — "14:00–15:00" sozinho, na véspera, seria lido como hoje. Na linha de baixo
+ * vai a primeira linha das observações ("levar exames"). Na tela bloqueada o conteúdo continua
+ * escondido: quem decide isso é o canal (`lockscreenVisibility: PRIVATE`), não o texto.
+ */
+export function corpoDoLembrete(e: EntradaAgenda, instante: Date): string {
+  const inicio = e.kind === 'task' ? e.dueAt : e.startAt;
+  let quando = rotuloDeHora(e);
+  if (inicio && diaDe(inicio) !== diaDe(instante)) {
+    const dia = diaDe(inicio);
+    quando = `${nomeCurtoDoDia(dia)} ${formatarDiaCurto(dia)} · ${quando}`;
+  }
+  const nota = primeiraLinhaDaNota(e.notes);
+  return nota ? `${quando}\n${nota}` : quando;
+}
+
 let emAndamento: Promise<number> | null = null;
 let proxima: Promise<number> | null = null;
 
@@ -130,12 +229,8 @@ export function reagendar(): Promise<number> {
 async function executarReagendamento(): Promise<number> {
   if ((await estadoDaPermissao()) !== 'concedida') return 0;
   await configurarCanal();
-  const agora = new Date();
-  const entradas = repositorio.agenda(
-    agora,
-    new Date(agora.getTime() + HORIZONTE_NOTIFICACOES_DIAS * DIA_MS),
-  );
-  const selecao = selecionarDisparos(entradas, agora, undefined, rotuloDeHora);
+  await configurarCategoria();
+  const { selecao } = planoAtual();
   const agendados = await Notifications.getAllScheduledNotificationsAsync();
   const plano = planejarReagendamento(
     agendados.map((n) => n.identifier),
@@ -148,7 +243,16 @@ async function executarReagendamento(): Promise<number> {
       content: {
         title: d.titulo,
         body: d.corpo,
-        data: { itemId: d.itemId, ocorrencia: d.ocorrencia },
+        // Tinge o ícone pequeno (a rosa dos ventos, em app.json) com o ouro do app.
+        color: CODICE.ouro,
+        data: {
+          tipo: d.tipo,
+          itemId: d.itemId,
+          ocorrencia: d.ocorrencia,
+          slotId: d.slotId,
+          dia: d.dia,
+        } satisfies DadosDaNotificacao,
+        ...(d.concluivel ? { categoryIdentifier: CATEGORIA_CONCLUIVEL } : {}),
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -174,17 +278,16 @@ const TABELAS_DO_WIDGET = new Set([
 ]);
 
 /**
- * Reagenda depois de qualquer escrita em `items` ou `item_occurrences` — edição local, conclusão
- * ou dado vindo do sync — com um pequeno atraso para agrupar escritas em sequência. Pelo mesmo
- * caminho, redesenha o widget da semana.
+ * Reagenda depois de qualquer escrita na agenda ou na grade — edição local, conclusão ou dado
+ * vindo do sync — com um pequeno atraso para agrupar escritas em sequência. A grade entra por
+ * causa do lembrete de aula e do resumo da manhã. Pelo mesmo caminho, redesenha o widget da
+ * semana.
  */
 export function observarMudancas(): () => void {
   const sub = addDatabaseChangeListener((e) => {
-    if (TABELAS_DO_WIDGET.has(e.tableName)) {
-      if (widgetPendente) clearTimeout(widgetPendente);
-      widgetPendente = setTimeout(() => void atualizarWidget(), 1500);
-    }
-    if (e.tableName !== 'items' && e.tableName !== 'item_occurrences') return;
+    if (!TABELAS_DO_WIDGET.has(e.tableName)) return;
+    if (widgetPendente) clearTimeout(widgetPendente);
+    widgetPendente = setTimeout(() => void atualizarWidget(), 1500);
     if (pendente) clearTimeout(pendente);
     pendente = setTimeout(() => void reagendar(), 1500);
   });
@@ -203,6 +306,46 @@ if (!NO_EXPO_GO) {
     } catch {
       return BackgroundTask.BackgroundTaskResult.Failed;
     }
+  });
+}
+
+/**
+ * "Concluir" tocado na notificação. É o mesmo `repositorio.concluir` da lista (ADR-0006): grava
+ * o evento de conclusão no SQLite, sem rede, e é idempotente — a resposta pode chegar duas vezes
+ * (pelo listener, com o app vivo, e pela tarefa de background) e a segunda não faz nada.
+ */
+export async function concluirPelaNotificacao(
+  resposta: NotificationsT.NotificationResponse,
+): Promise<void> {
+  const pedido = resposta.notification?.request;
+  const dados = pedido?.content?.data as DadosDaNotificacao | undefined;
+  if (!pedido || !dados?.itemId) return;
+  try {
+    repositorio.concluir(dados.itemId, dados.ocorrencia ?? null);
+  } catch {
+    // Item excluído, ou ocorrência que deixou de existir: não há o que concluir. O lembrete sai
+    // da bandeja do mesmo jeito.
+  }
+  await Notifications.dismissNotificationAsync(pedido.identifier).catch(() => {});
+  // Com o app fechado ninguém está observando o banco: reagenda (os outros lembretes da mesma
+  // ocorrência saem), redesenha o widget e tenta sincronizar. Sem rede, fica para a próxima.
+  await reagendar().catch(() => 0);
+  await atualizarWidget().catch(() => {});
+  await sincronizarAgora().catch(() => null);
+}
+
+if (!NO_EXPO_GO) {
+  TaskManager.defineTask<NotificationsT.NotificationTaskPayload>(
+    TAREFA_DE_ACAO,
+    async ({ data }) => {
+      if (data && 'actionIdentifier' in data && data.actionIdentifier === ACAO_CONCLUIR) {
+        await concluirPelaNotificacao(data);
+      }
+    },
+  );
+  void Notifications.registerTaskAsync(TAREFA_DE_ACAO).catch(() => {});
+  Notifications.addNotificationResponseReceivedListener((resposta) => {
+    if (resposta.actionIdentifier === ACAO_CONCLUIR) void concluirPelaNotificacao(resposta);
   });
 }
 

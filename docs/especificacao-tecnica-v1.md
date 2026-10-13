@@ -373,7 +373,8 @@ tipo de app.
   completedAt: Date | null,
   courseId: uuid | null,           // prova, trabalho ou entrega ligada a uma disciplina
   postponeCount: Number,
-  reminderMinutesBefore: Number | null,
+  remindersMinutesBefore: Number[],       // até 5, sem repetição, crescente (ADR-0018)
+  reminderMinutesBefore: Number | null,   // espelho do primeiro, para versões antigas do app
   deletedAt: Date | null,          // tombstone: exclusão lógica, ver 6.6
   createdAt, updatedAt
 }
@@ -392,6 +393,7 @@ mesmo contra um retry com bug ou uma edição manual no `psql` — a API não é
   composta `(userId, courseId)`, que é também a barreira estrutural contra vínculo entre contas.
   Excluir uma disciplina não exclui os itens ligados a ela: `ON DELETE SET NULL` anula o vínculo e a
   prova continua no histórico.
+- `remindersMinutesBefore` tem no máximo 5 valores.
 
 **Invariantes que continuam sendo responsabilidade da API.** Nenhum deles é expressável como
 constraint, porque todos dependem de estado anterior ou de regra de fluxo:
@@ -400,6 +402,14 @@ constraint, porque todos dependem de estado anterior ou de regra de fluxo:
 - Concluir um item já concluído é no-op, não gera lançamento duplicado.
 - Item sem `effort` não aceita conclusão: a rota responde 409.
 - Item com `rrule` não usa `status` nem `completedAt` — quem carrega estado é a ocorrência.
+
+**Lembretes** ([ADR-0018](adr/0018-multiplos-lembretes-por-item.md)). Um item tem até cinco
+lembretes, cada um em minutos antes do início (ou do prazo): "1 dia antes + 1 hora antes" numa
+prova. A lista mora na própria linha, não numa tabela à parte — sincroniza junto com o item, pelo
+mesmo LWW. `reminderMinutesBefore` continua existindo só como espelho do primeiro lembrete (o
+mais próximo do compromisso), para as versões do app que conhecem um lembrete só; quando uma
+delas devolve o item sem a lista, o servidor mantém os lembretes extras se o único não mudou.
+Numa série, os lembretes são da série: a ocorrência não tem lembrete próprio.
 
 **Timezone é armazenado junto com a data.** É barato agora e caro depois: a primeira viagem ou
 mudança de regra de horário quebra o calendário inteiro.
@@ -566,6 +576,15 @@ A estratégia é uma **janela deslizante**: agendar somente as próximas ocorrê
 orçamento, priorizando por proximidade, e reagendar na abertura do Compasso e em tarefa periódica de
 background. Sem push do servidor — que exigiria credenciais de FCM e APNs e uma conta de
 desenvolvedor, para resolver um problema que a janela deslizante já resolve.
+
+O orçamento é um só para tudo o que o aparelho agenda: os lembretes de item (até cinco por item,
+[ADR-0018](adr/0018-multiplos-lembretes-por-item.md)), o **lembrete de aula** (um aviso X minutos
+antes de cada aula da grade, com a sala) e o **resumo da manhã** (uma notificação diária com o
+que há no dia, que ocupa uma vaga fixa). Itens e aulas disputam por proximidade. Quando não cabe
+tudo, o diagnóstico mostra quantos ficaram de fora e qual é o primeiro. Uma notificação perdida
+custa o compromisso (§2), então o lembrete também precisa permitir agir: o de item pontuável tem
+o botão **Concluir**, que passa pelo fluxo de conclusão da §6.4 no próprio aparelho, offline e
+com o app fechado. Detalhes em [`notificacoes.md`](notificacoes.md).
 
 **Atualizações do app vêm do próprio servidor**
 ([ADR-0013](adr/0013-atualizacoes-do-app-pelo-proprio-servidor.md)). O bundle JS chega sozinho
@@ -798,12 +817,12 @@ Quatro abas na navegação inferior, mais os fluxos que aparecem por cima delas.
 
 | Tela | Tipo | Responsabilidade |
 |---|---|---|
-| Hoje | aba | Aulas do dia com sala, seguidas dos itens do dia; saldo de moedas no topo |
-| Calendário | aba | Alterna entre semana e mês; aulas ao fundo, arrastar tarefa para agendar |
+| Hoje | aba | Aulas do dia com sala, seguidas dos itens do dia; saldo de moedas e carga do dia no topo |
+| Calendário | aba | Alterna entre semana e mês; aulas ao fundo, carga de cada dia, arrastar tarefa para agendar |
 | Recompensas | aba | Lista com preço, cooldown, saldo e botão de resgate |
 | Perfil | aba | Identidade e progresso, ver detalhe abaixo |
-| Captura rápida | modal | Criar item em menos de 3 segundos: título, esforço, atributo |
-| Detalhe do item | modal | Edição completa, recorrência, notas, lembrete, disciplina |
+| Captura rápida | modal | Criar item em menos de 3 segundos: título, esforço, atributo; observações opcionais |
+| Detalhe do item | modal | Edição completa, recorrência, observações, lembretes, disciplina |
 | Semestre | tela | Cadastro e edição da grade: disciplinas, horários, salas |
 | Importar ICS | tela | Migração inicial, alcançada pelas configurações |
 | Widget da semana | tela inicial | Semana corrente em 7 colunas, fora do app (Android) |
@@ -831,6 +850,30 @@ grade transforma a tarefa num bloco de 1 h naquele horário (encaixe de 15 minut
 pontuando (§4.8). Um aviso oferece desfazer; soltar fora da grade cancela. Só tarefa simples e
 aberta: ocorrência de série passa pelo detalhe, que pergunta o alcance.
 
+**Carga do dia e da semana.** Um app de tarefa que ignora a agenda mente sobre o tempo disponível
+(§1); a carga é a resposta a isso: mostra se o dia já está cheio antes de encher mais. São duas
+medidas lado a lado, como no radar, e nenhuma é convertida na outra:
+
+- **Esforço do dia** — soma do esforço dos itens pontuáveis abertos do dia (tarefa com prazo no
+  dia, evento pontuável). Item de vários dias conta uma vez, no primeiro dia.
+- **Tempo ocupado** — eventos com horário mais as aulas projetadas da grade, recortados ao dia.
+  É a união dos intervalos: uma reunião em cima da aula não ocupa a hora duas vezes. Dia inteiro
+  e evento sem fim não contam tempo.
+
+Item concluído, ocorrência cancelada e aula cancelada ficam de fora. A conta é uma função pura do
+core (`cargaDoDia`, `cargaDaSemana`) sobre a mesma projeção da agenda e da grade.
+
+O dia é **cheio** quando chega a um dos dois limiares: esforço ≥ 13 ou 8 h ocupadas, por padrão.
+Os dois se ajustam em Configurações → Dia cheio (cada um pode ser desligado) e valem para o
+aparelho, como a visão do calendário. Na semana, o cabeçalho de cada dia tem uma barra fina com
+quanto do limiar já foi usado, destacada no dia cheio; no mês, o dia cheio ganha um ponto no
+canto, sem gastar nenhuma das três linhas.
+
+Ao pôr algo num dia cheio — na captura rápida, no detalhe do item ou arrastando uma tarefa para a
+grade — aparece **só um aviso**. Nada é bloqueado, e o texto informa sem cobrar (§4.7). O
+Compasso não decide pela pessoa nem sugere para onde mover: isso seria "encaixar tarefa", que
+fica para outra entrega.
+
 ### Widget da semana
 
 Widget da tela inicial do Android ([ADR-0015](adr/0015-widget-da-semana-no-android.md)): a semana
@@ -843,7 +886,10 @@ Tocar abre a aba Calendário. Só leitura: concluir e editar continuam no app.
 
 ### Hoje
 
-Duas faixas em ordem fixa. Em cima, as **aulas do dia**: horário, disciplina, sala, na cor da
+No topo, ao lado do saldo, uma linha com a carga do dia: "esforço 9 · 5 h ocupadas" (ver
+Calendário), destacada quando o dia está cheio. Dia sem nada marcado não mostra a linha.
+
+Abaixo, duas faixas em ordem fixa. Em cima, as **aulas do dia**: horário, disciplina, sala, na cor da
 disciplina. Elas não são clicáveis para conclusão e não têm caixa de marcar, porque não são
 tarefas — a distinção precisa ser visual e imediata, senão a lista vira uma mistura confusa de
 "coisas que eu faço" e "coisas que acontecem comigo".
@@ -851,8 +897,17 @@ tarefas — a distinção precisa ser visual e imediata, senão a lista vira uma
 Embaixo, os itens do dia, esses sim completáveis. Prova e trabalho aparecem aqui com um selo da
 disciplina.
 
+Item com observações mostra um ícone ao lado do título e a primeira linha da nota em cinza, logo
+abaixo: "levar exames" aparece sem abrir o item. Na faixa de tarefas da visão de semana, onde a
+largura é de uma coluna, fica só o ícone; na visão de mês, nada.
+
 Se a aula do dia tem exceção registrada, a linha mostra o estado em vez do horário normal: sala
 trocada em destaque, ou a aula riscada quando cancelada.
+
+A mesma leitura do dia chega fora do app pelo **resumo da manhã**, opcional: uma notificação num
+horário escolhido em Configurações com as contagens e a carga do dia ("3 aulas, 2 compromissos ·
+esforço 8"). E o **lembrete de aula**, também opcional, avisa antes de cada aula com a sala — a
+trocada em destaque, como na linha da aba. Os dois são preferências do aparelho (§6.2).
 
 ### Semestre
 
@@ -871,7 +926,8 @@ A tela reúne quem é a pessoa e como ela está indo, nesta ordem vertical:
 2. **Radar dos 5 atributos** com as duas medidas sobrepostas: acumulado total e janela de 30 dias.
 3. **Faixas por atributo** — nível atual e quanto falta para o próximo.
 4. **Histórico** — resgates de recompensa e evolução de XP ao longo dos meses.
-5. **Configurações** — fuso horário, lembrete padrão, régua de esforço, sair da conta.
+5. **Configurações** — fuso horário, lembrete padrão, lembrete de aula, resumo da manhã, limiar
+   de dia cheio, régua de esforço, sair da conta.
 
 Progresso e identidade ficam na mesma tela em vez de duas abas separadas porque, com o cabeçalho no
 topo, a leitura natural da página já é "quem eu sou e como estou indo". Uma quinta aba só para o
@@ -884,6 +940,24 @@ servidor, salva como um arquivo por conta em volume no disco e servida pela pró
 [ADR-0011](adr/0011-deploy-em-docker-com-runner-self-hosted.md)). Guardar imagem em base64 na
 própria tabela infla toda leitura de `users`; `bytea` e object storage são resposta para um volume
 que o Compasso não vai ter.
+
+### Observações
+
+`notes` é o campo de texto livre do item: endereço da consulta, link da reunião, o que levar. É
+**texto puro** — sem formatação rica, sem anexo.
+
+- **Captura rápida:** um "+ observações" recolhido por padrão. Quem não precisa não vê um campo a
+  mais nem perde o foco do título; a meta dos 3 segundos não muda.
+- **Listas:** ícone e primeira linha na aba Hoje; só o ícone na faixa da semana (ver Hoje).
+- **Detalhe:** com texto, o campo abre em modo leitura, e links, e-mails e telefones viram toque
+  (abrem o navegador, o e-mail ou o discador). Tocar no texto ou em "editar" volta para a edição.
+  A detecção é só na exibição: o que fica gravado é o texto como foi digitado.
+- **Lembrete:** a primeira linha da nota vai no corpo da notificação, abaixo do horário. Na tela
+  bloqueada o conteúdo continua escondido (§6.2).
+- **Luna:** eventos e tarefas saem com `notes` na API v1, e a criação aceita o campo.
+
+Numa ocorrência editada "só esta", a nota mostrada é a da ocorrência (`notesOverride`). Anexos e
+caderno de anotações por aula continuam fora (§10).
 
 A captura rápida é o fluxo que determina se o Compasso será usado. Se registrar algo custar mais que
 poucos segundos, o registro não acontece e nada mais no sistema importa. Por isso ela é um modal
@@ -904,6 +978,7 @@ acessível de qualquer aba, não uma tela para onde é preciso navegar.
 | Filtro por `userId` na camada de repositório | Filtrar em cada endpoint | Disciplina manual falha uma vez só, e o custo dessa vez é vazamento entre contas |
 | Avatar em arquivo no disco | Base64 na tabela, `bytea`, object storage | Uma imagem por conta e poucas contas; um volume no disco basta |
 | Progresso dentro do Perfil | Aba separada de estatísticas | Cinco abas sem ganho de informação; o cabeçalho de identidade já contextualiza o radar |
+| Lembretes como lista na linha do item, com o campo antigo de espelho | Tabela `item_reminders`; dois campos independentes; trocar o campo e exigir atualização | Até 5 inteiros não pagam uma tabela sincronizada, e versões antigas do app seguem funcionando; ver [ADR-0018](adr/0018-multiplos-lembretes-por-item.md) |
 | Grade acadêmica fora de `items` | Aulas como itens recorrentes | Evita materializar ~400 ocorrências por semestre e trazer RRULE para a v1; aula não é tarefa |
 | Quinzenal por `weekInterval`/`weekOffset` contados do início do período | RRULE no horário; âncora pela data da 1ª aula | É como a universidade fala ("quinzenal 1 e 2") e a projeção continua uma comparação; ver [ADR-0017](adr/0017-aulas-quinzenais-e-quadrimestre.md) |
 | Horário de aula como string `HH:mm` | `Date` completo | Aula é hora de parede; timestamp desloca a grade inteira na primeira mudança de fuso |

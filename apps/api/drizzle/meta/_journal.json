@@ -141,6 +141,13 @@
       "when": 1791391751120,
       "tag": "0019_grade_quinzenal_quadrimestre",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791847552954,
+      "tag": "0020_lembretes_multiplos",
+      "breakpoints": true
     }
   ]
 }

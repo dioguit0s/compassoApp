@@ -19,7 +19,8 @@ import { perfilLocal } from '../src/perfil';
 import { repositorio } from '../src/sync';
 import { useTema } from '../src/tema';
 import { Folha } from '../src/ui/Cabecalho';
-import { Botao, Chip, Segmentado } from '../src/ui/Campos';
+import { Botao, Campo, Chip, Segmentado } from '../src/ui/Campos';
+import { AvisoDeDiaCheio } from '../src/ui/Carga';
 import { Relogio } from '../src/ui/Icones';
 import { SeletorEsforco, type Pontuacao } from '../src/ui/SeletorEsforco';
 import { Entrada, Texto } from '../src/ui/Texto';
@@ -29,7 +30,9 @@ const HORA_MS = 3_600_000;
 /**
  * Captura rápida (especificação §7): meta de menos de 3 s do toque ao item salvo. Um campo só
  * obrigatório — o título, já com foco e teclado aberto. A hora vem com default (próxima hora
- * cheia de hoje) e ajustes de um toque; o resto vai para o detalhe do item.
+ * cheia de hoje) e ajustes de um toque; o resto vai para o detalhe do item, aberto logo depois
+ * de salvar. Observações são opcionais e ficam recolhidas: quem não precisa delas não vê um
+ * campo a mais nem perde o foco do título.
  */
 export default function Captura() {
   const tema = useTema();
@@ -46,19 +49,24 @@ export default function Captura() {
   });
   const [tarefa, setTarefa] = useState(false);
   const [escolhendoData, setEscolhendoData] = useState(false);
+  const [comObservacoes, setComObservacoes] = useState(false);
+  const [observacoes, setObservacoes] = useState('');
 
   const salvar = () => {
     const t = titulo.trim();
     if (!t) return;
     // Lembrete padrão das configurações (issue #85).
     const lembrete = { reminderMinutesBefore: perfilLocal()?.defaultReminderMinutes ?? null };
+    const notas = { notes: observacoes.trim() ? observacoes.trim() : null };
     try {
+      let novo;
       if (tarefa && pontuacao.effort !== null) {
         // Tarefa: prazo em vez de bloco de tempo; exige esforço (§4.8).
-        repositorio.criar({
+        novo = repositorio.criar({
           ...novoCompromisso(t, inicio, null),
           ...pontuacao,
           ...lembrete,
+          ...notas,
           kind: 'task',
           startAt: null,
           dueAt: inicio,
@@ -66,20 +74,24 @@ export default function Captura() {
       } else if (diaInteiro) {
         const dia: Dia = diaDe(inicio);
         const { startAt, endAt } = limitesDiaInteiro(dia, dia);
-        repositorio.criar({
+        novo = repositorio.criar({
           ...novoCompromisso(t, startAt, endAt),
           ...pontuacao,
           ...lembrete,
+          ...notas,
           allDay: true,
         });
       } else {
-        repositorio.criar({
+        novo = repositorio.criar({
           ...novoCompromisso(t, inicio, new Date(inicio.getTime() + HORA_MS)),
           ...pontuacao,
           ...lembrete,
+          ...notas,
         });
       }
-      router.back();
+      // Item já salvo: segue para o detalhe, onde ficam disciplina, notas, recorrência e o resto.
+      // `replace` tira a captura da pilha; fechar o detalhe volta para onde a captura foi aberta.
+      router.replace({ pathname: '/item/[id]', params: { id: novo.id } });
     } catch (e) {
       setErro((e as Error).message);
     }
@@ -117,6 +129,8 @@ export default function Captura() {
           <Relogio cor={tema.rotulo} />
           <Texto style={{ fontSize: 13, color: tema.texto2 }}>{quando}</Texto>
         </View>
+        {/* Só avisa (especificação §7): salvar num dia cheio continua a um toque. */}
+        <AvisoDeDiaCheio dia={dia} />
         <View style={estilos.chips}>
           <Chip rotulo="Hoje" ativo={dia === hoje} aoTocar={() => paraDia(0)} />
           <Chip rotulo="Amanhã" ativo={dia === somarDias(hoje, 1)} aoTocar={() => paraDia(1)} />
@@ -156,6 +170,26 @@ export default function Captura() {
           </View>
         ) : null}
         <SeletorEsforco valor={pontuacao} aoMudar={setPontuacao} compacto />
+        {comObservacoes ? (
+          <Campo
+            value={observacoes}
+            onChangeText={setObservacoes}
+            multiline
+            autoFocus
+            placeholder="Observações: endereço, o que levar…"
+            placeholderTextColor={tema.inativo}
+            accessibilityLabel="Observações"
+          />
+        ) : (
+          <Pressable
+            onPress={() => setComObservacoes(true)}
+            accessibilityRole="button"
+            hitSlop={8}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            <Texto style={{ fontSize: 12.5, color: tema.ouroEscuro }}>+ observações</Texto>
+          </Pressable>
+        )}
         {erro ? <Texto style={{ color: tema.perigo, fontSize: 12.5 }}>{erro}</Texto> : null}
         <View style={estilos.rodape}>
           {pontuacao.effort !== null ? (

@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { ATRIBUTOS } from '../atributos';
 
@@ -65,7 +66,13 @@ export const items = sqliteTable(
     sourceUid: text(),
     courseId: text(),
     postponeCount: integer().notNull().default(0),
+    /** Espelho do primeiro lembrete (ADR-0018); quem manda é a lista abaixo. */
     reminderMinutesBefore: integer(),
+    /** Lembretes em minutos antes: JSON `[10, 60, 1440]`, até 5, sem repetição, crescente. */
+    remindersMinutesBefore: text({ mode: 'json' })
+      .$type<number[]>()
+      .notNull()
+      .default(sql`'[]'`),
     deletedAt: data(),
     createdAt: data().notNull(),
     /** Relógio do aparelho na última edição. Decide o LWW; nunca entra no cursor. */

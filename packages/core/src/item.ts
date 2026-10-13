@@ -17,6 +17,7 @@ import {
   type LancamentoWire,
   type MoedaWire,
 } from './ledger';
+import { MAX_LEMBRETES, MAX_MINUTOS_DE_LEMBRETE } from './lembretes';
 import { esquemaOcorrencia, type OcorrenciaWire } from './ocorrencia';
 import { validarRRule } from './rrule';
 
@@ -58,7 +59,16 @@ export const esquemaItem = z
     status: z.enum(['open', 'done']),
     completedAt: dataOpcional,
     postponeCount: z.number().int().min(0),
-    reminderMinutesBefore: z.number().int().min(0).max(525_600).nullable(),
+    /** Espelho do primeiro lembrete, para as versões do app que só conhecem um (ADR-0018). */
+    reminderMinutesBefore: z.number().int().min(0).max(MAX_MINUTOS_DE_LEMBRETE).nullable(),
+    /**
+     * Lembretes do item, em minutos antes (ADR-0018). Opcional no transporte: versão antiga do app
+     * não manda e versão antiga do servidor não devolve — `resolverLembretes` decide nos dois casos.
+     */
+    remindersMinutesBefore: z
+      .array(z.number().int().min(0).max(MAX_MINUTOS_DE_LEMBRETE))
+      .max(MAX_LEMBRETES, `no máximo ${MAX_LEMBRETES} lembretes por item`)
+      .optional(),
     deletedAt: dataOpcional,
     createdAt: dataIso,
     updatedAt: dataIso,

@@ -8,7 +8,26 @@ mova o registro para o PR/commit correspondente.
 
 ---
 
-## Tarefa atual — aulas quinzenais e quadrimestre (2026-10-07)
+## Tarefa atual — carga, lembretes múltiplos, observações e notificações (2026-10-12)
+
+Branch `ccr-f162527c-tvzehd`, um commit por tarefa. Decisões tomadas por mim onde o pedido
+deixava em aberto (a confirmar com o usuário): sync compatível pela saída (a), sem atualização
+obrigatória; lembrete fica na série, não na ocorrência; listas mostram ícone de nota e a primeira
+linha em cinza na aba Hoje (só o ícone na faixa da semana); limiar de dia cheio e preferências de
+lembrete de aula e resumo da manhã são do aparelho (não sincronizam).
+
+- [x] 1. Carga do dia e da semana: core + testes, semana, mês, Hoje, avisos, configuração, docs
+- [x] 2. Múltiplos lembretes: modelo, migrações (app 0009, API 0020), ADR-0018, sync compatível,
+      `selecionarDisparos`, detalhe, API v1, docs
+- [x] 3. Observações: captura, listas, links no detalhe, corpo da notificação, API v1, docs
+- [x] 4. Notificações: ação Concluir, lembrete de aula, resumo da manhã, diagnóstico do
+      orçamento, ícone, testes, docs
+- [x] 5. `npm run verificar`, revisar o diff, push
+- [ ] 6. **Usuário:** migrar a API (0020), APK novo (ícone e ação da notificação são nativos),
+      testar no aparelho
+
+
+## Tarefa anterior — aulas quinzenais e quadrimestre (2026-10-07)
 
 Decisões do usuário: semanas contadas do início do período (Quinzenal 1 = primeira semana);
 modelo genérico "a cada N semanas" (1–4), UI só Semanal/Quinzenal 1/Quinzenal 2; período pode
